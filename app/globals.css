@@ -3,6 +3,9 @@
 @theme {
   --color-accent: #cdff3a;
   --color-ink: #050505;
+  --color-text-secondary: rgb(244 244 245 / 0.72);
+  --color-text-muted: rgb(244 244 245 / 0.52);
+  --color-line-subtle: rgb(255 255 255 / 0.1);
   --font-sans: "Inter", ui-sans-serif, "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
   --animate-rise: rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
@@ -14,6 +17,14 @@
   }
   @keyframes caret {
     50% { opacity: 0; }
+  }
+  @keyframes generation-breathe {
+    0%, 100% { box-shadow: 0 0 0 0 rgb(205 255 58 / 0.04); }
+    50% { box-shadow: 0 0 0 3px rgb(205 255 58 / 0.14), 0 0 24px -10px rgb(205 255 58 / 0.65); }
+  }
+  @keyframes generation-image-in {
+    from { opacity: 0.45; transform: scale(1.015); }
+    to { opacity: 1; transform: scale(1); }
   }
 }
 
@@ -55,13 +66,13 @@ body::before {
     @apply rounded-3xl border border-white/[0.07] bg-white/[0.025] backdrop-blur-xl;
   }
   .label {
-    @apply text-[11px] font-medium tracking-[0.16em] text-white/40 uppercase;
+    @apply text-xs font-medium tracking-normal text-text-secondary;
   }
   .input {
     @apply w-full rounded-xl border border-white/[0.08] bg-white/[0.03] px-3.5 py-2.5 text-sm text-white transition placeholder:text-white/25 focus:border-accent/50 focus:ring-4 focus:ring-accent/10 focus:outline-none;
   }
   .btn {
-    @apply inline-flex h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-full px-5 text-sm font-medium whitespace-nowrap transition select-none active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-35 disabled:active:scale-100;
+    @apply inline-flex h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-full px-5 text-sm font-medium whitespace-nowrap transition select-none active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-35 disabled:active:scale-100;
   }
   .btn-primary {
     @apply bg-accent text-black shadow-[0_0_32px_-6px_rgb(205_255_58/0.55)] hover:shadow-[0_0_44px_-4px_rgb(205_255_58/0.75)] hover:brightness-105;
@@ -69,13 +80,66 @@ body::before {
   .btn-ghost {
     @apply border border-white/10 text-white/75 hover:border-white/20 hover:bg-white/[0.05] hover:text-white;
   }
+  .btn-text {
+    @apply inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-text-muted transition hover:bg-white/[0.05] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white;
+  }
   .btn-sm {
     @apply h-8 px-3.5 text-xs;
   }
   .chip {
-    @apply inline-flex h-8 cursor-pointer items-center rounded-full border border-white/10 px-3.5 text-xs whitespace-nowrap text-white/60 transition hover:border-white/25 hover:text-white;
+    @apply inline-flex h-8 cursor-pointer items-center rounded-full border border-white/10 px-3.5 text-xs whitespace-nowrap text-text-muted transition hover:border-white/30 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white;
   }
   .chip-on {
-    @apply border-accent/60 bg-accent/10 text-accent hover:border-accent hover:text-accent;
+    @apply border-white/60 bg-white/[0.09] text-white hover:border-white/80 hover:text-white;
+  }
+  .tag {
+    @apply inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs text-text-muted;
+  }
+  .segmented {
+    @apply inline-flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.025] p-1;
+  }
+  .segmented-item {
+    @apply inline-flex h-8 cursor-pointer items-center justify-center rounded-lg px-3 text-sm text-text-muted transition hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white;
+  }
+  .segmented-item-active {
+    @apply bg-white text-black;
+  }
+  .switch {
+    @apply relative inline-flex h-6 w-10 shrink-0 cursor-pointer items-center rounded-full border border-white/15 bg-white/10 transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white;
+  }
+  .switch[data-checked="true"] {
+    @apply border-white/70 bg-white;
+  }
+  .switch-thumb {
+    @apply ml-1 size-3.5 rounded-full bg-white/65 transition;
+  }
+  .switch[data-checked="true"] .switch-thumb {
+    @apply translate-x-4 bg-black;
+  }
+  .range {
+    @apply h-1 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-white;
+  }
+  .audio-button {
+    @apply inline-flex h-8 shrink-0 cursor-pointer items-center gap-2 rounded-full border border-white/10 px-3 text-xs text-text-muted transition hover:border-white/30 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white;
+  }
+}
+
+@layer utilities {
+  .generation-card-running {
+    animation: generation-breathe 2s ease-in-out infinite;
+  }
+  .generation-image-complete {
+    animation: generation-image-in 420ms ease-out both;
+  }
+  .generation-live-dot {
+    animation: generation-breathe 2s ease-in-out infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .generation-card-running,
+  .generation-image-complete,
+  .generation-live-dot {
+    animation: none;
   }
 }

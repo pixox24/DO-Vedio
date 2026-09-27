@@ -4,6 +4,7 @@ export const builtinTemplates: StyleTemplate[] = [
   {
     id: "serious",
     builtin: true,
+    slang: "off",
     name: "严肃权威",
     description: "新闻评论、深度分析，克制、可信",
     tone: "冷静克制，措辞精准，论据先行，像资深评论员在陈述判断",
@@ -13,11 +14,12 @@ export const builtinTemplates: StyleTemplate[] = [
     dos: ["用数据、案例和出处支撑观点", "每章开头一句话点明本章结论", "区分事实和观点"],
     donts: ["网络流行语和表情化表达", "夸张煽动的语气", "没有依据的断言"],
     sample:
-      "过去十年，这个行业的规模翻了三倍，但利润率却下降了将近一半。问题出在哪里？答案并不在需求端，而在供给侧的结构性过剩。我们先看一组数据。",
+      "过去十年，这个行业的规模翻了三倍，但利润率却下降了将近一半。问题出在哪里？出在供给侧的结构性过剩。我们先看一组数据。",
   },
   {
     id: "humor",
     builtin: true,
+    slang: "medium",
     name: "幽默风趣",
     description: "轻松好笑，梗多但不低俗",
     tone: "轻松调侃，善用反差、比喻和自嘲，像会讲段子的朋友在聊天",
@@ -27,11 +29,12 @@ export const builtinTemplates: StyleTemplate[] = [
     dos: ["用生活化的比喻解释复杂概念", "适度自嘲", "包袱和信息量交替出现"],
     donts: ["低俗和人身攻击", "为了搞笑牺牲事实准确性", "连续堆砌过时的梗"],
     sample:
-      "你以为猫咪蹭你是爱你？醒醒，它是在给你盖章——“此两脚兽已被本喵承包”。没错，你在猫眼里，大概就是一台会自动开罐头的大型家具。",
+      "猫咪蹭你一下，是在给你盖章，章上写着“此两脚兽已被本喵承包”。没错，你在猫眼里，大概就是一台会自动开罐头的大型家具。",
   },
   {
     id: "roast",
     builtin: true,
+    slang: "medium",
     name: "犀利吐槽",
     description: "观点鲜明，敢说真话，节奏快",
     tone: "直接犀利，一针见血，带点毒舌但讲道理",
@@ -41,11 +44,12 @@ export const builtinTemplates: StyleTemplate[] = [
     dos: ["短句、反问句增强力度", "吐槽背后要有干货和建议", "设计可传播的金句"],
     donts: ["无差别攻击个人或群体", "只骂不讲理", "脏话"],
     sample:
-      "花三千买的“智商税”课程，教你的第一件事是——再花五千报进阶班。说真的，这哪是教你赚钱，这是教你怎么被赚钱。",
+      "花三千买的“智商税”课程，教你的第一件事，是再花五千报进阶班。说真的，赚钱它确实教了，教的是怎么被人赚。",
   },
   {
     id: "suspense",
     builtin: true,
+    slang: "off",
     name: "悬疑叙事",
     description: "讲故事，层层设疑，吊足胃口",
     tone: "低沉、克制、富有画面感，像在深夜讲一个扑朔迷离的谜案",
@@ -60,6 +64,7 @@ export const builtinTemplates: StyleTemplate[] = [
   {
     id: "science",
     builtin: true,
+    slang: "light",
     name: "知识科普",
     description: "把复杂讲简单，逻辑清晰",
     tone: "亲切耐心，循序渐进，像一位很会讲课的老师",
@@ -69,11 +74,12 @@ export const builtinTemplates: StyleTemplate[] = [
     dos: ["先结论后解释", "用类比降低理解门槛", "适时小结"],
     donts: ["堆砌术语不解释", "错误或过时的知识", "大段抽象推导"],
     sample:
-      "为什么天空是蓝色的？其实阳光里藏着彩虹的所有颜色。蓝光的波长短，就像个子小、跑得乱的孩子，一进入大气层就被空气分子撞得到处乱窜——于是整片天空都被染成了蓝色。",
+      "为什么天空是蓝色的？其实阳光里藏着彩虹的所有颜色。蓝光的波长短，就像个子小、跑得乱的孩子，一进入大气层就被空气分子撞得到处乱窜，于是整片天空都被染成了蓝色。",
   },
   {
     id: "warm",
     builtin: true,
+    slang: "light",
     name: "温情治愈",
     description: "温柔细腻，情感共鸣",
     tone: "温柔舒缓，娓娓道来，真诚而不煽情",
@@ -88,6 +94,7 @@ export const builtinTemplates: StyleTemplate[] = [
   {
     id: "passion",
     builtin: true,
+    slang: "light",
     name: "热血激昂",
     description: "燃、有感染力，适合励志和赛事",
     tone: "激情澎湃，节奏强烈，排比和短句推动情绪",
@@ -97,11 +104,12 @@ export const builtinTemplates: StyleTemplate[] = [
     dos: ["排比、短句、强动词", "情绪逐步升级", "给出具体的行动号召"],
     donts: ["空喊口号没有内容", "全程同一强度导致疲劳", "夸大事实"],
     sample:
-      "他们说这不可能。他们说你太晚了，太弱了，太普通了。可就在那个没人看好的夜晚，他站上了赛场——第一次，摔倒；第二次，摔倒；第三次，他站了起来。",
+      "他们说这不可能。他们说你太晚了，太弱了，太普通了。可就在那个没人看好的夜晚，他站上了赛场。第一次，摔倒；第二次，摔倒；第三次，他站了起来。",
   },
   {
     id: "documentary",
     builtin: true,
+    slang: "off",
     name: "纪录片旁白",
     description: "宏大、沉稳，像专业纪录片",
     tone: "沉稳大气，画面感强，第三人称客观叙述，带有人文关怀",

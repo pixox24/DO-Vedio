@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { charsFor, resolveRate } from "@/lib/duration";
+import { slangLevels, type SlangLevel } from "@/lib/memes";
 import { speechRateLabels, type Brief, type ModelInfo, type StyleTemplate } from "@/lib/types";
-import { AutoTextarea, Field, Icon, Select, Spinner } from "./ui";
+import { AutoTextarea, Field, Icon, Select, Spinner, Switch } from "./ui";
 
 const presets = [3, 5, 10, 15];
 
@@ -17,10 +18,16 @@ type Props = {
   busy: boolean;
   onOutline: () => void;
   onOneShot: () => void;
+  hasScript?: boolean;
   onAngles: () => void;
+  autoHumanize: boolean;
+  onAutoHumanize: (on: boolean) => void;
+  /** 生效的网感档位（auto 已按风格解析） */
+  slang: SlangLevel;
+  onRepickMemes: () => void;
 };
 
-export function BriefForm({ brief, onChange, templates, models, modelId, onModel, busy, onOutline, onOneShot, onAngles }: Props) {
+export function BriefForm({ brief, onChange, templates, models, modelId, onModel, busy, onOutline, onOneShot, hasScript = false, onAngles, autoHumanize, onAutoHumanize, slang, onRepickMemes }: Props) {
   const [advanced, setAdvanced] = useState(false);
   const template = templates.find((t) => t.id === brief.templateId);
   const rate = resolveRate(brief.rate, template);
@@ -112,6 +119,34 @@ export function BriefForm({ brief, onChange, templates, models, modelId, onModel
         </div>
       </div>
 
+      <div className="space-y-2">
+        <Field label="网感" hint="用多少近期流行的梗；严肃题材建议关">
+          <Select value={brief.slang} onChange={(v) => onChange({ slang: v as Brief["slang"] })}>
+            <option value="auto">跟随风格（{slangLevels[template?.slang ?? "off"].label}）</option>
+            {Object.entries(slangLevels).map(([id, l]) => (
+              <option key={id} value={id}>
+                {l.label}
+                {l.charsPerMeme ? ` · 约每 ${l.charsPerMeme} 字 1 处` : ""}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        {slang !== "off" && (
+          <div className="flex items-start justify-between gap-3 text-[11px] leading-relaxed">
+            <span className="min-w-0 text-white/40">
+              {brief.memes === null
+                ? "生成前会先挑选本期要用的梗"
+                : brief.memes.length === 0
+                  ? "这期不用梗"
+                  : `本期用梗：${brief.memes.slice(0, 6).map((m) => m.term).join("、")}${brief.memes.length > 6 ? ` 等 ${brief.memes.length} 个` : ""}`}
+            </span>
+            <button type="button" disabled={!ready || busy} onClick={onRepickMemes} className="shrink-0 cursor-pointer text-accent/80 transition hover:text-accent disabled:cursor-not-allowed disabled:opacity-35">
+              {brief.memes === null ? "现在挑" : "重新挑"}
+            </button>
+          </div>
+        )}
+      </div>
+
       <div>
         <button type="button" onClick={() => setAdvanced((v) => !v)} className="flex cursor-pointer items-center gap-1.5 text-xs text-white/45 transition hover:text-white">
           <Icon name="chevron" className={`size-3.5 transition ${advanced ? "rotate-180" : ""}`} />
@@ -164,6 +199,13 @@ export function BriefForm({ brief, onChange, templates, models, modelId, onModel
             ))}
           </Select>
         )}
+        <div className="flex items-center justify-between gap-3 text-xs">
+          <span className="min-w-0">
+            <span className="text-white/70">成稿后自动去 AI 味</span>
+            <span className="mt-0.5 block text-[11px] text-white/30">只改命中规则的句子，不增删信息</span>
+          </span>
+          <Switch checked={autoHumanize} onChange={onAutoHumanize} label="成稿后自动去 AI 味" />
+        </div>
         <div className="flex gap-2">
           <button
             type="button"
@@ -174,9 +216,9 @@ export function BriefForm({ brief, onChange, templates, models, modelId, onModel
           >
             {hasSummary ? "先出大纲" : "先想角度"}
           </button>
-          <button type="button" className="btn btn-primary flex-[1.4]" disabled={!ready || busy} onClick={onOneShot}>
+          <button type="button" className={`btn flex-[1.4] ${hasScript ? "btn-ghost" : "btn-primary"}`} disabled={!ready || busy} onClick={onOneShot}>
             {busy ? <Spinner /> : <Icon name="sparkle" />}
-            一键成稿
+            {hasScript ? "重新生成全文" : "一键成稿"}
           </button>
         </div>
         {!hasSummary && ready && <p className="text-center text-[11px] text-white/30">概要为空时，一键成稿会自动采用 AI 构思的第一个角度</p>}

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { STREAM_ERROR_MARK, type ModelInfo, type StyleTemplate } from "./types";
+import type { VisualStyle } from "./core/types";
 
 async function errorOf(res: Response) {
   const data = await res.json().catch(() => null);
@@ -63,6 +64,35 @@ export function useTemplates() {
   return { templates, reload };
 }
 
+/** 视觉风格库；传 templateId 时按解说风格推荐排序（推荐的在前） */
+export function useVisualStyles(templateId?: string) {
+  const [styles, setStyles] = useState<VisualStyle[]>([]);
+  const reload = useCallback(
+    () =>
+      fetch(`/api/visual-styles${templateId ? `?templateId=${encodeURIComponent(templateId)}` : ""}`)
+        .then((r) => r.json())
+        .then((x) => Array.isArray(x) && setStyles(x)),
+    [templateId],
+  );
+  useEffect(() => {
+    reload();
+  }, [reload]);
+  return { styles, reload };
+}
+
+/** 模型中心里已配置并启用的生图模型；id 形如 providerId::modelId */
+export function useImageModels() {
+  const [models, setModels] = useState<{ id: string; label: string }[] | null>(null);
+  useEffect(() => {
+    type P = { providerId: string; providerLabel: string; modelId: string; modelLabel: string; kind: string; configured: boolean; enabled: boolean };
+    fetch("/api/providers", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data: { providers?: P[] }) => setModels((data.providers ?? []).filter((m) => m.kind === "image" && m.configured && m.enabled).map((m) => ({ id: `${m.providerId}::${m.modelId}`, label: `${m.providerLabel} · ${m.modelLabel}` }))))
+      .catch(() => setModels([]));
+  }, []);
+  return models;
+}
+
 /**
  * 状态持久化到 localStorage，刷新页面不丢稿。
  * 写入节流（流式写稿时每秒最多一次），页面关闭前补存；
@@ -115,4 +145,230 @@ export function download(filename: string, text: string) {
   const a = Object.assign(document.createElement("a"), { href: url, download: filename });
   a.click();
   URL.revokeObjectURL(url);
+}
+
+type ProjectState = { id: string; revision: number; doc: import("./core/types").ProjectDoc };
+export type SaveState = "idle" | "saving" | "saved" | "error" | "conflict";
+
+/**
+ * 服务端项目文档：本地先改、节流保存（乐观锁）。
+ * 冲突（别处改过）时暂停自动保存，由调用方选择载入最新或覆盖。
+ * 外部（Worker）改了文档时调用 reload()，未保存的本地修改优先保留。
+ */
+export function useProject(id: string, delay = 800) {
+  type Doc = import("./core/types").ProjectDoc;
+  const [state, setState] = useState<ProjectState | null>(null);
+  const [loadError, setLoadError] = useState("");
+  const [save, setSave] = useState<SaveState>("idle");
+  const [conflict, setConflict] = useState<ProjectState | null>(null);
+  const dirty = useRef(false);
+  const inflight = useRef<Promise<void> | null>(null);
+  const latest = useRef<ProjectState | null>(null);
+  const past = useRef<{ doc: Doc; at: number }[]>([]);
+  const [canUndo, setCanUndo] = useState(false);
+  /** 上次与服务端一致的文档，三方合并的基准 */
+  const base = useRef<ProjectState | null>(null);
+  useEffect(() => {
+    latest.current = state;
+  }, [state]);
+
+  const load = useCallback(async () => {
+    const res = await fetch(`/api/projects/${id}`);
+    if (!res.ok) throw await errorOf(res);
+    const p = (await res.json()) as ProjectState;
+    return { id: p.id, revision: p.revision, doc: p.doc };
+  }, [id]);
+
+  useEffect(() => {
+    let alive = true;
+    load().then(
+      (p) => {
+        if (!alive) return;
+        base.current = p;
+        setState(p);
+      },
+      (e) => alive && setLoadError(e instanceof Error ? e.message : String(e)),
+    );
+    return () => {
+      alive = false;
+    };
+  }, [load]);
+
+  const flush = useCallback(
+    async (force = false) => {
+      if (inflight.current) await inflight.current;
+      const cur = latest.current;
+      if (!cur) return null;
+      if (!dirty.current) return cur.revision;
+      dirty.current = false;
+      setSave("saving");
+      const run = (async () => {
+        const res = await fetch(`/api/projects/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ doc: cur.doc, revision: force ? null : cur.revision }),
+          keepalive: JSON.stringify(cur.doc).length < 60_000,
+        });
+        if (res.status === 409) {
+          const data = await res.json();
+          const theirs: ProjectState = { id, revision: data.current.revision, doc: data.current.doc };
+          dirty.current = true;
+          // 常见情况是 Worker 写回了标注、分镜、配乐：与本地修改做三方合并，不打扰用户
+          const { mergeDocs } = await import("./core/sync");
+          const m = base.current ? mergeDocs(base.current.doc, cur.doc, theirs.doc) : { doc: cur.doc, conflict: true };
+          if (!m.conflict) {
+            base.current = theirs;
+            if (latest.current) latest.current = { ...latest.current, revision: theirs.revision, doc: m.doc };
+            setState((s) => (s ? { ...s, revision: theirs.revision, doc: m.doc } : s));
+            setSave("saving");
+            return;
+          }
+          setConflict(theirs);
+          setSave("conflict");
+          return null;
+        }
+        if (!res.ok) {
+          dirty.current = true;
+          setSave("error");
+          return null;
+        }
+        const { revision } = (await res.json()) as { revision: number };
+        base.current = { id, revision, doc: cur.doc };
+        if (latest.current) latest.current = { ...latest.current, revision };
+        setState((s) => (s ? { ...s, revision } : s));
+        setSave("saved");
+        return revision;
+      })().catch(() => {
+        dirty.current = true;
+        setSave("error");
+        return null;
+      });
+      inflight.current = run.then(() => {});
+      const revision = await run;
+      inflight.current = null;
+      return revision;
+    },
+    [id],
+  );
+
+  // 节流保存；页面关闭前补存
+  useEffect(() => {
+    if (!state || !dirty.current || conflict) return;
+    const t = setTimeout(() => flush(), delay);
+    const onHide = () => flush();
+    window.addEventListener("pagehide", onHide);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("pagehide", onHide);
+    };
+  }, [state, conflict, delay, flush]);
+
+  const setDoc = useCallback((fn: Doc | ((d: Doc) => Doc)) => {
+    const cur = latest.current;
+    if (!cur) return;
+    const doc = typeof fn === "function" ? (fn as (d: Doc) => Doc)(cur.doc) : fn;
+    if (doc === cur.doc) return;
+    const now = Date.now();
+    if (!past.current.length || now - past.current.at(-1)!.at > 750) past.current.push({ doc: cur.doc, at: now });
+    else past.current.at(-1)!.at = now;
+    if (past.current.length > 50) past.current.shift();
+    setCanUndo(true);
+    dirty.current = true;
+    latest.current = { ...cur, doc };
+    setState(latest.current);
+  }, []);
+
+  const undo = useCallback(() => {
+    const entry = past.current.pop();
+    const cur = latest.current;
+    if (!entry || !cur) return;
+    latest.current = { ...cur, doc: entry.doc };
+    dirty.current = true;
+    setState(latest.current);
+    setCanUndo(past.current.length > 0);
+  }, []);
+
+  const acceptProject = useCallback((p: ProjectState) => {
+    base.current = p;
+    latest.current = p;
+    dirty.current = false;
+    past.current = [];
+    setCanUndo(false);
+    setConflict(null);
+    setSave("saved");
+    setState(p);
+  }, []);
+
+  /** 服务端文档变了（例如 Worker 写回了结果）：没有本地未保存修改时直接载入 */
+  const reload = useCallback(
+    async (revision?: number) => {
+      if (revision !== undefined && latest.current && revision <= latest.current.revision) return;
+      if (dirty.current || inflight.current) return;
+      const p = await load().catch(() => null);
+      if (p && !dirty.current) {
+        acceptProject(p);
+      }
+    },
+    [load, acceptProject],
+  );
+
+  const resolveConflict = useCallback(
+    async (choice: "theirs" | "mine") => {
+      if (!conflict) return;
+      if (choice === "theirs") {
+        acceptProject(conflict);
+      } else {
+        base.current = conflict;
+        setConflict(null);
+        dirty.current = true;
+        await flush(true);
+      }
+    },
+    [conflict, flush, acceptProject],
+  );
+
+  return { project: state, doc: state?.doc ?? null, setDoc, save, flush, reload, conflict, resolveConflict, undo, canUndo, acceptProject, loadError };
+}
+
+type JobT = import("./core/types").Job;
+
+/** 订阅项目事件：任务进度、文档修订、Worker 在线、累计花费 */
+export function useProjectEvents(id: string, onRevision?: (revision: number) => void) {
+  const [jobs, setJobs] = useState<Map<string, JobT>>(new Map());
+  const [online, setOnline] = useState<boolean | null>(null);
+  const [spend, setSpend] = useState(0);
+  const cb = useRef(onRevision);
+  useEffect(() => {
+    cb.current = onRevision;
+  });
+  useEffect(() => {
+    const es = new EventSource(`/api/projects/${id}/events`);
+    es.addEventListener("jobs", (e) => {
+      const list = JSON.parse((e as MessageEvent).data) as JobT[];
+      setJobs((m) => {
+        const n = new Map(m);
+        for (const j of list) n.set(j.key, j);
+        return n;
+      });
+    });
+    es.addEventListener("revision", (e) => cb.current?.(JSON.parse((e as MessageEvent).data).revision));
+    es.addEventListener("worker", (e) => setOnline(JSON.parse((e as MessageEvent).data).online));
+    es.addEventListener("spend", (e) => setSpend(JSON.parse((e as MessageEvent).data).costYuan));
+    return () => es.close();
+  }, [id]);
+  return { jobs, online, spend };
+}
+
+export const jobAction = (id: string, action: "cancel" | "retry") => postJson(`/api/jobs/${id}`, { action });
+
+/** 梗库里已经过气的梗（含变体），给去 AI 味检测用；拿不到时为空 */
+export function useStaleMemes() {
+  const [stale, setStale] = useState<string[]>([]);
+  useEffect(() => {
+    fetch("/api/memes", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d: { memes?: { term: string; variants: string[]; heat: string }[] }) => setStale((d.memes ?? []).filter((m) => m.heat === "dead").flatMap((m) => [m.term, ...m.variants])))
+      .catch(() => {});
+  }, []);
+  return stale;
 }

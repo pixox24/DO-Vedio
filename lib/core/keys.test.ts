@@ -1,0 +1,78 @@
+import { describe, expect, it } from "vitest";
+import { characterCardSchema, emptyDoc, type Shot } from "./types";
+import { shotGenerationKey, ttsKey, ttsRequestForLine, ttsTextForLine } from "./keys";
+import { builtinVisualStyles } from "../visual-styles/builtin";
+
+const shot = (patch: Partial<Shot> = {}): Shot => ({
+  id: "shot-1",
+  at: { lineId: "line-1", char: 0 },
+  kind: "image",
+  description: "一座雨中的城市",
+  motion: "none",
+  importance: 2,
+  referenceAssetIds: ["a"],
+  characterIds: [],
+  candidates: [],
+  sourceHash: "source",
+  locked: false,
+  ...patch,
+});
+
+describe("镜头生成缓存键", () => {
+  it("会随 seed、参考素材和模型变化", () => {
+    const doc = emptyDoc();
+    const base = shotGenerationKey(doc, shot({ seed: 1 }), "image", "image-generation");
+    expect(shotGenerationKey(doc, shot({ seed: 2 }), "image", "image-generation")).not.toBe(base);
+    expect(shotGenerationKey(doc, shot({ referenceAssetIds: ["b"] }), "image", "image-generation")).not.toBe(base);
+    expect(shotGenerationKey(doc, shot({ seed: 1 }), "video", "video-generation")).not.toBe(base);
+  });
+
+  it("包含角色卡和场景卡的内容", () => {
+    const doc = { ...emptyDoc(), characters: [characterCardSchema.parse({ id: "c", name: "主角", appearance: "黑发", wardrobe: "风衣", referenceAssetIds: [], locked: true })], scenes: [{ id: "s", name: "街道", description: "雨夜", style: "写实", referenceAssetIds: [], locked: true }] };
+    const base = shotGenerationKey(doc, shot({ characterIds: ["c"], sceneId: "s" }), "image", "image-generation");
+    const changed = { ...doc, scenes: [{ ...doc.scenes[0], description: "晴天" }] };
+    expect(shotGenerationKey(changed, shot({ characterIds: ["c"], sceneId: "s" }), "image", "image-generation")).not.toBe(base);
+  });
+
+  it("随风格和画面描述变化，不随运镜变化", () => {
+    const doc = { ...emptyDoc(), visualStyle: builtinVisualStyles[0] };
+    const base = shotGenerationKey(doc, shot(), "image", "image-generation");
+    expect(shotGenerationKey({ ...doc, visualStyle: builtinVisualStyles[1] }, shot(), "image", "image-generation")).not.toBe(base);
+    expect(shotGenerationKey(doc, shot({ description: "一座晴天的城市" }), "image", "image-generation")).not.toBe(base);
+    expect(shotGenerationKey(doc, shot({ shotSize: "close" }), "image", "image-generation")).not.toBe(base);
+    expect(shotGenerationKey(doc, shot({ motion: "zoom-in" }), "image", "image-generation")).toBe(base);
+  });
+});
+
+describe("Qwen-Audio 逐句表达标签", () => {
+  it("自动跟随已标注情绪，手动标签可覆盖或关闭", () => {
+    const line = { mood: "忧伤" as const, voiceTag: "auto" as const };
+    expect(ttsTextForLine("这段旁白。", line, "qwen-audio-3.0-tts-plus")).toBe("[sad]这段旁白。");
+    expect(ttsTextForLine("这段旁白。", { ...line, voiceTag: "excited" }, "qwen-audio-3.0-tts-plus")).toBe("[excited]这段旁白。");
+    expect(ttsTextForLine("这段旁白。", { ...line, voiceTag: "none" }, "qwen-audio-3.0-tts-plus")).toBe("这段旁白。");
+  });
+
+  it("不向 CosyVoice 注入标签，且标签会改变 TTS 缓存键", () => {
+    const line = { mood: "激昂" as const, voiceTag: "auto" as const };
+    const plain = ttsTextForLine("开始吧。", line, "cosyvoice-v3-flash");
+    const tagged = ttsTextForLine("开始吧。", line, "qwen-audio-3.0-tts-flash");
+    const voice = emptyDoc().settings.voice;
+    expect(plain).toBe("开始吧。");
+    expect(tagged).toBe("[excited]开始吧。");
+    expect(ttsKey(plain, voice)).not.toBe(ttsKey(tagged, voice));
+  });
+
+  it("SSML 停顿模式会转义文本、保留纯文本对齐内容，并使用独立缓存键", () => {
+    const line = { mood: "激昂" as const, voiceTag: "ssml:measured" as const };
+    const request = ttsRequestForLine("第一句，<重点>结束。", line, "qwen-audio-3.0-tts-plus");
+    expect(request).toEqual({ text: "<speak>第一句，<break time=\"280ms\"/>&lt;重点&gt;结束。</speak>", textType: "SSML" });
+    expect(ttsRequestForLine("甲，乙；丙", { ...line, voiceTag: "ssml:compact" }, "qwen-audio-3.0-tts-plus").text).toBe("<speak>甲，<break time=\"100ms\"/>乙；<break time=\"160ms\"/>丙</speak>");
+    expect(ttsRequestForLine("句尾，", line, "qwen-audio-3.0-tts-plus").text).toBe("<speak>句尾，</speak>");
+    expect(ttsTextForLine("第一句，<重点>结束。", line, "cosyvoice-v3-flash")).toBe("第一句，<重点>结束。");
+
+    const voice = emptyDoc().settings.voice;
+    expect(ttsKey("同一句", voice, "SSML")).not.toBe(ttsKey("同一句", voice));
+    expect(ttsKey("<speak>SSML</speak>", voice, "SSML")).toBe(ttsKey("<speak>SSML</speak>", { ...voice, instruction: "另一种全局指令" }, "SSML"));
+    expect(ttsKey("历史纯文本", voice)).toBe(ttsKey("历史纯文本", voice, "PlainText"));
+  });
+});

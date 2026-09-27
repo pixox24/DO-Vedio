@@ -3,56 +3,57 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { generateText, Output, streamText, type LanguageModel } from "ai";
 import { z } from "zod";
 import { STREAM_ERROR_MARK, type ModelInfo } from "./types";
-
-type ProviderDef = {
-  id: string;
-  label: string;
-  keyEnv: string;
-  baseURL: string;
-  defaultModel: string;
-};
-
-/** OpenAI 兼容协议的服务商；模型名和地址均可用 <ID>_MODEL / <ID>_BASE_URL 覆盖 */
-const compatible: ProviderDef[] = [
-  { id: "deepseek", label: "DeepSeek", keyEnv: "DEEPSEEK_API_KEY", baseURL: "https://api.deepseek.com/v1", defaultModel: "deepseek-chat" },
-  { id: "qwen", label: "通义千问", keyEnv: "DASHSCOPE_API_KEY", baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1", defaultModel: "qwen-plus" },
-  { id: "kimi", label: "Kimi", keyEnv: "MOONSHOT_API_KEY", baseURL: "https://api.moonshot.cn/v1", defaultModel: "kimi-latest" },
-  { id: "doubao", label: "豆包", keyEnv: "ARK_API_KEY", baseURL: "https://ark.cn-beijing.volces.com/api/v3", defaultModel: "doubao-seed-1-6-250615" },
-  { id: "openai", label: "OpenAI", keyEnv: "OPENAI_API_KEY", baseURL: "https://api.openai.com/v1", defaultModel: "gpt-5" },
-];
+import { baseUrlOf, getBuiltinTextModel, modelEnvName } from "./providers/catalog";
+import { customTextModel, listProviderProfiles, listTextModels } from "./providers/registry";
 
 const env = (name: string) => process.env[name]?.trim() || undefined;
 
-function modelName(id: string, fallback: string) {
-  return env(`${id.toUpperCase()}_MODEL`) ?? fallback;
+export function listModels(): ModelInfo[] {
+  return listTextModels();
 }
 
-export function listModels(): ModelInfo[] {
-  const list = compatible
-    .filter((p) => env(p.keyEnv))
-    .map((p) => ({ id: p.id, label: p.label, model: modelName(p.id, p.defaultModel) }));
-  if (env("ANTHROPIC_API_KEY")) {
-    list.push({ id: "claude", label: "Claude", model: modelName("anthropic", "claude-opus-5") });
-  }
-  return list;
+/** 第一个已配置、带联网搜索能力的文本模型；没有则返回 undefined */
+export function searchModel() {
+  const p = listProviderProfiles().find((x) => x.kind === "text" && !x.custom && x.configured && x.enabled && x.capabilities.includes("web-search"));
+  return p && { id: p.providerId === "anthropic" ? "claude" : p.providerId, label: `${p.providerLabel} · ${p.modelId}` };
+}
+
+/**
+ * 联网搜索参数。openai-compatible 会把 providerOptions[providerId] 原样并进请求体，
+ * 通义千问据此开启 enable_search（强制搜索、多引擎）。不支持的模型返回 undefined。
+ */
+export function searchOptions(id: string, strategy: "max" | "turbo" = "max") {
+  const p = getBuiltinTextModel(id);
+  if (!p?.capabilities.includes("web-search")) return undefined;
+  return { [p.providerId]: { enable_search: true, search_options: { forced_search: true, search_strategy: strategy } } };
 }
 
 function getModel(id: string): { model: LanguageModel; isClaude: boolean } {
-  if (id === "claude") {
+  const custom = customTextModel(id);
+  if (custom) {
+    if (custom.interfaceType === "anthropic") {
+      const anthropic = createAnthropic({ apiKey: custom.apiKey, baseURL: custom.baseUrl });
+      return { model: anthropic(custom.modelId), isClaude: true };
+    }
+    const provider = createOpenAICompatible({ name: custom.providerId, apiKey: custom.apiKey, baseURL: custom.baseUrl });
+    return { model: provider(custom.modelId), isClaude: false };
+  }
+  const providerId = id === "claude" ? "anthropic" : id;
+  if (providerId === "anthropic") {
     const apiKey = env("ANTHROPIC_API_KEY");
     if (!apiKey) throw new Error("未配置 ANTHROPIC_API_KEY");
     const anthropic = createAnthropic({ apiKey, baseURL: env("ANTHROPIC_BASE_URL") });
-    return { model: anthropic(modelName("anthropic", "claude-opus-5")), isClaude: true };
+    return { model: anthropic(modelEnvName(getBuiltinTextModel("anthropic")!)), isClaude: true };
   }
-  const p = compatible.find((x) => x.id === id);
-  const apiKey = p && env(p.keyEnv);
+  const p = getBuiltinTextModel(providerId);
+  const apiKey = p && env(p.authEnv!);
   if (!p || !apiKey) throw new Error(`模型 ${id} 未配置`);
   const provider = createOpenAICompatible({
-    name: p.id,
+    name: p.providerId,
     apiKey,
-    baseURL: env(`${p.id.toUpperCase()}_BASE_URL`) ?? p.baseURL,
+    baseURL: baseUrlOf(p)!,
   });
-  return { model: provider(modelName(p.id, p.defaultModel)), isClaude: false };
+  return { model: provider(modelEnvName(p)), isClaude: false };
 }
 
 // Claude 被安全分类器拦截时，由服务端自动改用推荐的后备模型重试
@@ -91,6 +92,16 @@ export function streamPlain(modelId: string, { instructions, prompt }: Prompt, s
  * 结构化输出。兼容协议走 json_object 模式时服务商拿不到 schema，
  * 所以把 schema 写进 instructions，各家模型都能按格式返回。
  */
+/** 一次性纯文本；search=true 时要求联网（模型不支持则报错） */
+/** search：要求联网；quick：用单引擎快速搜索（逐个核实时用），默认多引擎 */
+export async function generatePlain(modelId: string, { instructions, prompt }: Prompt, opts: { search?: boolean; quick?: boolean } = {}) {
+  const { model, isClaude } = getModel(modelId);
+  const search = opts.search ? searchOptions(modelId, opts.quick ? "turbo" : "max") : undefined;
+  if (opts.search && !search) throw new Error(`模型 ${modelId} 不支持联网搜索`);
+  const { text } = await generateText({ model, instructions, prompt, providerOptions: search ?? (isClaude ? claudeOptions : undefined) });
+  return text.trim();
+}
+
 export async function generateJson<T extends z.ZodType>(modelId: string, schema: T, { instructions, prompt }: Prompt) {
   const { model, isClaude } = getModel(modelId);
   const { output } = await generateText({

@@ -1,6 +1,7 @@
 "use client";
 
 import { charsFor, normalizeMinutes } from "@/lib/duration";
+import type { MemeRef } from "@/lib/memes";
 import type { Section, SpeechRate } from "@/lib/types";
 import { AutoTextarea, Icon, Spinner } from "./ui";
 
@@ -12,12 +13,19 @@ type Props = {
   busy: boolean;
   onWrite: () => void;
   onRegenerate: () => void;
+  /** 本期选用的梗；为空表示网感关闭或没挑梗，不显示用梗分配 */
+  memes: MemeRef[];
 };
 
-export function OutlineEditor({ sections, onChange, minutes, rate, busy, onWrite, onRegenerate }: Props) {
+export function OutlineEditor({ sections, onChange, minutes, rate, busy, onWrite, onRegenerate, memes }: Props) {
   const total = sections.reduce((s, x) => s + x.minutes, 0);
   const off = Math.abs(total - minutes) > 0.05;
   const update = (i: number, patch: Partial<Section>) => onChange(sections.map((s, j) => (j === i ? { ...s, ...patch } : s)));
+  const terms = new Set(memes.map((m) => m.term));
+  const assigned = sections.some((s) => s.memes);
+  // 手动调整分配后，其余没分配过的章节视为“本章不用梗”，避免旧大纲里全部梗每章都能用
+  const setMemes = (i: number, list: string[]) => onChange(sections.map((s, j) => (j === i ? { ...s, memes: list } : { ...s, memes: s.memes ?? [] })));
+  const taken = new Set(sections.flatMap((s) => s.memes ?? []));
 
   return (
     <div className="animate-rise space-y-4">
@@ -64,6 +72,34 @@ export function OutlineEditor({ sections, onChange, minutes, rate, busy, onWrite
                 placeholder="本章要点"
                 onChange={(e) => update(i, { points: e.target.value })}
               />
+              {memes.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[11px]">
+                  {(s.memes ?? []).filter((t) => terms.has(t)).map((t) => (
+                    <span key={t} className="inline-flex items-center gap-1 rounded-full border border-accent/30 bg-accent/[0.06] px-2 py-0.5 text-accent/90">
+                      {t}
+                      <button className="cursor-pointer text-accent/50 hover:text-accent" title="本章不用这个梗" onClick={() => setMemes(i, (s.memes ?? []).filter((x) => x !== t))}>
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                  {!s.memes && <span className="text-white/30">{assigned ? "本章不用梗" : "未分配，写稿时本期的梗都可用"}</span>}
+                  {(s.memes?.length ?? 0) < 2 && memes.some((m) => !taken.has(m.term)) && (
+                    <select
+                      className="cursor-pointer rounded-full border border-dashed border-white/15 bg-transparent px-2 py-0.5 text-white/40 outline-none hover:border-white/30"
+                      value=""
+                      onChange={(e) => e.target.value && setMemes(i, [...(s.memes ?? []), e.target.value])}
+                      aria-label="给本章加梗"
+                    >
+                      <option value="">+ 加梗</option>
+                      {memes.filter((m) => !taken.has(m.term)).map((m) => (
+                        <option key={m.term} value={m.term} className="bg-ink">
+                          {m.term}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
             </div>
             <div className="flex flex-col items-end gap-2">
               <div className="flex items-center gap-1.5 rounded-full border border-white/10 px-2.5 py-1">

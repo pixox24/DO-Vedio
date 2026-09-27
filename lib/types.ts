@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { memeRefSchema, slangLevelIds } from "./memes";
 
 /** 中文口播语速（字/分钟） */
 export const speechRates = { slow: 200, medium: 250, fast: 300 } as const;
@@ -14,6 +15,8 @@ export const templateInputSchema = z.object({
   structureHints: z.string(),
   /** 选题偏好：这种风格倾向从什么角度切题；旧模板没有该字段，默认为空 */
   ideation: z.string().default(""),
+  /** 网感：这种风格默认用多少流行梗；旧模板没有该字段，默认不用 */
+  slang: z.enum(slangLevelIds).default("off"),
   dos: z.array(z.string()),
   donts: z.array(z.string()),
   sample: z.string(),
@@ -37,6 +40,10 @@ export const briefSchema = z.object({
   avoid: z.string(),
   /** auto = 跟随风格模板 */
   rate: z.enum(["auto", "slow", "medium", "fast"]),
+  /** 网感档位；auto = 跟随风格模板 */
+  slang: z.enum(["auto", ...slangLevelIds]).default("auto"),
+  /** 本期选用的梗（快照）；null = 还没挑过，[] = 这期不用梗 */
+  memes: z.array(memeRefSchema).nullable().default(null),
 });
 export type Brief = z.infer<typeof briefSchema>;
 
@@ -74,8 +81,11 @@ export const sectionSchema = z.object({
   title: z.string(),
   points: z.string(),
   minutes: z.number().positive(),
+  /** 本章分到的梗（梗名）；没有该字段表示大纲没做分配 */
+  memes: z.array(z.string()).optional().describe("本章分到的梗名，0-2 个"),
 });
-export const outlineSchema = z.object({ sections: z.array(sectionSchema).min(1) });
+/** 模型输出的大纲：时长允许为 0（实测模型偶尔给结尾章写 0 分钟），接口里补足后再等比校正 */
+export const outlineSchema = z.object({ sections: z.array(sectionSchema.extend({ minutes: z.number().min(0) })).min(1) });
 export type Section = z.infer<typeof sectionSchema>;
 
 export const segmentSchema = z.object({ title: z.string(), text: z.string() });
@@ -95,6 +105,9 @@ export const rewriteActions = {
   restyle: "换风格",
   custom: "自定义",
   fit: "校准时长",
+  humanize: "去 AI 味",
+  addMemes: "加点梗",
+  dropMemes: "去掉梗",
 } as const;
 export type RewriteAction = keyof typeof rewriteActions;
 

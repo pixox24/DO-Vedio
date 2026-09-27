@@ -1,0 +1,9 @@
+{
+  "_note": "曲库清单。moods 可选：悬疑 紧张 轻松 温暖 激昂 史诗 科技 忧伤 中性。情绪是按曲名初步猜测的，请试听后修改。license 请填写授权来源（平台 + 授权类型/编号），source 填下载地址。改完后重启 Worker 自动生效。",
+  "tracks": [
+    { "id": "motivation-on", "file": "atlasaudio-motivation-on-519559.mp3", "title": "Motivation On", "moods": ["激昂", "科技", "轻松"], "loopable": true, "license": "待确认（疑似 Pixabay Content License）", "source": "" },
+    { "id": "chuyu", "file": "初遇.mp3", "title": "初遇", "moods": ["温暖", "轻松", "中性"], "loopable": true, "license": "待确认", "source": "" },
+    { "id": "benfu-shanhai", "file": "奔赴山海.mp3", "title": "奔赴山海", "moods": ["史诗", "激昂", "紧张"], "loopable": true, "license": "待确认", "source": "" },
+    { "id": "wanan", "file": "晚安.mp3", "title": "晚安", "moods": ["温暖", "忧伤", "悬疑"], "loopable": true, "license": "待确认", "source": "" }
+  ]
+}

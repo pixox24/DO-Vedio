@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { slangLevels } from "@/lib/memes";
 import { AutoTextarea, Field, Icon, Select, Spinner } from "@/components/ui";
 import { postJson, useModels, useTemplates } from "@/lib/client";
 import { speechRateLabels, templateInputSchema, type StyleTemplate, type TemplateInput } from "@/lib/types";
+import { useFeedback } from "@/components/feedback";
 
-const blank: TemplateInput = { name: "", description: "", tone: "", speechRate: "medium", structureHints: "", ideation: "", dos: [], donts: [], sample: "" };
+const blank: TemplateInput = { name: "", description: "", tone: "", speechRate: "medium", structureHints: "", ideation: "", slang: "off", dos: [], donts: [], sample: "" };
 
 type Editing = { id?: string; value: TemplateInput } | null;
 
@@ -13,17 +15,20 @@ export default function TemplatesPage() {
   const { templates, reload } = useTemplates();
   const [editing, setEditing] = useState<Editing>(null);
   const [error, setError] = useState("");
+  const { confirm, toast } = useFeedback();
 
   // zod 默认丢弃 schema 外的字段（id、builtin）
   const strip = (t: StyleTemplate): TemplateInput => templateInputSchema.parse(t);
 
   async function remove(t: StyleTemplate) {
-    if (!confirm(`删除模板「${t.name}」？`)) return;
+    if (!(await confirm({ title: `删除模板「${t.name}」？`, message: "删除后，使用这个模板的新稿件将无法再引用它。", confirmLabel: "删除", tone: "danger" }))) return;
     try {
       await postJson(`/api/templates/${t.id}`, undefined, "DELETE");
       await reload();
+      toast("模板已删除", "success");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      toast(e instanceof Error ? e.message : String(e), "error");
     }
   }
 
@@ -31,7 +36,7 @@ export default function TemplatesPage() {
     <div className="pt-12">
       <div className="flex flex-wrap items-end justify-between gap-6">
         <div>
-          <p className="label">Style Library</p>
+          <p className="label">风格库</p>
           <h1 className="mt-3 text-5xl font-semibold tracking-[-0.03em]">风格模板</h1>
           <p className="mt-3 max-w-lg text-sm text-white/45">内置 8 种解说风格。你也可以手动创建，或粘贴自己过去的文案，让 AI 提炼出专属风格。</p>
         </div>
@@ -169,7 +174,7 @@ function Editor({ initial, onClose, onSaved }: { initial: NonNullable<Editing>; 
             取消
           </button>
         </div>
-        <div className="grid gap-4 sm:grid-cols-[1fr_1fr_160px]">
+        <div className="grid gap-4 sm:grid-cols-[1fr_1fr_140px_140px]">
           <Field label="名称">
             <input className="input" value={value.name} onChange={(e) => set({ name: e.target.value })} />
           </Field>
@@ -181,6 +186,15 @@ function Editor({ initial, onClose, onSaved }: { initial: NonNullable<Editing>; 
               <option value="slow">舒缓</option>
               <option value="medium">适中</option>
               <option value="fast">紧凑</option>
+            </Select>
+          </Field>
+          <Field label="默认网感">
+            <Select value={value.slang} onChange={(v) => set({ slang: v as TemplateInput["slang"] })}>
+              {Object.entries(slangLevels).map(([id, l]) => (
+                <option key={id} value={id}>
+                  {l.label}
+                </option>
+              ))}
             </Select>
           </Field>
         </div>

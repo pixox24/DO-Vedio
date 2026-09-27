@@ -1,0 +1,17 @@
+{
+  "_note": "单价（人民币元）。请以服务商控制台的最新价格为准，核实后修改本文件，重启 Worker 生效。",
+  "tts": {
+    "dashscope/cosyvoice-v3-flash": { "perTenThousandChars": 1, "verified": false },
+    "dashscope/cosyvoice-v3-plus": { "perTenThousandChars": 2, "verified": false },
+    "dashscope/qwen-audio-3.0-tts-plus": { "perTenThousandChars": 2, "verified": false },
+    "dashscope/qwen-audio-3.0-tts-flash": { "perTenThousandChars": 1, "verified": false },
+    "dashscope/qwen-audio-3.1-tts-flash": { "perTenThousandChars": 1, "verified": false },
+    "dashscope/cosyvoice-v3.5-flash": { "perTenThousandChars": 1, "verified": false },
+    "dashscope/cosyvoice-v3.5-plus": { "perTenThousandChars": 2, "verified": false }
+  },
+  "llm": {
+    "_default": { "perMillionInputChars": 2, "perMillionOutputChars": 8, "verified": false },
+    "deepseek": { "perMillionInputChars": 2, "perMillionOutputChars": 8, "verified": false },
+    "qwen": { "perMillionInputChars": 0.8, "perMillionOutputChars": 2, "verified": false }
+  }
+}

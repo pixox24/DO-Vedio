@@ -43,3 +43,7 @@ next-env.d.ts
 # 自定义风格模板
 /data/
 !.env.local.example
+
+# 曲库音频（授权文件不进仓库；清单 bgm/library.json 进仓库）
+/bgm/*
+!/bgm/library.json
