@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Icon, Spinner, Switch } from "@/components/ui";
+import { Icon, Select, Spinner, Switch } from "@/components/ui";
 import type { ProviderKind, ProviderProfile } from "@/lib/providers/types";
 import { useFeedback } from "@/components/feedback";
 
@@ -93,7 +93,7 @@ export function ProviderSettings() {
               return <div key={key} className="grid gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                 <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="truncate text-sm font-medium">{model.modelLabel}</h3><span className="rounded border border-white/10 px-1.5 py-0.5 text-[10px] text-white/45">{labels[model.kind]}</span><span className={`text-xs ${available ? "text-accent" : "text-white/35"}`}>{available ? "可用" : !model.configured ? "待配置" : model.enabled ? "暂不可用" : "已停用"}</span></div><p className="mt-1 truncate font-mono text-[11px] text-white/35">{model.modelId}</p></div>
                 <div className="flex items-center gap-4 sm:justify-end">
-                  {model.custom && model.interfaceType === "openai-compatible" && <select aria-label={`${model.modelLabel} 用途`} className="rounded-md border border-white/10 bg-[#151515] px-2.5 py-1.5 text-xs text-white/70 outline-none focus:border-accent/50" value={model.kind} disabled={busy === key} onChange={(event) => patch(model, { kind: event.target.value as "text" | "image" })}><option value="text">文本模型</option><option value="image">生图模型</option></select>}
+                  {model.custom && model.interfaceType === "openai-compatible" && <Select aria-label={`${model.modelLabel} 用途`} className="w-28 text-xs" value={model.kind} disabled={busy === key} onChange={(value) => patch(model, { kind: value as "text" | "image" })}><option value="text">文本模型</option><option value="image">生图模型</option></Select>}
                   <Switch checked={model.enabled} label={`${model.modelLabel}${model.enabled ? "停用" : "启用"}`} onChange={(enabled) => patch(model, { enabled })} />
                 </div>
               </div>;
@@ -103,7 +103,7 @@ export function ProviderSettings() {
 
         <section className="border-t border-white/15 pt-6" aria-label="添加服务商">
           <div className="flex items-start gap-3"><Icon name="plus" className="mt-0.5 size-4 text-accent" /><div><h2 className="text-base font-medium">添加第三方服务商</h2><p className="mt-1 text-xs text-white/40">连接后选择模型用途，密钥只保存在服务端。</p></div></div>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2"><label className="space-y-1.5 text-xs text-white/50">服务商名称<input className="input" value={name} onChange={(event) => setName(event.target.value)} placeholder="服务商名称" /></label><label className="space-y-1.5 text-xs text-white/50">接口协议<select className="input" value={interfaceType} onChange={(event) => setInterfaceType(event.target.value as typeof interfaceType)}><option value="openai-compatible">OpenAI Compatible</option><option value="anthropic">Anthropic Messages</option></select></label><label className="space-y-1.5 text-xs text-white/50">Base URL<input className="input" value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} placeholder="https://host/v1" /></label><label className="space-y-1.5 text-xs text-white/50">API Key<input className="input" type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="输入密钥" /></label></div>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2"><label className="space-y-1.5 text-xs text-white/50">服务商名称<input className="input" value={name} onChange={(event) => setName(event.target.value)} placeholder="服务商名称" /></label><label className="space-y-1.5 text-xs text-white/50">接口协议<Select value={interfaceType} onChange={(value) => setInterfaceType(value as typeof interfaceType)}><option value="openai-compatible">OpenAI Compatible</option><option value="anthropic">Anthropic Messages</option></Select></label><label className="space-y-1.5 text-xs text-white/50">Base URL<input className="input" value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} placeholder="https://host/v1" /></label><label className="space-y-1.5 text-xs text-white/50">API Key<input className="input" type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="输入密钥" /></label></div>
           <div className="mt-4 flex justify-end"><button className="btn btn-primary btn-sm" disabled={adding || !name.trim() || !baseUrl.trim() || !apiKey.trim()} onClick={addProvider}>{adding ? <Spinner className="size-3" /> : <Icon name="plus" className="size-3.5" />}添加服务商</button></div>
         </section>
       </main>

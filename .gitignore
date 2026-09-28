@@ -47,3 +47,6 @@ next-env.d.ts
 # 曲库音频（授权文件不进仓库；清单 bgm/library.json 进仓库）
 /bgm/*
 !/bgm/library.json
+
+# 后台运行日志（启动.bat / scripts/start.mjs 产出）
+/logs/

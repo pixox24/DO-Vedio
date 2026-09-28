@@ -7,7 +7,7 @@ import {
   type ImportCandidate, type ImportStatus, type MemeInput, type MemeRisk,
 } from "@/lib/memes";
 import { useFeedback } from "./feedback";
-import { AutoTextarea, Icon, Spinner, Switch } from "./ui";
+import { AutoTextarea, Icon, Select, Spinner, Switch } from "./ui";
 
 type Extracted = { candidates: ImportCandidate[]; dropped: number; publishedAt: string };
 type Row = ImportCandidate & { checked: boolean };
@@ -149,21 +149,15 @@ export function MemeImport({ searchAvailable, onImported }: { searchAvailable: b
               <AutoTextarea className="input min-h-0 py-1.5 text-xs leading-relaxed" value={r.input.meaning} onChange={(e) => edit(i, { meaning: e.target.value })} placeholder="含义" aria-label="含义" />
               <input className="input h-8 py-0 text-xs" value={r.input.usage} onChange={(e) => edit(i, { usage: e.target.value })} placeholder="用法：在句子里怎么用、适合放在哪" aria-label="用法" />
               <div className="flex flex-wrap items-center gap-3 text-[11px] text-white/45">
-                <select className="cursor-pointer rounded bg-transparent outline-none" value={r.input.circle} onChange={(e) => edit(i, { circle: e.target.value })} aria-label="圈层">
-                  <option value="" className="bg-ink">未分类</option>
-                  {memeCircles.map((c) => (
-                    <option key={c} value={c} className="bg-ink">
-                      {c}
-                    </option>
-                  ))}
-                </select>
-                <select className="cursor-pointer rounded bg-transparent outline-none" value={r.input.risk} onChange={(e) => edit(i, { risk: e.target.value as MemeRisk })} aria-label="风险">
+                <Select value={r.input.circle} onChange={(value) => edit(i, { circle: value })} className="w-auto min-w-24" aria-label="圈层">
+                  <option value="">未分类</option>
+                  {memeCircles.map((c) => <option key={c} value={c}>{c}</option>)}
+                </Select>
+                <Select value={r.input.risk} onChange={(value) => edit(i, { risk: value as MemeRisk })} className="w-auto min-w-28" aria-label="风险">
                   {Object.entries(memeRisks).map(([id, label]) => (
-                    <option key={id} value={id} className="bg-ink">
-                      风险：{label}
-                    </option>
+                    <option key={id} value={id}>风险：{label}</option>
                   ))}
-                </select>
+                </Select>
                 {r.input.since && <span>{parseSinceMonth(r.input.since) || r.input.since} 起</span>}
               </div>
             </div>

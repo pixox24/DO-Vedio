@@ -42,16 +42,27 @@
 npm install
 cp .env.local.example .env.local   # 至少填一个 API Key
 npm run library:ingest              # 首次导入曲库并生成转场音效
-npm run dev:all                     # 网页 + Worker，http://localhost:3000
 ```
 
-内网部署：
+之后**双击根目录的「启动.bat」**即可：网页和 Worker 一起在后台拉起，浏览器打开 http://localhost:3000 。
+已经在跑的时候再双击一次就是重启（旧的自动收掉），不用先手动关。
+
+命令行下同样一个入口（`%*` 参数会传给 `scripts/start.mjs`）：
 
 ```bash
-npm run build
-npm start -- -H 0.0.0.0 -p 3000
-# 生产环境另开一个终端运行 Worker
-npm run worker
+启动.bat                # 启动 / 重启（后台，日志写 logs/）
+启动.bat status         # 看是否在运行、PID 与日志位置
+启动.bat stop           # 停止网页与 Worker
+启动.bat --fg           # 前台运行，日志直接打到终端（Ctrl+C 一起停）
+```
+
+不用 bat 时：`npm run up`、`npm run up -- stop`、`npm run up -- status`。
+想看后台输出：`Get-Content logs\web.log -Wait`（macOS/Linux：`tail -f logs/web.log`）。
+
+内网部署（先 `npm run build`）：
+
+```bash
+启动.bat --prod         # next start + worker，后台运行
 ```
 
 ## 模型配置

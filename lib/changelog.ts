@@ -39,6 +39,29 @@ export const changeKindOrder: ChangeKind[] = ["feature", "improvement", "fix", "
 
 export const changelog: ChangeEntry[] = [
   {
+    version: "0.5.0",
+    date: "2026-09-28",
+    title: "统一下拉菜单：更清晰、更稳定",
+    summary: "所有页面的下拉选择器统一为深色玻璃菜单，选项、选中态和禁用态清晰可见，菜单不会再被面板或滚动区域裁切。",
+    items: [
+      { kind: "improvement", title: "统一交互与视觉", detail: "下拉触发器、选项列表、选中勾选和禁用状态采用同一套样式，页面之间不再出现默认系统下拉框的割裂感。" },
+      { kind: "improvement", title: "菜单显示更可靠", detail: "菜单通过浮层定位并自动选择上下展开方向，长选项列表在视口内滚动，避免被卡片、面板和滚动容器遮住。" },
+      { kind: "feature", title: "键盘操作", detail: "支持 Enter、空格、上下方向键和 Escape 操作下拉菜单，保留清晰的选中反馈和禁用选项。" },
+    ],
+  },
+  {
+    version: "0.4.0",
+    date: "2026-09-28",
+    title: "一键启动与重启：启动.bat",
+    summary: "双击根目录的「启动.bat」即可启动或重启网页与后台 Worker，不用再区分首次启动和重启；停止、状态查看与生产模式都收在同一个入口。",
+    items: [
+      { kind: "feature", title: "双击即启", detail: "启动.bat 一个入口同时拉起网页和 Worker，后台运行、日志写 logs/；检测到旧实例会先自动收掉再启动，所以双击第二次就是重启。" },
+      { kind: "feature", title: "停止与状态", detail: "启动.bat stop 停掉网页和 Worker；启动.bat status 查看是否在运行、PID 与日志位置，网页没响应时也能看出进程还在不在。" },
+      { kind: "feature", title: "生产模式与前台模式", detail: "启动.bat --prod 用构建产物以 next start + worker 后台运行（内网可访问 0.0.0.0:3000）；--fg 前台运行，日志直接打在终端，Ctrl+C 一起停。" },
+      { kind: "infra", title: "环境自适配", detail: "启动时自动跳过 PATH 里过旧的 Node（Worker 的 node:sqlite 需要 22.13+），并绕开 npm 在 Node 子进程里找不到自身的问题，旧环境也能双击就跑。" },
+    ],
+  },
+  {
     version: "0.3.0",
     date: "2026-09-28",
     title: "文案更像人写：去 AI 味与热梗",

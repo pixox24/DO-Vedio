@@ -213,9 +213,9 @@ export function SentencePanel({ id, store, jobs, onChanged, onSeek }: { id: stri
                     <div className="grid gap-2 sm:grid-cols-[minmax(180px,240px)_1fr] sm:items-end">
                       <label className="block space-y-1.5">
                         <span className="label">旁白表达</span>
-                        <select className="input h-8 py-1.5 text-xs" value={line.voiceTag ?? "auto"} disabled={!supportsEmotionTags} onChange={(event) => updateVoiceTag(line.id, event.target.value as VoiceTag)}>
+                        <Select className="h-8 min-h-8 py-1.5 text-xs" value={line.voiceTag ?? "auto"} disabled={!supportsEmotionTags} aria-label="旁白表达" onChange={(value) => updateVoiceTag(line.id, value as VoiceTag)}>
                           {voiceTagChoices.map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}
-                        </select>
+                        </Select>
                       </label>
                         <p className="pb-1 text-[11px] leading-5 text-white/40">{supportsEmotionTags ? line.voiceTag?.startsWith("ssml:") ? "SSML 只调节句内停顿；本句不叠加情绪标签或全局表达指令。点击「重录」试听。" : `句子情绪：${line.mood ?? "未标注"}；修改后点击本句「重录」生效。` : "切换到 Qwen-Audio 模型后可设置逐句情绪和 SSML 停顿。"}</p>
                     </div>
@@ -362,8 +362,8 @@ export function StoryboardPanel({ id, store, timeline, jobs, onSeek }: { id: str
         </div>
       </div>
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-white/10 pt-4">
-        <label className="sr-only" htmlFor="image-model">生图模型</label><select id="image-model" className="w-full min-w-0 flex-1 basis-full rounded-md border border-white/10 bg-[#151515] px-3 py-2 text-xs text-white/80 outline-none focus:border-accent/50 sm:basis-auto" value={imageModelId} onChange={(event) => setImageModelId(event.target.value)}><option value="">{imageModels.length ? "选择生图模型" : "暂无可用生图模型"}</option>{imageModels.map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}</select>
-        <label className="sr-only" htmlFor="candidate-count">每镜候选数</label><select id="candidate-count" className="rounded-md border border-white/10 bg-[#151515] px-3 py-2 text-xs text-white/80 outline-none" value={candidateCount} onChange={(event) => setCandidateCount(Number(event.target.value))}>{[1, 2, 3, 4].map((count) => <option key={count} value={count}>{count} 张/镜</option>)}</select>
+        <Select className="w-full min-w-0 flex-1 basis-full text-xs sm:basis-auto" value={imageModelId} aria-label="生图模型" onChange={setImageModelId}><option value="">{imageModels.length ? "选择生图模型" : "暂无可用生图模型"}</option>{imageModels.map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}</Select>
+        <Select className="w-auto min-w-32 text-xs" value={String(candidateCount)} aria-label="每镜候选数" onChange={(value) => setCandidateCount(Number(value))}>{[1, 2, 3, 4].map((count) => <option key={count} value={count}>{count} 张/镜</option>)}</Select>
         <button className="btn btn-primary btn-sm" disabled={!imageModelId || !remaining || bulkBusy || activeImages > 0} onClick={generateAll}>{bulkBusy ? <Spinner className="size-3.5" /> : <Icon name="sparkle" className="size-3.5" />}全量生成图片</button>
       </div>
       {errors.bulk && <p className="mt-2 text-xs text-red-300">{errors.bulk}</p>}

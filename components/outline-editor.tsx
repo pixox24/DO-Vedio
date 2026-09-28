@@ -3,7 +3,7 @@
 import { charsFor, normalizeMinutes } from "@/lib/duration";
 import type { MemeRef } from "@/lib/memes";
 import type { Section, SpeechRate } from "@/lib/types";
-import { AutoTextarea, Icon, Spinner } from "./ui";
+import { AutoTextarea, Icon, Select, Spinner } from "./ui";
 
 type Props = {
   sections: Section[];
@@ -84,19 +84,15 @@ export function OutlineEditor({ sections, onChange, minutes, rate, busy, onWrite
                   ))}
                   {!s.memes && <span className="text-white/30">{assigned ? "本章不用梗" : "未分配，写稿时本期的梗都可用"}</span>}
                   {(s.memes?.length ?? 0) < 2 && memes.some((m) => !taken.has(m.term)) && (
-                    <select
-                      className="cursor-pointer rounded-full border border-dashed border-white/15 bg-transparent px-2 py-0.5 text-white/40 outline-none hover:border-white/30"
+                    <Select
+                      className="w-auto min-w-24 text-[11px]"
                       value=""
-                      onChange={(e) => e.target.value && setMemes(i, [...(s.memes ?? []), e.target.value])}
+                      onChange={(value) => value && setMemes(i, [...(s.memes ?? []), value])}
                       aria-label="给本章加梗"
                     >
                       <option value="">+ 加梗</option>
-                      {memes.filter((m) => !taken.has(m.term)).map((m) => (
-                        <option key={m.term} value={m.term} className="bg-ink">
-                          {m.term}
-                        </option>
-                      ))}
-                    </select>
+                      {memes.filter((m) => !taken.has(m.term)).map((m) => <option key={m.term} value={m.term}>{m.term}</option>)}
+                    </Select>
                   )}
                 </div>
               )}

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type TextareaHTMLAttributes } from "react";
+import { createPortal } from "react-dom";
+import { Children, Fragment, isValidElement, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type TextareaHTMLAttributes } from "react";
 
 export function Field({ label, hint, children }: { label: string; hint?: ReactNode; children: ReactNode }) {
   return (
@@ -42,13 +43,168 @@ export function Spinner({ className = "size-4" }: { className?: string }) {
   return <span className={`inline-block animate-spin rounded-full border-2 border-current border-r-transparent ${className}`} />;
 }
 
-export function Select({ value, onChange, children, className = "" }: { value: string; onChange: (v: string) => void; children: ReactNode; className?: string }) {
+type SelectOption = { value: string; label: ReactNode; disabled?: boolean };
+
+function readOptions(children: ReactNode): SelectOption[] {
+  const options: SelectOption[] = [];
+  Children.forEach(children, (child) => {
+    if (!isValidElement(child)) return;
+    if (child.type === "option") {
+      const props = child.props as { value?: string | number; disabled?: boolean; children?: ReactNode };
+      options.push({ value: String(props.value ?? props.children ?? ""), label: props.children, disabled: props.disabled });
+      return;
+    }
+    if (child.type === Fragment) options.push(...readOptions((child.props as { children?: ReactNode }).children));
+  });
+  return options;
+}
+
+export function Select({ value, onChange, children, className = "", disabled = false, "aria-label": ariaLabel }: { value: string; onChange: (v: string) => void; children: ReactNode; className?: string; disabled?: boolean; "aria-label"?: string }) {
+  const options = readOptions(children);
+  const selectedIndex = options.findIndex((option) => option.value === value);
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(selectedIndex >= 0 ? selectedIndex : 0);
+  const [placement, setPlacement] = useState({ top: 0, left: 0, width: 0, above: false });
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuId = `select-${useId().replaceAll(":", "")}`;
+  const current = options[selectedIndex] ?? options[0];
+
+  const updatePlacement = () => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const width = Math.min(Math.max(rect.width, 180), window.innerWidth - 24);
+    const left = Math.min(Math.max(12, rect.left), window.innerWidth - width - 12);
+    const roomBelow = window.innerHeight - rect.bottom - 16;
+    const above = roomBelow < 220 && rect.top > roomBelow;
+    setPlacement({ top: above ? rect.top - 8 : rect.bottom + 8, left, width, above });
+  };
+
+  useLayoutEffect(() => {
+    if (open) updatePlacement();
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!triggerRef.current?.contains(target) && !menuRef.current?.contains(target)) setOpen(false);
+    };
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    window.addEventListener("resize", updatePlacement);
+    window.addEventListener("scroll", updatePlacement, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("resize", updatePlacement);
+      window.removeEventListener("scroll", updatePlacement, true);
+    };
+  }, [open]);
+
+  const choose = (option: SelectOption) => {
+    if (option.disabled) return;
+    onChange(option.value);
+    setOpen(false);
+  };
+
+  const moveActive = (direction: 1 | -1) => {
+    if (!options.length) return;
+    let next = activeIndex;
+    for (let i = 0; i < options.length; i += 1) {
+      next = (next + direction + options.length) % options.length;
+      if (!options[next].disabled) {
+        setActiveIndex(next);
+        return;
+      }
+    }
+  };
+
+  const onTriggerKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (disabled) return;
+    if (event.key === "Escape" && open) {
+      event.preventDefault();
+      setOpen(false);
+      return;
+    }
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      if (!open) setOpen(true);
+      moveActive(event.key === "ArrowDown" ? 1 : -1);
+      return;
+    }
+    if ((event.key === "Enter" || event.key === " ") && open) {
+      event.preventDefault();
+      const option = options[activeIndex];
+      if (option) choose(option);
+      return;
+    }
+    if ((event.key === "Enter" || event.key === " ") && !open) {
+      event.preventDefault();
+      setOpen(true);
+    }
+  };
+
+  const menu = open && typeof document !== "undefined" ? createPortal(
+    <div
+      ref={menuRef}
+      id={menuId}
+      role="listbox"
+      aria-label={ariaLabel}
+      className={`select-menu ${placement.above ? "select-menu-above" : ""}`}
+      style={{ top: placement.top, left: placement.left, width: placement.width }}
+    >
+      {options.length ? options.map((option, index) => (
+        <button
+          key={`${option.value}-${index}`}
+          type="button"
+          role="option"
+          aria-selected={option.value === value}
+          disabled={option.disabled}
+          className="select-option"
+          data-active={index === activeIndex}
+          onMouseEnter={() => setActiveIndex(index)}
+          onClick={() => choose(option)}
+        >
+          <span className="min-w-0 truncate">{option.label}</span>
+          {option.value === value && <Icon name="check" className="size-3.5 shrink-0 text-accent" />}
+        </button>
+      )) : <span className="block px-3 py-2 text-xs text-white/35">暂无选项</span>}
+    </div>,
+    document.body,
+  ) : null;
+
   return (
     <div className={`relative ${className}`}>
-      <select value={value} onChange={(e) => onChange(e.target.value)} className="input cursor-pointer appearance-none pr-9">
-        {children}
-      </select>
-      <Icon name="chevron" className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-white/40" />
+      <button
+        ref={triggerRef}
+        type="button"
+        className={`select-trigger ${className}`}
+        disabled={disabled}
+        aria-label={ariaLabel}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={menuId}
+        onClick={() => {
+          if (!disabled) {
+            setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0);
+            setOpen((currentOpen) => !currentOpen);
+          }
+        }}
+        onKeyDown={onTriggerKeyDown}
+      >
+        <span className={`min-w-0 truncate ${current ? "" : "text-white/35"}`}>{current?.label ?? "请选择"}</span>
+        <Icon name="chevron" className={`size-4 shrink-0 text-white/40 transition-transform ${open ? "rotate-180 text-accent" : ""}`} />
+      </button>
+      {menu}
     </div>
   );
 }

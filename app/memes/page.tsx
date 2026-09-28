@@ -374,20 +374,16 @@ export default function MemesPage() {
                 <span className={`ml-1.5 ${trustTone[m.trust]}`}>· {m.trust === "verified" ? "✓ " : ""}{memeTrusts[m.trust]}</span>
               </p>
               <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-white/[0.06] pt-3 text-[11px]">
-                <select className={`cursor-pointer rounded bg-transparent outline-none ${riskTone[m.risk]}`} value={m.risk} onChange={(e) => patch(m, { risk: e.target.value as MemeRisk })} aria-label="风险">
+                <Select value={m.risk} onChange={(value) => patch(m, { risk: value as MemeRisk })} className={`w-auto min-w-16 text-[11px] ${riskTone[m.risk]}`} aria-label="风险">
                   {Object.entries(memeRisks).map(([id, label]) => (
-                    <option key={id} value={id} className="bg-ink">
-                      {label}
-                    </option>
+                    <option key={id} value={id}>{label}</option>
                   ))}
-                </select>
-                <select className="cursor-pointer rounded bg-transparent text-white/45 outline-none" value={m.storedHeat} onChange={(e) => patch(m, { heat: e.target.value as MemeHeat })} aria-label="热度">
+                </Select>
+                <Select value={m.storedHeat} onChange={(value) => patch(m, { heat: value as MemeHeat })} className="w-auto min-w-20 text-[11px] text-white/45" aria-label="热度">
                   {Object.entries(memeHeats).map(([id, label]) => (
-                    <option key={id} value={id} className="bg-ink">
-                      {label}
-                    </option>
+                    <option key={id} value={id}>{label}</option>
                   ))}
-                </select>
+                </Select>
                 <input
                   className="min-w-0 flex-1 rounded border border-white/10 bg-transparent px-1.5 py-0.5 text-white/60 outline-none placeholder:text-white/20 focus:border-white/30"
                   defaultValue={m.say}
