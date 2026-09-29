@@ -275,6 +275,7 @@ function WorkbenchInner({ id, store }: { id: string; store: Loaded }) {
   };
 
   const onWrite = async () => {
+    if (!(await confirmFullRewrite())) return;
     const b = await ensureMemes(brief);
     if (!b) return;
     await run("write", async (signal) => {

@@ -28,6 +28,8 @@ export type TimelineShot = {
   description: string;
   onScreenText?: string;
   imageSrc?: string;
+  /** AI 视频镜头的本地媒体地址；与图片地址分开，避免视频回退成占位卡。 */
+  videoSrc?: string;
   focus?: { x: number; y: number };
   /** 章节标题卡：章节序号和标题 */
   chapter?: { index: number; title: string };
@@ -93,9 +95,16 @@ export function layoutLines(lines: Line[], art: Pick<Artifacts, "tts" | "charsPe
     }
     out.push({ id: l.id, startMs: t, endMs: t + dur, chars, estimated: !tts, tts, segmentIndex: l.segmentIndex });
     const next = lines[k + 1];
-    t += dur + (l.pauseAfterMs ?? (next && next.segmentIndex !== l.segmentIndex ? TIMING.pauseBetweenSegmentsMs : TIMING.pauseInSegmentMs));
+    // 段落配音的块内：用原音频里的自然停顿；块尾才看标注停顿 / 默认停顿
+    const pause = next && sameBlock(tts, art.tts.get(next.id)) ? tts!.block!.gapAfterMs : (l.pauseAfterMs ?? (next && next.segmentIndex !== l.segmentIndex ? TIMING.pauseBetweenSegmentsMs : TIMING.pauseInSegmentMs));
+    t += dur + pause;
   });
   return { lines: out, endMs: t };
+}
+
+/** 两句是否是同一段落块里前后相邻的两句（中间的停顿和换气来自原音频） */
+export function sameBlock(a: TtsResult | undefined, b: TtsResult | undefined) {
+  return !!a?.block && !!b?.block && a.block.key === b.block.key && b.block.index === a.block.index + 1;
 }
 
 export function buildTimeline(doc: ProjectDoc, art: Artifacts, aspect: Aspect): Timeline {
@@ -110,9 +119,14 @@ export function buildTimeline(doc: ProjectDoc, art: Artifacts, aspect: Aspect): 
   if (missing) issues.push({ level: "warn", message: `${missing} 句还没有配音，按估算时长显示为静音` });
 
   // 配音
-  const voice: TimelineVoice[] = laid
-    .filter((l) => l.tts)
-    .map((l) => ({ lineId: l.id, src: art.media(l.tts!.assetId), startMs: l.startMs, durationMs: l.endMs - l.startMs, trimStartMs: l.tts!.speechStartMs }));
+  // 块内相邻两句的切片首尾相接：前一句播到切点（保留尾音），后一句从切点开始（保留换气）
+  const voice: TimelineVoice[] = laid.flatMap((l, k) => {
+    const tts = l.tts;
+    if (!tts) return [];
+    const lead = sameBlock(laid[k - 1]?.tts, tts) ? tts.speechStartMs : 0;
+    const tail = sameBlock(tts, laid[k + 1]?.tts) ? tts.durationMs - tts.speechEndMs : 0;
+    return [{ lineId: l.id, src: art.media(tts.assetId), startMs: l.startMs - lead, durationMs: l.endMs - l.startMs + lead + tail, trimStartMs: tts.speechStartMs - lead }];
+  });
 
   // 镜头
   const sorted = sortShots(doc.shots, doc.lines);
@@ -142,7 +156,8 @@ export function buildTimeline(doc: ProjectDoc, art: Artifacts, aspect: Aspect): 
       motion: s.motion,
       description: s.description,
       onScreenText: s.onScreenText,
-      imageSrc: s.assetId ? art.media(s.assetId) : undefined,
+      imageSrc: s.assetId && s.kind !== "video" ? art.media(s.assetId) : undefined,
+      videoSrc: s.assetId && s.kind === "video" ? art.media(s.assetId) : undefined,
       focus: s.focus,
       chapter: s.kind === "title" ? { index: seg + 1, title: s.onScreenText || doc.segments[seg]?.title || "" } : undefined,
       caption,

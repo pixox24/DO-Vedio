@@ -24,7 +24,7 @@ export const renderStage = defineStage<RenderInput, RenderOutput & { timelineHas
     const generation = beginGenerationRun({ projectId: input.projectId, jobId: ctx.job.id, providerId: "internal", modelId: "remotion-renderer", kind: "video", inputHash: hash, params: { stage: "render", aspect: input.aspect, quality: input.quality } });
     let out;
     try {
-      out = await renderTimeline({ projectId: input.projectId, timeline: t, timelineHash: hash, quality: input.quality, signal: ctx.signal, progress: ctx.progress });
+      out = await renderTimeline({ projectId: input.projectId, timeline: t, timelineHash: hash, quality: input.quality, signal: ctx.signal, current: ctx.current, progress: ctx.progress });
     } catch (e) {
       failGenerationRun(generation, e, ctx.signal.aborted);
       throw e;

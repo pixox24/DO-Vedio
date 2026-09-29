@@ -2,10 +2,11 @@ import { stableStringify } from "../core/hash";
 import type { TtsResult } from "../core/keys";
 import { projectDocSchema, type VoiceSettings } from "../core/types";
 import { lineTtsKeys } from "../pipeline/artifacts";
-import { billedCharsOf, estimateTtsCost, ttsPrice } from "../pipeline/pricing";
+import { ttsPrice } from "../pipeline/pricing";
 import { cacheMany } from "./cache";
 import { all, get, json, parseJson, run, tx } from "./db";
-import { cancelJob, enqueue, latestJobByKey } from "./jobs";
+import { cancelJob, latestJobByKey } from "./jobs";
+import { enqueueTtsSteps, ttsJobKeyOf, ttsSteps } from "../pipeline/tts-jobs";
 import { getProject } from "./projects";
 
 type Row = { project_id: string; voice: string; previous_voice: string; status: "pending" | "applied" };
@@ -29,7 +30,7 @@ export function quoteVoiceChange(projectId: string, voice: VoiceSettings) {
   const reusable = target.filter((item) => hits.has(item.key)).length;
   const generate = existing ? target.length - reusable : 0;
   const price = ttsPrice(voice.provider, voice.model);
-  const estimatedCostYuan = price.unit && price.unit !== "characters" ? null : target.filter((item) => !hits.has(item.key)).reduce((sum, item) => sum + estimateTtsCost(voice.provider, voice.model, billedCharsOf(item.spoken)), 0);
+  const estimatedCostYuan = price.unit && price.unit !== "characters" ? null : ttsSteps(project.doc, projectId, target.filter((item) => !hits.has(item.key)), { voice }).reduce((sum, step) => sum + step.cost, 0);
   return { total: target.length, existing, affected, reusable, generate, estimatedCostYuan, changed: !same(project.doc.settings.voice, voice) };
 }
 
@@ -41,7 +42,7 @@ export function getVoiceChange(projectId: string) {
   const keys = keysFor(projectId, row.status === "pending" ? voice : previousVoice);
   const hits = cacheMany<TtsResult>(keys.map((item) => item.key));
   const missing = keys.filter((item) => !hits.has(item.key));
-  const failed = row.status === "pending" ? missing.filter((item) => latestJobByKey(jobKey(projectId, item.key))?.status === "failed").length : 0;
+  const failed = row.status === "pending" ? missing.filter((item) => latestJobByKey(jobKey(projectId, ttsJobKeyOf(item)))?.status === "failed").length : 0;
   return { status: row.status, voice, total: keys.length, ready: keys.length - missing.length, missing: missing.length, failed, revertible: row.status === "applied" && missing.length === 0 };
 }
 
@@ -99,14 +100,8 @@ export function retryVoiceChange(projectId: string) {
   const voice = parseJson<VoiceSettings>(row.voice, {} as VoiceSettings);
   const keys = keysFor(projectId, voice);
   const hits = cacheMany<TtsResult>(keys.map((item) => item.key));
-  keys.forEach((item, index) => {
-    if (hits.has(item.key)) return;
-    enqueue({
-      projectId, stage: "tts", key: jobKey(projectId, item.key), target: `第 ${index + 1} 句`, priority: 4,
-      input: { projectId, lineId: item.line.id, text: item.line.text, spoken: item.spoken, ttsText: item.ttsText, textType: item.textType, map: item.map, voice },
-      costEstimate: estimateTtsCost(voice.provider, voice.model, billedCharsOf(item.spoken)),
-    });
-  });
+  const project = getProject(projectId)!;
+  enqueueTtsSteps(projectId, ttsSteps(project.doc, projectId, keys.filter((item) => !hits.has(item.key)), { voice, keyPrefix: jobKey(projectId, "") }));
   finalizeVoiceChange(projectId);
   return getVoiceChange(projectId);
 }

@@ -1,6 +1,7 @@
 import { fail, handle } from "@/lib/api";
 import { lineSpeech } from "@/lib/core/keys";
 import { lineTtsKeys } from "@/lib/pipeline/artifacts";
+import { ttsJobKeyOf } from "@/lib/pipeline/tts-jobs";
 import { syncLines } from "@/lib/pipeline/plan";
 import { cacheMany } from "@/lib/server/cache";
 import { latestJobByKey } from "@/lib/server/jobs";
@@ -27,13 +28,23 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/projects/[id]/l
       revision: p.revision,
       lines: keys.map((k) => {
         const tts = hits.get(k.key);
-        const latest = latestJobByKey(k.key);
+        const latest = latestJobByKey(ttsJobKeyOf(k), id);
         const job = latest && (!tts || latest.status === "queued" || latest.status === "running" || latest.status === "failed") ? latest : undefined;
         return {
           id: k.line.id,
           spoken: lineSpeech(k.line, lex).spoken,
           ttsKey: k.key,
           audio: tts ? { src: mediaUrl(tts.assetId), startMs: tts.speechStartMs, endMs: tts.speechEndMs, aligned: tts.aligned, alignmentSource: tts.alignmentSource ?? (tts.aligned ? "provider" : "estimated") } : null,
+          // 段落配音：同一块的句子共享 key；有音频后带上切分置信度和整段音频
+          block: k.block ? {
+            key: k.block.key,
+            index: k.block.index,
+            count: k.block.members.length,
+            confidence: tts?.block?.confidence ?? null,
+            blockSrc: tts?.block ? mediaUrl(tts.block.blockAssetId) : null,
+            // 实际合成结果：整段切分 / 拆小后切分（所在子块句数少于计划）/ 退回逐句
+            outcome: !tts ? null : !tts.block ? "line" : tts.block.count < k.block.members.length ? "halved" : "block",
+          } : null,
           capabilities: voiceProfile?.capabilities ?? [],
           job: job ? { id: job.id, status: job.status, error: job.error } : null,
         };

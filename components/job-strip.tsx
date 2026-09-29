@@ -6,7 +6,8 @@ import { Icon, Spinner } from "@/components/ui";
 import { jobAction } from "@/lib/client";
 import type { Job } from "@/lib/core/types";
 
-export type StepDef = { stage: string; label: string };
+/** stages：一栏汇总多个步骤（例如逐句配音与段落配音） */
+export type StepDef = { stage: string; stages?: string[]; label: string };
 
 type Summary = { total: number; done: number; running: number; failed: Job[]; queued: number; progress: number; message: string };
 
@@ -25,7 +26,7 @@ export function JobStrip({ steps, jobs, extra }: { steps: StepDef[]; jobs: Job[]
   return (
     <div className="grid gap-px overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.07] sm:grid-cols-3 lg:grid-cols-[repeat(var(--steps),minmax(0,1fr))]" style={{ "--steps": steps.length } as React.CSSProperties}>
       {steps.map((s) => {
-        const list = jobs.filter((j) => j.stage === s.stage);
+        const list = jobs.filter((j) => (s.stages ?? [s.stage]).includes(j.stage));
         const sum = summarize(list);
         const active = sum.running > 0 || sum.queued > 0;
         const state = sum.failed.length ? "failed" : active ? "active" : sum.total > 0 && sum.done === sum.total ? "done" : "idle";

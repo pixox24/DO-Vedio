@@ -5,6 +5,8 @@ import type { Job } from "../core/types";
 export type StageContext = {
   job: Job;
   signal: AbortSignal;
+  /** 当前执行仍持有任务租约，取消或重试后立即返回 false。 */
+  current(): boolean;
   /** 上报进度（0–1）；同时续租约 */
   progress(p: number, message?: string): void;
   /** 记一笔账 */

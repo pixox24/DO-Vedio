@@ -232,9 +232,9 @@ interface Stage<I, O> {
 "worker":   "tsx worker/index.ts",
 "dev:worker": "tsx watch worker/index.ts",
 "dev:all":  "concurrently -n web,worker \"next dev\" \"npm:dev:worker\"",
-"start:all": "concurrently -n web,worker \"next start -H 0.0.0.0\" \"npm:worker\""
+"start:all": "concurrently -n web,worker \"node scripts/next-start.mjs\" \"npm:worker\""
 ```
-内网生产环境建议用 pm2 或 systemd 分别托管两个进程。备份方法：先执行 `sqlite3 data/app.db ".backup data/backup.db"`，再复制 `data/media/`。
+生产启动默认只监听 `127.0.0.1`；需要局域网访问时显式设置 `DO_VEDIO_HOST=0.0.0.0`，并配置 `DO_VEDIO_ACCESS_TOKEN`。内网生产环境建议用 pm2 或 systemd 分别托管两个进程。备份方法：先执行 `sqlite3 data/app.db ".backup data/backup.db"`，再复制 `data/media/`。
 
 ### 4.7 P0 新增依赖
 

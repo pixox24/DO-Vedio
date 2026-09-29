@@ -45,6 +45,17 @@ describe("分镜草稿转镜头", () => {
   });
 });
 
+describe("分镜结果的文案快照", () => {
+  it("文案在生成期间变化时不允许把旧范围当成新鲜结果", async () => {
+    const { rangeMatchesCurrent } = await import("@/lib/pipeline/stages/storyboard");
+    expect(rangeMatchesCurrent(lines, lines, { from: 0, to: 1 })).toBe(true);
+    expect(rangeMatchesCurrent(lines, lines.map((line, i) => i === 1 ? { ...line, text: "改过的句子" } : line), { from: 0, to: 1 })).toBe(false);
+    expect(rangeMatchesCurrent(lines, lines.map((line, i) => i === 1 ? { ...line, mood: "紧张" as const } : line), { from: 0, to: 1 })).toBe(false);
+    expect(rangeMatchesCurrent(lines, [lines[0], lines[2], lines[1]], { from: 1, to: 2 })).toBe(false);
+    expect(rangeMatchesCurrent(lines, [lines[0], lines[1], lines[2], line("new", "后来新增")], { from: 0, to: 1 })).toBe(true);
+  });
+});
+
 describe("局部重做的前后文", () => {
   it("传相邻镜头的画面，而不是只传旁白", async () => {
     const { partialContext } = await import("@/lib/pipeline/stages/storyboard");

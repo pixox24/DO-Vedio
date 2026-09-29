@@ -94,20 +94,21 @@ export function streamPlain(modelId: string, { instructions, prompt }: Prompt, s
  */
 /** 一次性纯文本；search=true 时要求联网（模型不支持则报错） */
 /** search：要求联网；quick：用单引擎快速搜索（逐个核实时用），默认多引擎 */
-export async function generatePlain(modelId: string, { instructions, prompt }: Prompt, opts: { search?: boolean; quick?: boolean } = {}) {
+export async function generatePlain(modelId: string, { instructions, prompt }: Prompt, opts: { search?: boolean; quick?: boolean; signal?: AbortSignal } = {}) {
   const { model, isClaude } = getModel(modelId);
   const search = opts.search ? searchOptions(modelId, opts.quick ? "turbo" : "max") : undefined;
   if (opts.search && !search) throw new Error(`模型 ${modelId} 不支持联网搜索`);
-  const { text } = await generateText({ model, instructions, prompt, providerOptions: search ?? (isClaude ? claudeOptions : undefined) });
+  const { text } = await generateText({ model, instructions, prompt, abortSignal: opts.signal, providerOptions: search ?? (isClaude ? claudeOptions : undefined) });
   return text.trim();
 }
 
-export async function generateJson<T extends z.ZodType>(modelId: string, schema: T, { instructions, prompt }: Prompt) {
+export async function generateJson<T extends z.ZodType>(modelId: string, schema: T, { instructions, prompt }: Prompt, signal?: AbortSignal) {
   const { model, isClaude } = getModel(modelId);
   const { output } = await generateText({
     model,
     instructions: `${instructions}\n\n只输出一个 JSON 对象，不要任何解释，结构必须符合以下 JSON Schema：\n${JSON.stringify(z.toJSONSchema(schema))}`,
     prompt,
+    abortSignal: signal,
     output: Output.object({ schema }),
     providerOptions: isClaude ? claudeOptions : undefined,
   });

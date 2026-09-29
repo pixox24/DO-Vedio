@@ -96,18 +96,23 @@ export async function generateBatch<T>(
     onProgress?: (done: number, total: number) => void;
     concurrency?: number;
     signal: AbortSignal;
+    current?: () => boolean;
   },
 ): Promise<string[]> {
+  const stopped = () => opts.signal.aborted || opts.current?.() === false;
+  const abort = () => opts.signal.reason ?? Object.assign(new Error("已取消"), { name: "AbortError" });
+  if (stopped()) throw abort();
   const slots: (string | undefined)[] = items.map((_, i) => cacheGet<{ asset: string }>(opts.itemKey(i))?.asset);
   let done = slots.filter(Boolean).length;
-  slots.forEach((asset, i) => asset && opts.onAsset?.(i, asset));
+  slots.forEach((asset, i) => asset && !stopped() && opts.onAsset?.(i, asset));
   opts.onProgress?.(done, items.length);
   const queue = items.map((_, i) => i).filter((i) => !slots[i]);
   const errors: unknown[] = [];
   const worker = async () => {
-    for (let i = queue.shift(); i !== undefined && !opts.signal.aborted; i = queue.shift()) {
+    for (let i = queue.shift(); i !== undefined && !stopped(); i = queue.shift()) {
       try {
         const asset = await opts.run(items[i], i);
+        if (stopped()) throw abort();
         cachePut(opts.itemKey(i), "media-item", { asset });
         slots[i] = asset;
         done++;
@@ -119,7 +124,7 @@ export async function generateBatch<T>(
     }
   };
   await Promise.all(Array.from({ length: Math.min(opts.concurrency ?? BATCH_CONCURRENCY, queue.length) }, worker));
-  if (opts.signal.aborted) throw Object.assign(new Error("已取消"), { name: "AbortError" });
+  if (stopped()) throw abort();
   if (errors.length) {
     const first = errors[0] instanceof Error ? errors[0].message : String(errors[0]);
     const message = `${done}/${items.length} 张成功，${errors.length} 张失败：${first}`;

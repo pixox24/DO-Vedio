@@ -318,4 +318,12 @@ CREATE TABLE voice_changes (
 );
 `,
   },
+  {
+    id: 12,
+    name: "job_lock_tokens",
+    sql: `
+ALTER TABLE jobs ADD COLUMN lock_token TEXT;
+CREATE INDEX jobs_lock_token ON jobs(id, lock_token);
+    `,
+  },
 ];

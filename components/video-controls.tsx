@@ -13,7 +13,8 @@ import { assetStale, compileShotPrompt, MAX_SHOT_CHARACTERS, needsGeneratedImage
 import { useFeedback } from "@/components/feedback";
 import type { Timeline } from "@/lib/core/timeline";
 import type { TimelineShot } from "@/lib/core/timeline";
-import { lineSpeech, ttsRequestForLine } from "@/lib/core/keys";
+import { isTtsStage, lineSpeech, ttsRequestForLine } from "@/lib/core/keys";
+import { paragraphSupported } from "@/lib/core/blocks";
 import { cleanSelectedWord } from "@/lib/selection";
 
 const ShotThumbnail = dynamic(() => import("./shot-thumbnail").then((m) => m.ShotThumbnail), { ssr: false, loading: () => <div className="grid h-full place-items-center bg-[#17242c] text-xs text-white/40">正在加载预览</div> });
@@ -32,6 +33,8 @@ type LineInfo = {
   audio: { src: string; startMs: number; endMs: number; aligned: boolean; alignmentSource?: "provider" | "forced" | "estimated" } | null;
   capabilities?: string[];
   job: { id: string; status: string; error: string | null } | null;
+  /** 段落配音：同一块的句子一起合成、一起重录 */
+  block: { key: string; index: number; count: number; confidence: number | null; blockSrc: string | null; outcome: "block" | "halved" | "line" | null } | null;
 };
 
 export function SentencePanel({ id, store, jobs, onChanged, onSeek }: { id: string; store: ProjectStore; jobs?: Map<string, Job>; onChanged?: () => void; onSeek?: (lineId: string) => void }) {
@@ -66,7 +69,7 @@ export function SentencePanel({ id, store, jobs, onChanged, onSeek }: { id: stri
       setLoading(false);
     }
   }, [id]);
-  const ttsJobRevision = jobs ? [...jobs.values()].filter((job) => job.stage === "tts").map((job) => `${job.id}:${job.status}`).sort().join("|") : "";
+  const ttsJobRevision = jobs ? [...jobs.values()].filter((job) => isTtsStage(job.stage)).map((job) => `${job.id}:${job.status}`).sort().join("|") : "";
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -84,6 +87,8 @@ export function SentencePanel({ id, store, jobs, onChanged, onSeek }: { id: stri
 
   async function revoice(lineId: string) {
     setError("");
+    const block = lines.find((item) => item.id === lineId)?.block;
+    if (block && !(await confirm({ title: "重录本段？", message: `段落配音下，本句与同段共 ${block.count} 句一起合成。重录会整段重新生成（按 ${block.count} 句计费），新音频成功后替换。`, confirmLabel: "重录本段" }))) return;
     try {
       if ((await store.flush()) == null) throw new Error("句子设置保存失败，请重试");
       await postJson(`/api/projects/${id}/lines/${lineId}`, {});
@@ -210,7 +215,8 @@ export function SentencePanel({ id, store, jobs, onChanged, onSeek }: { id: stri
                 <div className="mt-3 flex flex-wrap items-center gap-2 pl-7">
                   {item.audio ? <><AudioButton src={item.audio.src} startMs={item.audio.startMs} endMs={item.audio.endMs} /><span className="text-[11px] text-white/40">{item.audio.alignmentSource === "provider" ? "精确对齐" : "估算对齐"}</span></> : <span className="text-sm text-amber-200/80">未配音</span>}
                   {item.job && <span className="text-xs text-white/35">{item.job.status === "running" ? "合成中" : item.job.status === "queued" ? "排队中" : item.job.error || item.job.status}</span>}
-                  <button className="chip h-7 px-2.5" onClick={() => revoice(item.id)}>重录</button>
+                  {item.block && <span className="text-[11px] text-white/40" title="段落配音：本句与同段句子一起合成">段落 {item.block.index + 1}/{item.block.count}{item.block.outcome === "line" ? " · 切分不可靠，已逐句合成" : item.block.outcome === "halved" ? " · 已拆小合成" : item.block.confidence != null && item.block.confidence < 0.8 ? " · 切分待复核" : ""}</span>}
+                  <button className="chip h-7 px-2.5" onClick={() => revoice(item.id)}>{item.block ? "重录本段" : "重录"}</button>
                 </div>
                 {open && (
                   <div className="mt-3 ml-7 border-t border-white/[0.06] pt-3">
@@ -293,7 +299,7 @@ export function StoryboardPanel({ id, store, timeline, jobs, onSeek }: { id: str
     setBulkBusy(true);
     setErrors((current) => ({ ...current, bulk: "" }));
     try {
-      await store.flush();
+      if ((await store.flush()) == null) throw new Error("项目设置保存失败，请重试");
       const response = await fetch(`/api/projects/${encodeURIComponent(id)}/shots/generate`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ modelId: imageModelId, candidateCount }) });
       const data = await response.json() as { error?: string };
       if (!response.ok) throw new Error(data.error || "提交批量任务失败");
@@ -320,7 +326,7 @@ export function StoryboardPanel({ id, store, timeline, jobs, onSeek }: { id: str
     setGenerating(shot.id);
     setErrors((old) => ({ ...old, [shot.id]: "" }));
     try {
-      await store.flush();
+      if ((await store.flush()) == null) throw new Error("镜头设置保存失败，请重试");
       const response = await fetch(`/api/projects/${encodeURIComponent(id)}/shots/${encodeURIComponent(shot.id)}/generate`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind: "image", modelId: imageModelId, candidateCount }) });
       const data = await response.json() as { error?: string };
       if (!response.ok) throw new Error(data.error || "提交生成任务失败");
@@ -554,6 +560,7 @@ export function SettingsPanel({ id, store, draft, setDraft, onChanged }: { id: s
       {voice.provider === "google-gemini" && <p className="md:col-span-2 -mt-2 text-xs leading-5 text-amber-200/70">启用 Google Gemini 后，本项目的配音文本会发送到 Google Gemini API。</p>}
       <Field label="音色模型"><Select value={voice.model} disabled={pending} onChange={(v) => { const m = models.find((x) => x.id === v); updateVoice({ model: v, voiceId: m?.voices[0]?.id ?? voice.voiceId }); }}><option value={voice.model}>{currentModel?.label ?? voice.model}{currentModel && !currentModel.configured ? `（${currentModel.configurationHint ?? "待配置"}）` : ""}</option>{models.filter((m) => m.id !== voice.model).map((m) => <option key={m.id} value={m.id} disabled={m.configured === false}>{m.label}{m.configured === false ? `（${m.configurationHint ?? "待配置"}）` : ""}</option>)}</Select></Field>
       <Field label="音色"><div className="flex gap-2"><Select value={voice.voiceId} disabled={pending} onChange={(v) => updateVoice({ voiceId: v })} className="min-w-0 flex-1">{voices.length ? voices.map((v) => <option key={v.id} value={v.id}>{v.name} · {v.style}</option>) : <option value={voice.voiceId}>{voice.voiceId}</option>}</Select><button className="btn btn-ghost btn-sm" disabled={previewing} onClick={previewVoice}>{previewing ? <Spinner className="size-3" /> : "试听"}</button>{preview && <audio id="voice-preview" className="hidden" src={preview} />}</div></Field>
+      <Field label="合成粒度" hint={paragraphSupported(voice) ? (voice.granularity === "paragraph" ? `实验：按自然段合成再切成单句，句间衔接更自然、停顿更舒展；改一句会整段重录${voice.provider === "google-gemini" ? "。Gemini 没有字级时间戳，按停顿切分，切不准时自动拆小或逐句合成" : ""}` : "每句单独合成，改一句只重录一句") : "当前服务商暂只支持逐句合成"}><Select value={paragraphSupported(voice) ? voice.granularity : "line"} disabled={pending || !paragraphSupported(voice)} onChange={(v) => updateVoice({ granularity: v as VoiceSettings["granularity"] })}><option value="line">逐句</option><option value="paragraph">段落（实验）</option></Select></Field>
       <Field label="语速"><fieldset disabled={pending}><RangeField label="" value={voice.rate} min={0.5} max={2} step={0.05} suffix="x" onChange={(value) => updateVoice({ rate: value })} /></fieldset></Field>
       <Field label="音量"><fieldset disabled={pending}><RangeField label="" value={voice.volume} min={0} max={100} step={1} suffix="" onChange={(value) => updateVoice({ volume: value })} /></fieldset></Field>
       <Field label={voice.provider === "google-gemini" ? "旁白表达指令（暂不可用）" : "旁白表达指令"} hint={voice.provider === "google-gemini" ? "当前不生效；已填写内容保留。" : "应用后生效"}><AutoTextarea value={voice.provider === "google-gemini" ? voice.google?.stylePrompt ?? "" : voice.instruction} onChange={(event) => updateVoice({ instruction: event.target.value })} className="input min-h-16 py-2 text-xs leading-5" placeholder="例如：沉稳、清晰，略带悬念的纪录片旁白表达" maxLength={voice.provider === "google-gemini" ? 1000 : 500} disabled={voice.provider === "google-gemini" || pending} /></Field>

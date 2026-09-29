@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { isTtsStage } from "../core/keys";
 import { emptyDoc, projectDocSchema, type Project, type ProjectDoc, type ProjectDocInput, type ProjectPipelineStatus, type ProjectSummary } from "../core/types";
 import { all, get, json, parseJson, run, tx } from "./db";
 
@@ -50,7 +51,7 @@ function projectStatus(project: Project, activeJob?: { stage: string; updated_at
   if (failedJob && failedJob.updated_at >= (activeJob?.updated_at ?? 0) && failedJob.updated_at >= (latestRenderAt ?? 0)) return "failed";
   if (activeJob && activeJob.updated_at >= (latestRenderAt ?? 0)) {
     if (activeJob.stage === "annotate") return "annotating";
-    if (activeJob.stage === "tts") return "voicing";
+    if (isTtsStage(activeJob.stage)) return "voicing";
     if (activeJob.stage === "storyboard") return "storyboard";
     if (activeJob.stage === "music") return "music";
     if (activeJob.stage === "render") return "rendering";

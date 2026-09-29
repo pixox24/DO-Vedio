@@ -105,6 +105,14 @@ describe("时间轴", () => {
     expect(h.shots[1].endMs).toBe(h.durationMs);
     expect(v.width).toBe(1080);
   });
+
+  it("视频镜头把素材地址交给视频层，而不是图片占位层", () => {
+    const doc = docWith([line("v", "视频旁白")]);
+    doc.shots = [{ ...blankShot("video", "v"), kind: "video", assetId: "v".repeat(64) }];
+    const timeline = buildTimeline(doc, { ...art({}), media: (hash: string) => `/api/media/${hash}` }, "16:9");
+    expect(timeline.shots[0]).toMatchObject({ videoSrc: `/api/media/${"v".repeat(64)}` });
+    expect(timeline.shots[0].imageSrc).toBeUndefined();
+  });
 });
 
 describe("分镜规则", () => {
@@ -168,5 +176,40 @@ describe("分镜规则", () => {
     expect(r.stale.has("s1")).toBe(false);
     // s2 移到 c 后与 s3 冲突，保留一个；锁定的不算过期
     expect(r.stale.has("s3")).toBe(false);
+  });
+});
+
+describe("段落配音的时间轴", () => {
+  const block = (index: number, gapAfterMs: number) => ({ key: "blk", index, count: 3, gapAfterMs, confidence: 1, splitSource: "provider" as const, blockAssetId: "whole" });
+  // 每个切片：前半段停顿 + 1s 语音 + 后半段停顿
+  const tts = (index: number, lead: number, tail: number, gap: number): TtsResult => ({ assetId: `a${index}`, durationMs: lead + 1000 + tail, speechStartMs: lead, speechEndMs: lead + 1000, chars: [], aligned: true, spokenChars: 5, block: block(index, gap) });
+
+  it("块内用原音频的自然停顿，块尾用标注停顿；切片首尾相接", () => {
+    const lines = [line("a", "第一句话。", 0, { pauseAfterMs: 50 }), line("b", "第二句话。"), line("c", "第三句话。", 0, { pauseAfterMs: 900 }), line("d", "块外一句。")];
+    const art = { tts: new Map<string, TtsResult | undefined>([["a", tts(0, 0, 300, 600)], ["b", tts(1, 300, 200, 400)], ["c", tts(2, 200, 0, 0)]]) };
+    const { lines: laid } = layoutLines(lines, art);
+    // a→b：自然停顿 600（忽略 a 上标注的 50）；b→c：400；c 是块尾，按标注 900
+    expect(laid[1].startMs - laid[0].endMs).toBe(600);
+    expect(laid[2].startMs - laid[1].endMs).toBe(400);
+    expect(laid[3].startMs - laid[2].endMs).toBe(900);
+
+    const doc: ProjectDoc = { ...emptyDoc(), lines };
+    const t = buildTimeline(doc, { ...art, tracks: new Map(), media: (h) => h }, "16:9");
+    const [va, vb, vc] = t.voice;
+    // a 播到切点（带 300 尾音），b 从切点开始（带 300 换气），两段首尾相接
+    expect(va.startMs + va.durationMs).toBe(vb.startMs);
+    expect(vb.trimStartMs).toBe(0);
+    expect(vb.startMs + vb.durationMs).toBe(vc.startMs);
+    // 块首从有效语音开始，块尾到有效语音结束
+    expect(va.trimStartMs).toBe(0);
+    expect(va.startMs).toBe(t.lines[0].startMs);
+    expect(vc.startMs + vc.durationMs).toBe(t.lines[2].endMs);
+  });
+
+  it("不相邻或不同块的句子按普通规则排", () => {
+    const lines = [line("a", "第一句话。"), line("b", "第二句话。")];
+    const other = { ...tts(1, 300, 0, 0), block: { ...block(1, 0), key: "other" } };
+    const { lines: laid } = layoutLines(lines, { tts: new Map([["a", tts(0, 0, 300, 600)], ["b", other]]) });
+    expect(laid[1].startMs - laid[0].endMs).toBe(TIMING.pauseInSegmentMs);
   });
 });

@@ -78,7 +78,8 @@ export const annotateStage = defineStage<AnnotateInput, { count: number }>({
       const prompt = annotatePrompt(input.lines, { title: input.title, segmentTitle: input.segmentTitle, lexicon: lex });
       const generation = beginGenerationRun({ projectId: input.projectId, jobId: ctx.job.id, providerId: input.modelId === "claude" ? "anthropic" : input.modelId, modelId: input.modelId, kind: "text", inputHash: key, params: { stage: "annotate", lineCount: input.lines.length } });
       try {
-        const raw = await generateJson(input.modelId, outSchema, prompt);
+        const raw = await generateJson(input.modelId, outSchema, prompt, ctx.signal);
+        if (!ctx.current()) throw ctx.signal.reason ?? new DOMException("任务已取消", "AbortError");
         ann = sanitize(input.lines, raw);
         cachePut(key, "annotate", ann);
         const chars = prompt.instructions.length + prompt.prompt.length;
@@ -90,7 +91,11 @@ export const annotateStage = defineStage<AnnotateInput, { count: number }>({
         throw e;
       }
     }
-    mutateProject(input.projectId, (doc) => ({ ...doc, lines: applyAnnotations(doc.lines, ann!, input.lines) }));
+    if (!ctx.current()) throw ctx.signal.reason ?? new DOMException("任务已取消", "AbortError");
+    mutateProject(input.projectId, (doc) => {
+      if (!ctx.current()) return null;
+      return { ...doc, lines: applyAnnotations(doc.lines, ann!, input.lines) };
+    });
     return { count: ann.length };
   },
 });

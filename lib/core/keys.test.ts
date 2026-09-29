@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { characterCardSchema, emptyDoc, type Shot } from "./types";
-import { shotGenerationKey, ttsKey, ttsRequestForLine, ttsTextForLine } from "./keys";
+import { characterCardSchema, emptyDoc, voiceSettingsSchema, type Shot } from "./types";
+import { shotGenerationKey, ttsBlockKey, ttsBlockLineKey, ttsKey, ttsRequestForLine, ttsTextForLine } from "./keys";
 import { quickHash } from "./hash";
 import { builtinVisualStyles } from "../visual-styles/builtin";
 
@@ -88,5 +88,25 @@ describe("Gemini TTS 缓存指纹", () => {
     expect(ttsKey("同一句", { ...voice, google: { ...voice.google, outputEncoding: "WAV" } })).not.toBe(base);
     expect(ttsKey("同一句", { ...voice, google: { ...voice.google, sampleRateHertz: 48000 } })).not.toBe(base);
     expect(ttsKey("同一句", { ...voice, google: { ...voice.google, alignment: "provider" } })).not.toBe(base);
+  });
+});
+
+describe("段落配音缓存键", () => {
+  it("逐句键与引入段落模式之前逐字一致（旧缓存不失效），合成粒度不影响逐句键", () => {
+    const d = voiceSettingsSchema.parse({});
+    expect(ttsKey("第一句。", d)).toBe("tts:ff9e19094e07b53e8f70a72fd027d332");
+    expect(ttsKey("<speak>a</speak>", { ...d, instruction: "稳" }, "SSML")).toBe("tts:c0a564812151a7172abb0908df496a41");
+    expect(ttsKey("第一句。", { ...d, instruction: "稳" })).toBe("tts:45c035d0e4c9dd116fa9b5ec1c8d52b5");
+    expect(ttsKey("第一句。", { ...d, granularity: "paragraph" })).toBe(ttsKey("第一句。", d));
+  });
+
+  it("块键随块内任一句、连接方式和音色变化；块内各句的键互不相同", () => {
+    const d = voiceSettingsSchema.parse({});
+    const base = ttsBlockKey(["甲。", "乙。"], "", d);
+    expect(ttsBlockKey(["甲。", "丙。"], "", d)).not.toBe(base);
+    expect(ttsBlockKey(["甲。", "乙。"], "\n", d)).not.toBe(base);
+    expect(ttsBlockKey(["甲。", "乙。"], "", { ...d, voiceId: "other" })).not.toBe(base);
+    expect(ttsBlockLineKey(base, 0)).not.toBe(ttsBlockLineKey(base, 1));
+    expect(ttsBlockLineKey(base, 0)).not.toBe(ttsKey("甲。", d));
   });
 });

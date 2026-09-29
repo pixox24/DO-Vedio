@@ -25,6 +25,15 @@ describe("任务队列", () => {
     expect(c2).toBeUndefined();
   });
 
+  it("同一配音键在不同项目中分别排队", async () => {
+    const { enqueue, latestJobByKey } = await import("@/lib/server/jobs");
+    const a = enqueue({ projectId: "tts-project-a", stage: "tts", key: "tts:shared", input: {} });
+    const b = enqueue({ projectId: "tts-project-b", stage: "tts", key: "tts:shared", input: {} });
+    expect(b.id).not.toBe(a.id);
+    expect(latestJobByKey("tts:shared", "tts-project-a")?.id).toBe(a.id);
+    expect(latestJobByKey("tts:shared", "tts-project-b")?.id).toBe(b.id);
+  });
+
   it("租约过期的任务回到队列（Worker 崩溃恢复）", async () => {
     const { enqueue, claim, recoverExpired, getJob } = await import("@/lib/server/jobs");
     const { run } = await import("@/lib/server/db");
@@ -36,6 +45,22 @@ describe("任务队列", () => {
     const again = claim("w3", ["echo"]);
     expect(again?.id).toBe(j.id);
     expect(again?.attempts).toBe(2);
+  });
+
+  it("取消后重试会使旧执行代次失效", async () => {
+    const { enqueue, claim, cancelJob, retryJob, succeed, getJob } = await import("@/lib/server/jobs");
+    const job = enqueue({ projectId: "p", stage: "echo", key: "generation-token", input: {} });
+    const old = claim("old-worker", ["echo"]);
+    expect(old?.lockToken).toBeTruthy();
+    expect(cancelJob(job.id)).toBe(true);
+    expect(retryJob(job.id)).toBe(true);
+    const next = claim("new-worker", ["echo"]);
+    expect(next?.lockToken).toBeTruthy();
+    expect(next?.lockToken).not.toBe(old?.lockToken);
+    expect(succeed(job.id, "old-worker", { stale: true }, 0, old?.lockToken)).toBe(false);
+    expect(getJob(job.id)?.status).toBe("running");
+    expect(succeed(job.id, "new-worker", { fresh: true }, 0, next?.lockToken)).toBe(true);
+    expect(getJob(job.id)?.result).toEqual({ fresh: true });
   });
 
   it("可重试错误退避后重新排队，永久错误直接失败", async () => {

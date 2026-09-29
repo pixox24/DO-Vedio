@@ -10,6 +10,7 @@ import { CastPanel } from "@/components/cast-panel";
 import { Icon, SegmentedControl, Spinner } from "@/components/ui";
 import { postJson, useProject, useProjectEvents } from "@/lib/client";
 import type { Timeline } from "@/lib/core/timeline";
+import { isTtsStage } from "@/lib/core/keys";
 import { mediaUrl, type Aspect, type VoiceSettings } from "@/lib/core/types";
 import { useFeedback } from "@/components/feedback";
 import type { VideoPreviewHandle } from "@/components/video-preview";
@@ -23,7 +24,7 @@ const Preview = dynamic(() => import("@/components/video-preview").then((m) => m
 
 const steps = [
   { stage: "annotate", label: "断句标注" },
-  { stage: "tts", label: "配音" },
+  { stage: "tts", stages: ["tts", "tts-block"], label: "配音" },
   { stage: "cast", label: "识别角色" },
   { stage: "storyboard", label: "分镜" },
   { stage: "music", label: "配乐" },
@@ -94,7 +95,7 @@ export function VideoStudio({ id }: { id: string }) {
   const { jobs, online, spend } = useProjectEvents(id, (rev) => {
     reload(rev);
   });
-  const ttsJobRevision = ["queued", "running", "succeeded", "failed"].map((status) => [...jobs.values()].filter((job) => job.stage === "tts" && job.status === status).length).join(":");
+  const ttsJobRevision = ["queued", "running", "succeeded", "failed"].map((status) => [...jobs.values()].filter((job) => isTtsStage(job.stage) && job.status === status).length).join(":");
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -127,7 +128,7 @@ export function VideoStudio({ id }: { id: string }) {
     setStartQuality(quality);
     setError("");
     try {
-      await store.flush();
+      if ((await store.flush()) == null) throw new Error("项目设置保存失败，请重试");
       const r = await postJson<PlanInfo>(`/api/projects/${id}/produce`, { action: "start", confirmBudget, goal: { until: quality === "draft" ? "render" : store.doc.settings.pauseAfterPreview ? "preview" : "render", aspects: store.doc.settings.aspects, quality } });
       if (r.blocked) {
         const allowed = await confirm({ title: "预计会超出项目预算", message: r.blocked, confirmLabel: "仍要继续", tone: "danger" });

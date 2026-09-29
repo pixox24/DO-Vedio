@@ -15,6 +15,6 @@ export async function POST(req: Request) {
   return handle(async () => {
     const { modelId, samples } = await parseBody(req, body);
     const joined = samples.map((s, i) => `【样本 ${i + 1}】\n${s}`).join("\n\n");
-    return Response.json(await generateJson(modelId, templateInputSchema, extractPrompt(joined)));
+    return Response.json(await generateJson(modelId, templateInputSchema, extractPrompt(joined), req.signal));
   });
 }

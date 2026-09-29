@@ -39,6 +39,64 @@ export const changeKindOrder: ChangeKind[] = ["feature", "improvement", "fix", "
 
 export const changelog: ChangeEntry[] = [
   {
+    version: "0.12.0",
+    date: "2026-09-29",
+    title: "段落配音支持 Gemini 与自动降级",
+    summary: "段落级配音开放 Google Gemini；切分前先校验语速，切不准时自动拆小重录、最后才退回逐句，漏读或截断的音频不会进入成片。",
+    items: [
+      { kind: "feature", title: "Gemini 段落配音（实验）", detail: "Gemini 没有字级时间戳，改为把音频里的停顿按顺序对齐到句末和句内逗号上再切分；「他说，……继续。」这类逗号处的长停顿不会再被误当成句界。" },
+      { kind: "improvement", title: "三级降级", detail: "整段切分或语速校验不通过时，先对半拆开分别重录（最多两层），仍不通过才逐句合成；所有结果最后一次性写入，中途失败不留半截。" },
+      { kind: "improvement", title: "漏读、重读与切错检测", detail: "整段语速偏离音色实测语速过多判为漏读、重读或截断，某句语速偏离整段过多判为句界切错，阈值来自真实探针数据。" },
+      { kind: "improvement", title: "分块更均衡", detail: "超长自然段按最少块数、字数均衡、优先句号处拆分，不再把段落最后一句单独留下。句子面板会标出「已拆小合成」「已逐句合成」。" },
+    ],
+  },
+  {
+    version: "0.11.0",
+    date: "2026-09-29",
+    title: "段落级配音（实验）",
+    summary: "配音可以按自然段整段合成，再自动切回单句，句间音色、语气和停顿更连贯；字幕、镜头锚点和单句试听照常可用。",
+    items: [
+      { kind: "feature", title: "合成粒度：逐句 / 段落", detail: "制作设置里新增「合成粒度」。段落模式把同一自然段的几句一次合成，再按时间戳切成单句，切换时沿用「后台生成、就绪后统一切换、可撤回」的换音色流程。当前开放阿里云百炼（CosyVoice / Qwen）。" },
+      { kind: "improvement", title: "保留自然停顿与换气", detail: "段落内句间停顿用原音频里的实测值（约 0.5–0.8 秒，逐句模式固定 0.25 秒），相邻句的音频首尾相接，播放效果与整段原音频一致；同样的文案成片会略长。" },
+      { kind: "improvement", title: "重录按段提示", detail: "段落模式下句子显示所在段落位置，「重录本段」会先说明将整段重新生成及计费句数；切分不可靠时自动退回逐句合成，字幕不会错位。" },
+      { kind: "fix", title: "Gemini 在国内网络下可用", detail: "新增 GOOGLE_GEMINI_PROXY_URL，只让 Gemini 请求走本机代理，DashScope 等国内服务继续直连；地区受限和代理未启动时给出明确提示。" },
+      { kind: "infra", title: "配音任务统一构造", detail: "自动编排、全部重录、单句重录和换音色共用同一套任务构造与报价；新增逐句 vs 段落的 A/B 探针脚本 npm run tts:paragraph-probe。" },
+    ],
+  },
+  {
+    version: "0.10.0",
+    date: "2026-09-29",
+    title: "并发制作可靠性升级",
+    summary: "补齐从访问控制到后台任务执行的关键保护，避免未授权访问、旧任务回写、保存覆盖和过期分镜影响项目或产生重复费用。",
+    items: [
+      { kind: "feature", title: "共享访问保护", detail: "页面和 API 支持共享令牌登录，生产服务默认仅本机监听，降低项目数据和付费接口被意外暴露的风险。" },
+      { kind: "improvement", title: "保存与取消更可靠", detail: "保存冲突会合并请求期间的最新编辑，长任务支持取消并在写回前复核状态，减少并发编辑造成的覆盖。" },
+      { kind: "fix", title: "任务代次隔离", detail: "取消、重试或租约恢复后，旧 Worker 不能再完成新代次任务、重复记账或覆盖新结果；TTS 任务也按项目隔离。" },
+      { kind: "fix", title: "分镜和成片一致性", detail: "分镜生成会校验文案快照，视频镜头使用真实视频素材，保存冲突时不会提交新的生图或渲染任务。" },
+      { kind: "infra", title: "流水线状态校验", detail: "媒体批处理、角色定妆、镜头生成和渲染在关键阶段检查当前任务代次，并通过项目级查询避免跨项目读写。" },
+    ],
+  },
+  {
+    version: "0.9.2",
+    date: "2026-09-29",
+    title: "内网访问保护",
+    summary: "为页面、API 和媒体接口增加共享访问令牌，并将生产服务默认收紧为本机监听，降低误部署造成的数据和费用风险。",
+    items: [
+      { kind: "feature", title: "共享令牌登录", detail: "配置 DO_VEDIO_ACCESS_TOKEN 后，未登录页面会跳转到登录页，API 未授权统一返回 401；令牌只保存在 HttpOnly Cookie 中。" },
+      { kind: "infra", title: "生产监听地址收紧", detail: "生产启动默认监听 127.0.0.1，只有显式设置 DO_VEDIO_HOST 才会开放到局域网；生产漏配令牌时服务直接返回 503。" },
+    ],
+  },
+  {
+    version: "0.9.1",
+    date: "2026-09-29",
+    title: "Gemini TTS 连接诊断",
+    summary: "模型中心现在可以直接验证 Gemini 3.8 Flash 与 Flash-Lite 的真实 TTS 连接，配置问题不再只显示为模糊的待配置状态。",
+    items: [
+      { kind: "feature", title: "一键测试连接", detail: "每个 Gemini TTS 模型都可发起短文本生成测试，展示延迟、音频格式和可执行的失败原因，不写入项目素材、缓存或账本。" },
+      { kind: "fix", title: "配置状态准确识别", detail: "模型中心兼容 GOOGLE_GEMINI_API_KEY 与 GEMINI_API_KEY，并在功能开关开启后正确显示可用状态。" },
+    ],
+  },
+  {
     version: "0.9.0",
     date: "2026-09-29",
     title: "配音设置先试听再应用",

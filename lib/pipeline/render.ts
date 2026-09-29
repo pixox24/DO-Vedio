@@ -116,6 +116,7 @@ export async function renderTimeline(opts: {
   timelineHash: string;
   quality: Quality;
   signal: AbortSignal;
+  current: () => boolean;
   progress: (p: number, msg: string) => void;
 }): Promise<RenderOutput> {
   const { timeline: t, quality } = opts;
@@ -173,7 +174,7 @@ export async function renderTimeline(opts: {
     opts.signal.removeEventListener("abort", onAbort);
     await server.close();
   }
-  if (opts.signal.aborted) throw opts.signal.reason;
+  if (!opts.current()) throw opts.signal.reason ?? new DOMException("渲染任务已取消", "AbortError");
 
   // 响度归一 + 隐式标识（视频流直接复制）
   opts.progress(0.9, "响度归一");
@@ -210,10 +211,12 @@ export async function renderTimeline(opts: {
   );
   await fs.rm(raw, { force: true });
   const after = await measureLoudness(out, target, opts.signal).catch(() => null);
+  if (!opts.current()) throw opts.signal.reason ?? new DOMException("渲染任务已取消", "AbortError");
 
   opts.progress(0.97, "保存成片");
   const video = await putFile(out, { ext: "mp4", mime: "video/mp4", meta: { source: "render", projectId: opts.projectId, aspect: t.aspect, quality, aigc: true } });
   const srt = t.cues.length ? await putBuffer(Buffer.from(toSrt(t.cues), "utf8"), { ext: "srt", mime: "application/x-subrip", probe: false, meta: { source: "render" } }) : null;
+  if (!opts.current()) throw opts.signal.reason ?? new DOMException("渲染任务已取消", "AbortError");
   const loudness = after?.i ?? m.i;
   run(
     "INSERT INTO renders (id, project_id, aspect, quality, timeline_hash, video_hash, srt_hash, duration_ms, loudness, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",

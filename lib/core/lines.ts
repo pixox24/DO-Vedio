@@ -95,6 +95,7 @@ export function rebuildLines(prev: Line[], segments: { text: string }[], newId: 
       keywords: base?.keywords ?? [],
       mood: base?.mood,
       voiceTag: base?.voiceTag,
+      ttsIsolated: base?.ttsIsolated,
       locked: base?.locked ?? false,
     };
   });

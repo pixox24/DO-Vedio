@@ -53,6 +53,8 @@ export const lineSchema = z.object({
   mood: moodSchema.optional(),
   /** 逐句表达；SSML 模式只控制句内停顿，不叠加 Instruct 或情绪标签。 */
   voiceTag: voiceTagSchema.optional(),
+  /** 段落级配音时这句单独录制（自成一块），不和前后句合成 */
+  ttsIsolated: z.boolean().optional(),
   locked: z.boolean().default(false),
 });
 export type Line = z.infer<typeof lineSchema>;
@@ -321,6 +323,8 @@ export const voiceSettingsSchema = z.object({
   rate: z.number().min(0.5).max(2).default(1),
   pitch: z.number().min(0.5).max(2).default(1),
   volume: z.number().int().min(0).max(100).default(50),
+  /** 合成粒度：line = 逐句；paragraph = 按段落合成再切成单句（更连贯，改一句会整段重录） */
+  granularity: z.enum(["line", "paragraph"]).default("line"),
   /** 可选的自然语言表达控制；Qwen-Audio 模型会原样透传。 */
   instruction: z.string().trim().max(500).default(""),
   /** Google Gemini 的服务商参数；正文与表达指令保持分离。 */
@@ -457,6 +461,8 @@ export type Job = {
   result: unknown;
   createdAt: number;
   updatedAt: number;
+  /** 当前 Worker 执行代次；仅服务端/Worker 使用。 */
+  lockToken?: string;
 };
 
 /** 媒体访问地址 */

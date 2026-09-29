@@ -202,6 +202,7 @@ export function useProject(id: string, delay = 800) {
       if (!dirty.current) return cur.revision;
       dirty.current = false;
       setSave("saving");
+      const requestBase = base.current;
       const run = (async () => {
         const res = await fetch(`/api/projects/${id}`, {
           method: "PUT",
@@ -212,13 +213,16 @@ export function useProject(id: string, delay = 800) {
         if (res.status === 409) {
           const data = await res.json();
           const theirs: ProjectState = { id, revision: data.current.revision, doc: data.current.doc };
+          // 请求期间可能又发生了本地编辑；合并最新本地快照，不能把它回滚到请求开始时的 cur。
+          const local = latest.current ?? cur;
           dirty.current = true;
           // 常见情况是 Worker 写回了标注、分镜、配乐：与本地修改做三方合并，不打扰用户
           const { mergeDocs } = await import("./core/sync");
-          const m = base.current ? mergeDocs(base.current.doc, cur.doc, theirs.doc) : { doc: cur.doc, conflict: true };
+          const localAtMerge = latest.current ?? local;
+          const m = requestBase ? mergeDocs(requestBase.doc, localAtMerge.doc, theirs.doc) : { doc: localAtMerge.doc, conflict: true };
           if (!m.conflict) {
             base.current = theirs;
-            if (latest.current) latest.current = { ...latest.current, revision: theirs.revision, doc: m.doc };
+            latest.current = { ...localAtMerge, revision: theirs.revision, doc: m.doc };
             setState((s) => (s ? { ...s, revision: theirs.revision, doc: m.doc } : s));
             setSave("saving");
             return;
@@ -234,10 +238,12 @@ export function useProject(id: string, delay = 800) {
         }
         const { revision } = (await res.json()) as { revision: number };
         base.current = { id, revision, doc: cur.doc };
+        const changedDuringRequest = latest.current !== cur;
         if (latest.current) latest.current = { ...latest.current, revision };
         setState((s) => (s ? { ...s, revision } : s));
-        setSave("saved");
-        return revision;
+        setSave(changedDuringRequest ? "saving" : "saved");
+        // 返回 null 表示本次只保存了旧快照，调用方不应把后续编辑当成已落盘。
+        return changedDuringRequest ? null : revision;
       })().catch(() => {
         dirty.current = true;
         setSave("error");

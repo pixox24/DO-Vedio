@@ -9,7 +9,7 @@ import type { Line, Mood, ProjectDoc, Shot, VoiceSettings, VoiceTag } from "./ty
  * 改了某步骤的算法就把版本号加 1，旧缓存自然失效。
  */
 
-export const STAGE_VERSION = { annotate: 1, tts: 3, storyboard: 3, music: 1, render: 1, shotGeneration: 3, cast: 3, characterSheet: 1 } as const;
+export const STAGE_VERSION = { annotate: 1, tts: 3, ttsBlock: 1, storyboard: 3, music: 1, render: 1, shotGeneration: 3, cast: 3, characterSheet: 1 } as const;
 
 /** 标注：输入是一个段落的全部句子 */
 export function annotateKey(lines: Pick<Line, "id" | "text">[], lex: LexEntry[], modelId: string) {
@@ -77,13 +77,9 @@ export function voiceKeyOf(v: VoiceSettings) {
   })}`;
 }
 
-/** 配音：由朗读文本和音色参数决定，与句子 ID 无关——相同文本天然复用 */
-export function ttsKey(spoken: string, v: VoiceSettings, textType?: "PlainText" | "SSML") {
-  return `tts:${quickHash({
-    // ponytail: bump only Gemini so cached audio that spoke old style instructions cannot be reused.
-    v: STAGE_VERSION.tts + (v.provider === "google-gemini" ? 1 : 0),
-    s: spoken,
-    ...(textType === "SSML" ? { textType } : {}),
+/** 决定音频的音色字段（逐句键与段落块键共用；合成粒度不在其中，逐句模式的旧缓存不受影响） */
+function voiceFields(v: VoiceSettings, textType?: "PlainText" | "SSML") {
+  return {
     p: v.provider,
     m: v.model,
     id: v.voiceId,
@@ -92,8 +88,32 @@ export function ttsKey(spoken: string, v: VoiceSettings, textType?: "PlainText" 
     vo: v.volume,
     instruction: textType === "SSML" ? "" : v.instruction,
     google: v.provider === "google-gemini" && v.google ? { ...v.google, stylePrompt: undefined } : v.google,
+  };
+}
+
+/** 配音：由朗读文本和音色参数决定，与句子 ID 无关——相同文本天然复用 */
+export function ttsKey(spoken: string, v: VoiceSettings, textType?: "PlainText" | "SSML") {
+  return `tts:${quickHash({
+    // ponytail: bump only Gemini so cached audio that spoke old style instructions cannot be reused.
+    v: STAGE_VERSION.tts + (v.provider === "google-gemini" ? 1 : 0),
+    s: spoken,
+    ...(textType === "SSML" ? { textType } : {}),
+    ...voiceFields(v, textType),
   })}`;
 }
+
+/** 段落块：块内全部朗读文本 + 连接方式 + 音色。块内任何一句变了，整块重录 */
+export function ttsBlockKey(spoken: string[], joiner: string, v: VoiceSettings) {
+  return `tts-block:${quickHash({ v: STAGE_VERSION.ttsBlock, s: spoken, j: joiner, ...voiceFields(v) })}`;
+}
+
+/** 块内第 index 句的配音键：同一句放在不同上下文里读法不同，所以由整块决定 */
+export function ttsBlockLineKey(blockKey: string, index: number) {
+  return `tts:${quickHash({ blk: blockKey, i: index })}`;
+}
+
+/** 配音任务的步骤名（逐句 / 段落块） */
+export const isTtsStage = (stage: string) => stage === "tts" || stage === "tts-block";
 
 /** 配音结果（写在 cache 里） */
 export type TtsResult = {
@@ -109,6 +129,21 @@ export type TtsResult = {
   aligned: boolean;
   alignmentSource?: "provider" | "forced" | "estimated";
   spokenChars: number;
+  /** 段落级配音：这句从哪一块切出来 */
+  block?: TtsBlockInfo;
+};
+
+export type TtsBlockInfo = {
+  key: string;
+  index: number;
+  count: number;
+  /** 与块内下一句之间的自然停顿（原段落音频实测）；块尾为 0 */
+  gapAfterMs: number;
+  /** 切分置信度 0–1 */
+  confidence: number;
+  splitSource: "provider" | "vad";
+  /** 整段原音频，供整段试听 */
+  blockAssetId: string;
 };
 
 export function storyboardKey(input: unknown) {

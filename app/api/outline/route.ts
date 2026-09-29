@@ -13,7 +13,7 @@ export async function POST(req: Request) {
   return handle(async () => {
     const { brief, modelId } = await parseBody(req, withSummary);
     const { template, rate } = await loadStyle(brief);
-    const raw = await generateJson(modelId, outlineSchema, outlinePrompt(brief, template, rate));
+    const raw = await generateJson(modelId, outlineSchema, outlinePrompt(brief, template, rate), req.signal);
     // 0 分钟的章节先给个最小时长，否则等比校正后仍是 0
     const sections = raw.sections.map((s) => ({ ...s, minutes: s.minutes > 0 ? s.minutes : ZERO_CHAPTER_MINUTES }));
     // 模型给的分钟数常常加起来不等于目标，按比例校正；通篇序号标题去掉编号（去 AI 味规则 6）

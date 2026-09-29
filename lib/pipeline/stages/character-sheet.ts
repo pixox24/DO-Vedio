@@ -70,8 +70,9 @@ export const characterSheetStage = defineStage<CharacterSheetInput, { assets: st
     const label = sheetKindLabels[input.kind];
     // 完成一张写回一张：前端立刻能看到；失败的不影响已成功的
     const slots: (string | undefined)[] = prompts.map(() => undefined);
-    const writeBack = () =>
-      mutateProject(input.projectId, (doc) => ({
+    const writeBack = () => {
+      if (!ctx.current()) return;
+      mutateProject(input.projectId, (doc) => ctx.current() ? ({
         ...doc,
         characters: doc.characters.map((c) => {
           if (c.id !== card.id) return c;
@@ -83,13 +84,16 @@ export const characterSheetStage = defineStage<CharacterSheetInput, { assets: st
           else if (input.lookId && got[0]) sheet.lookAssetIds = { ...sheet.lookAssetIds, [input.lookId]: got[0] };
           return { ...c, sheet };
         }),
-      }));
+      }) : null);
+    };
     const assets = await generateBatch(prompts, {
       // 同一个任务的重试共用缓存；再点一次「再来 4 张」是新任务，会生成新的图
       itemKey: (k) => `${key}:${ctx.job.id}:${k}`,
       signal: ctx.signal,
+      current: ctx.current,
       onProgress: (done, total) => ctx.progress(done / total, `${label}：已完成 ${done}/${total}`),
       onAsset: (k, asset) => {
+        if (!ctx.current()) return;
         slots[k] = asset;
         writeBack();
       },

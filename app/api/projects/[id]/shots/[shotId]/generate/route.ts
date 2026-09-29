@@ -23,7 +23,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; sh
     if (!model) return fail("没有可用的图片模型，请在模型中心配置并启用", 409);
     const selectedId = model.custom ? `${model.providerId}::${model.modelId}` : model.modelId;
     const key = shotGenerationKey(project.doc, shot, input.kind, selectedId);
-    const previous = latestJobByKey(key);
+    const previous = latestJobByKey(key, id);
     if (previous && ["queued", "running"].includes(previous.status)) return Response.json({ job: previous, reused: true });
     const job = enqueue({ projectId: id, stage: "shot-generate", key, target: `镜头 ${shotId}`, input: { projectId: id, shotId, kind: input.kind, modelId: selectedId, candidateCount: input.candidateCount ?? 1 }, priority: 6 });
     return Response.json({ job, model: { providerId: model.providerId, modelId: model.modelId } });

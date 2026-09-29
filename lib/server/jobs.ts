@@ -24,6 +24,7 @@ type Row = {
   priority: number;
   run_after: number;
   locked_by: string | null;
+  lock_token: string | null;
   lease_until: number | null;
   cost_estimate: number;
   cost_actual: number;
@@ -34,7 +35,7 @@ type Row = {
   updated_at: number;
 };
 
-const toJob = (r: Row): Job => ({
+const toJob = (r: Row, includeLockToken = false): Job => ({
   id: r.id,
   projectId: r.project_id,
   stage: r.stage,
@@ -54,6 +55,7 @@ const toJob = (r: Row): Job => ({
   result: parseJson(r.result, null),
   createdAt: r.created_at,
   updatedAt: r.updated_at,
+  lockToken: includeLockToken ? (r.lock_token ?? undefined) : undefined,
 });
 
 export type EnqueueInput = {
@@ -70,7 +72,12 @@ export type EnqueueInput = {
 /** 提交任务；同 key 已在排队或运行时返回已有任务 */
 export function enqueue(e: EnqueueInput): Job {
   return tx(() => {
-    const existing = get<Row>("SELECT * FROM jobs WHERE key = ? AND status IN ('queued', 'running') ORDER BY created_at DESC LIMIT 1", e.key);
+    const existing = get<Row>(
+      "SELECT * FROM jobs WHERE key = ? AND status IN ('queued', 'running') AND ((project_id = ?) OR (project_id IS NULL AND ? IS NULL)) ORDER BY created_at DESC LIMIT 1",
+      e.key,
+      e.projectId,
+      e.projectId,
+    );
     if (existing) return toJob(existing);
     const now = Date.now();
     const id = randomUUID();
@@ -98,28 +105,45 @@ export function getJob(id: string) {
   return r && toJob(r);
 }
 
+/** 兼容旧的直接调用方；Worker 始终显式传入领取时的 token。 */
+function currentLockToken(id: string, lockToken?: string) {
+  return lockToken ?? get<{ lock_token: string | null }>("SELECT lock_token FROM jobs WHERE id = ?", id)?.lock_token ?? undefined;
+}
+
+function lockClause(lockToken: string | undefined) {
+  return lockToken === undefined ? { sql: "lock_token IS NULL", params: [] as Param[] } : { sql: "lock_token = ?", params: [lockToken] as Param[] };
+}
+
+/** 防止被取消/重新领取的旧执行继续写入缓存或账本。 */
+export function isCurrentExecution(id: string, lockToken?: string) {
+  if (!lockToken) return true;
+  return !!get<{ id: string }>("SELECT id FROM jobs WHERE id = ? AND status = 'running' AND lock_token = ?", id, lockToken);
+}
+
 /** 原子领取一个可执行的任务 */
 export function claim(workerId: string, stages: string[]): Job | undefined {
   if (stages.length === 0) return undefined;
   const now = Date.now();
+  const lockToken = randomUUID();
   const r = get<Row>(
-    `UPDATE jobs SET status = 'running', locked_by = ?, lease_until = ?, attempts = attempts + 1, error = NULL, updated_at = ?
+    `UPDATE jobs SET status = 'running', locked_by = ?, lock_token = ?, lease_until = ?, attempts = attempts + 1, error = NULL, updated_at = ?
      WHERE id = (
        SELECT id FROM jobs WHERE status = 'queued' AND run_after <= ? AND stage IN (${stages.map(() => "?").join(",")})
        ORDER BY priority, created_at LIMIT 1
      )
      RETURNING *`,
     workerId,
+    lockToken,
     now + LEASE_MS,
     now,
     now,
     ...stages,
   );
-  return r && toJob(r);
+  return r && toJob(r, true);
 }
 
 /** 续租约并上报进度；任务已被取消或被别的 Worker 接走时返回 false */
-export function heartbeat(id: string, workerId: string, progress?: number, message?: string): boolean {
+export function heartbeat(id: string, workerId: string, progress?: number, message?: string, lockToken?: string): boolean {
   const now = Date.now();
   const sets = ["lease_until = ?", "updated_at = ?"];
   const params: Param[] = [now + LEASE_MS, now];
@@ -131,30 +155,34 @@ export function heartbeat(id: string, workerId: string, progress?: number, messa
     sets.push("message = ?");
     params.push(message);
   }
-  return run(`UPDATE jobs SET ${sets.join(", ")} WHERE id = ? AND locked_by = ? AND status = 'running'`, ...params, id, workerId).changes > 0;
+  const lock = lockClause(currentLockToken(id, lockToken));
+  return run(`UPDATE jobs SET ${sets.join(", ")} WHERE id = ? AND locked_by = ? AND status = 'running' AND (${lock.sql})`, ...params, id, workerId, ...lock.params).changes > 0;
 }
 
-export function succeed(id: string, workerId: string, result: unknown, costActual = 0) {
-  run(
-    `UPDATE jobs SET status = 'succeeded', progress = 1, result = ?, cost_actual = ?, locked_by = NULL, lease_until = NULL, message = '', updated_at = ?
-     WHERE id = ? AND locked_by = ?`,
+export function succeed(id: string, workerId: string, result: unknown, costActual = 0, lockToken?: string): boolean {
+  const lock = lockClause(currentLockToken(id, lockToken));
+  return run(
+    `UPDATE jobs SET status = 'succeeded', progress = 1, result = ?, cost_actual = ?, locked_by = NULL, lock_token = NULL, lease_until = NULL, message = '', updated_at = ?
+     WHERE id = ? AND locked_by = ? AND (${lock.sql})`,
     json(result),
     costActual,
     Date.now(),
     id,
     workerId,
-  );
+    ...lock.params,
+  ).changes > 0;
 }
 
 /** 失败：可重试时按 2s / 8s / 30s 退避后重新排队 */
-export function failJob(id: string, workerId: string, error: string, retryable: boolean, retryAfterMs = 0) {
+export function failJob(id: string, workerId: string, error: string, retryable: boolean, retryAfterMs = 0, lockToken?: string): boolean {
   const j = getJob(id);
-  if (!j) return;
+  if (!j) return false;
+  const lock = lockClause(currentLockToken(id, lockToken));
   const again = retryable && j.attempts < j.maxAttempts;
   const delay = Math.max([2_000, 8_000, 30_000][Math.min(j.attempts - 1, 2)] ?? 30_000, retryAfterMs);
-  run(
-    `UPDATE jobs SET status = ?, error = ?, run_after = ?, locked_by = NULL, lease_until = NULL, message = ?, updated_at = ?
-     WHERE id = ? AND locked_by = ?`,
+  return run(
+    `UPDATE jobs SET status = ?, error = ?, run_after = ?, locked_by = NULL, lock_token = NULL, lease_until = NULL, message = ?, updated_at = ?
+     WHERE id = ? AND locked_by = ? AND (${lock.sql})`,
     again ? "queued" : "failed",
     error,
     again ? Date.now() + delay : 0,
@@ -162,17 +190,18 @@ export function failJob(id: string, workerId: string, error: string, retryable: 
     Date.now(),
     id,
     workerId,
-  );
+    ...lock.params,
+  ).changes > 0;
 }
 
 export function cancelJob(id: string) {
-  return run("UPDATE jobs SET status = 'canceled', locked_by = NULL, lease_until = NULL, updated_at = ? WHERE id = ? AND status IN ('queued', 'running')", Date.now(), id).changes > 0;
+  return run("UPDATE jobs SET status = 'canceled', locked_by = NULL, lock_token = NULL, lease_until = NULL, updated_at = ? WHERE id = ? AND status IN ('queued', 'running')", Date.now(), id).changes > 0;
 }
 
 export function cancelProjectJobs(projectId: string, stages?: string[]) {
   const filter = stages?.length ? ` AND stage IN (${stages.map(() => "?").join(",")})` : "";
   return run(
-    `UPDATE jobs SET status = 'canceled', locked_by = NULL, lease_until = NULL, updated_at = ? WHERE project_id = ? AND status IN ('queued', 'running')${filter}`,
+    `UPDATE jobs SET status = 'canceled', locked_by = NULL, lock_token = NULL, lease_until = NULL, updated_at = ? WHERE project_id = ? AND status IN ('queued', 'running')${filter}`,
     Date.now(),
     projectId,
     ...(stages ?? []),
@@ -183,7 +212,7 @@ export function cancelProjectJobs(projectId: string, stages?: string[]) {
 export function retryJob(id: string) {
   return (
     run(
-      "UPDATE jobs SET status = 'queued', attempts = 0, error = NULL, run_after = 0, progress = 0, message = '', updated_at = ? WHERE id = ? AND status IN ('failed', 'canceled')",
+      "UPDATE jobs SET status = 'queued', attempts = 0, error = NULL, run_after = 0, progress = 0, message = '', locked_by = NULL, lock_token = NULL, lease_until = NULL, updated_at = ? WHERE id = ? AND status IN ('failed', 'canceled')",
       Date.now(),
       id,
     ).changes > 0
@@ -194,7 +223,7 @@ export function retryJob(id: string) {
 export function recoverExpired() {
   const now = Date.now();
   return run(
-    "UPDATE jobs SET status = 'queued', locked_by = NULL, lease_until = NULL, message = '上次执行中断，已重新排队', updated_at = ? WHERE status = 'running' AND lease_until < ?",
+    "UPDATE jobs SET status = 'queued', locked_by = NULL, lock_token = NULL, lease_until = NULL, message = '上次执行中断，已重新排队', updated_at = ? WHERE status = 'running' AND lease_until < ?",
     now,
     now,
   ).changes;
@@ -217,11 +246,13 @@ export function projectJobs(projectId: string, since = 0): Job[] {
     projectId,
     projectId,
     since,
-  ).map(toJob);
+  ).map((r) => toJob(r));
 }
 
-export function latestJobByKey(key: string) {
-  const r = get<Row>("SELECT * FROM jobs WHERE key = ? ORDER BY created_at DESC LIMIT 1", key);
+export function latestJobByKey(key: string, projectId?: string | null) {
+  const r = projectId === undefined
+    ? get<Row>("SELECT * FROM jobs WHERE key = ? ORDER BY created_at DESC LIMIT 1", key)
+    : get<Row>("SELECT * FROM jobs WHERE key = ? AND ((project_id = ?) OR (project_id IS NULL AND ? IS NULL)) ORDER BY created_at DESC LIMIT 1", key, projectId, projectId);
   return r && toJob(r);
 }
 

@@ -62,8 +62,13 @@ npm run library:ingest              # 首次导入曲库并生成转场音效
 内网部署（先 `npm run build`）：
 
 ```bash
+# .env.local 中配置访问令牌；需要局域网访问时再明确打开监听地址
+DO_VEDIO_ACCESS_TOKEN=请替换为随机长令牌
+DO_VEDIO_HOST=0.0.0.0
 启动.bat --prod         # next start + worker，后台运行
 ```
+
+生产模式默认只监听 `127.0.0.1`，不会因为启动 `next start` 而自动暴露到局域网。只有显式设置 `DO_VEDIO_HOST=0.0.0.0` 才会开放局域网访问；开放前必须配置 `DO_VEDIO_ACCESS_TOKEN`。配置令牌后，页面会先跳转到 `/login`，所有 `/api` 请求也会校验 HttpOnly Cookie。开发模式未配置令牌时保持本机直通；生产模式缺少令牌会直接返回 503，避免误把未保护的服务暴露出去。
 
 ## 模型配置
 

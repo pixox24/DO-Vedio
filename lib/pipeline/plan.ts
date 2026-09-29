@@ -10,7 +10,8 @@ import { listTracks } from "../server/music";
 import { getProject, mutateProject } from "../server/projects";
 import { lineTtsKeys, loadArtifacts, timelineFor } from "./artifacts";
 import { listTextModels } from "../providers/registry";
-import { billedCharsOf, estimateLlmCost, estimateTtsCost } from "./pricing";
+import { estimateLlmCost } from "./pricing";
+import { ttsSteps } from "./tts-jobs";
 import type { Quality } from "./render";
 import { staleRanges } from "./stages/storyboard";
 import { castSourceHash } from "../core/cast";
@@ -96,19 +97,8 @@ export function planPipeline(projectId: string, doc: ProjectDoc, goal: Goal): Pl
   const keys = lineTtsKeys(doc, projectId);
   const hits = cacheMany(keys.map((k) => k.key));
   const missing = keys.filter((k) => !hits.has(k.key));
-  if (!annotating) {
-    missing.forEach((k, idx) => {
-      const n = doc.lines.findIndex((l) => l.id === k.line.id) + 1;
-      steps.push({
-        stage: "tts",
-        key: k.key,
-        target: `第 ${n} 句`,
-        input: { projectId, lineId: k.line.id, text: k.line.text, spoken: k.spoken, ttsText: k.ttsText, textType: k.textType, map: k.map, voice: doc.settings.voice },
-        cost: estimateTtsCost(doc.settings.voice.provider, doc.settings.voice.model, billedCharsOf(k.spoken)),
-        priority: 4 + Math.min(idx, 1),
-      });
-    });
-  }
+  // 第一个缺失的配音优先，让预览尽快有声音
+  if (!annotating) steps.push(...ttsSteps(doc, projectId, missing).map((s, idx) => ({ ...s, priority: 4 + Math.min(idx, 1) })));
   const voiced = !annotating && missing.length === 0;
   if (!voiced && !annotating) waiting.push(`还有 ${missing.length} 句没有配音`);
 
@@ -211,7 +201,7 @@ export function produce(projectId: string, goal: Goal, opts: { dryRun?: boolean;
   }
   const enqueued: Job[] = [];
   for (const s of plan.steps) {
-    const last = latestJobByKey(s.key);
+    const last = latestJobByKey(s.key, projectId);
     // 自动推进时不重提失败过的任务（避免反复扣费）；用户主动点开始时重试
     if (last && (last.status === "failed" || last.status === "canceled") && !opts.retryFailed) continue;
     enqueued.push(enqueue({ projectId, stage: s.stage, key: s.key, target: s.target, input: s.input, priority: s.priority, costEstimate: s.cost }));

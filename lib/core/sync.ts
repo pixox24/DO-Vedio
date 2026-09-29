@@ -36,27 +36,69 @@ const eq = (a: unknown, b: unknown) => stableStringify(a) === stableStringify(b)
 /** 按 id 合并数组：我没改的项用对方的，对方没改的用我的；两边都改了同一项算冲突 */
 function mergeById<T extends { id: string }>(base: T[], mine: T[], theirs: T[]): { value: T[]; conflict: boolean } {
   const b = new Map(base.map((x) => [x.id, x]));
+  const m = new Map(mine.map((x) => [x.id, x]));
   const t = new Map(theirs.map((x) => [x.id, x]));
   let conflict = false;
-  // 以我的顺序为准（结构由用户编辑决定），逐项取值
-  const value = mine.map((m) => {
-    const bb = b.get(m.id);
-    const tt = t.get(m.id);
-    if (!tt) return m;
-    if (!bb) return eq(m, tt) ? m : m;
-    if (eq(m, bb)) return tt;
-    if (eq(tt, bb) || eq(tt, m)) return m;
-    conflict = true;
-    return m;
-  });
-  // 对方新增、我这边结构没动时，接受对方新增的项
-  if (eq(base.map((x) => x.id), mine.map((x) => x.id))) {
-    if (!eq(base.map((x) => x.id), theirs.map((x) => x.id))) {
-      const mineById = new Map(value.map((x) => [x.id, x]));
-      return { value: theirs.map((x) => mineById.get(x.id) ?? x), conflict };
+  const merged = new Map<string, T>();
+  const ids = new Set([...base.map((x) => x.id), ...mine.map((x) => x.id), ...theirs.map((x) => x.id)]);
+
+  for (const id of ids) {
+    const hasBase = b.has(id);
+    const hasMine = m.has(id);
+    const hasTheirs = t.has(id);
+    const bb = b.get(id);
+    const mm = m.get(id);
+    const tt = t.get(id);
+
+    if (!hasBase) {
+      // 双方独立新增应同时保留；同 ID 的不同新增说明生成器/编辑器发生了冲突。
+      if (hasMine && hasTheirs) {
+        if (eq(mm, tt)) merged.set(id, mm!);
+        else {
+          conflict = true;
+          merged.set(id, mm!);
+        }
+      } else if (hasMine) merged.set(id, mm!);
+      else if (hasTheirs) merged.set(id, tt!);
+      continue;
+    }
+
+    if (hasMine && hasTheirs) {
+      if (eq(mm, bb)) merged.set(id, tt!);
+      else if (eq(tt, bb) || eq(tt, mm)) merged.set(id, mm!);
+      else {
+        conflict = true;
+        merged.set(id, mm!);
+      }
+    } else if (!hasMine && !hasTheirs) {
+      // 双方都删除。
+    } else if (!hasMine) {
+      // 我的删除与对方修改冲突；保留对方值直到用户解决冲突，避免数据静默消失。
+      if (!eq(tt, bb)) {
+        conflict = true;
+        merged.set(id, tt!);
+      }
+    } else {
+      // 对方删除与我的修改冲突；同样保留修改后的值并报告冲突。
+      if (!eq(mm, bb)) {
+        conflict = true;
+        merged.set(id, mm!);
+      }
     }
   }
-  return { value, conflict };
+
+  // 以我的顺序为基础，再把对方独有的新增项插入到其后继项之前，避免丢失且尽量保持结构。
+  const mineIds = new Set(mine.map((x) => x.id));
+  const order = mine.map((x) => x.id).filter((id) => merged.has(id));
+  for (let i = 0; i < theirs.length; i++) {
+    const id = theirs[i].id;
+    if (mineIds.has(id) || !merged.has(id)) continue;
+    const next = theirs.slice(i + 1).find((x) => order.includes(x.id));
+    const at = next ? order.indexOf(next.id) : -1;
+    if (at < 0) order.push(id);
+    else order.splice(at, 0, id);
+  }
+  return { value: order.map((id) => merged.get(id)!), conflict };
 }
 
 /**

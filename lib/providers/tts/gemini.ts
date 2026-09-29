@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { ProxyAgent, fetch as undiciFetch } from "undici";
 import { ffmpeg } from "../../server/ffmpeg";
 import { pcmToWav, type SynthRequest, type SynthResult, type TtsErrorCode, type TtsModel, type TtsProvider, type TtsUsage, type Voice } from "./types";
 
@@ -63,6 +64,8 @@ export type GeminiTtsOptions = {
   retryDelayMs?: number;
   sampleRateHertz?: number;
   fetchImpl?: typeof fetch;
+  /** 缺省读 GOOGLE_GEMINI_PROXY_URL */
+  proxyUrl?: string;
   models?: TtsModel[];
   voices?: Voice[];
 };
@@ -138,6 +141,7 @@ export function classifyGeminiError(status?: number, body?: unknown, cause?: unk
   const message = textOf(body) || causeMessage(cause) || "Gemini TTS 请求失败";
   const lower = `${message} ${JSON.stringify(body ?? "")}`.toLowerCase();
   const retryAfter = Math.max(retryAfterMsFromBody(body) ?? 0, headerRetryAfterMs ?? 0);
+  if (/location is not supported|unsupported.?(location|region|country)/.test(lower)) return new GeminiTtsError(`Gemini TTS 不支持当前网络所在地区：请在 .env 配置 GOOGLE_GEMINI_PROXY_URL（例如本机代理 http://127.0.0.1:端口）后重启后台`, "model-unavailable", status, undefined, { cause });
   if (/safety|blocked|harm|prohibited|content.?filter/.test(lower)) return new GeminiTtsError(`Gemini TTS 内容安全拒绝：${message}`, "safety", status, undefined, { cause });
   if (status === 401 || status === 403 || /api.?key|unauthori[sz]|permission|authentication/.test(lower)) return new GeminiTtsError(`Gemini TTS 鉴权失败：${message}`, "auth", status, undefined, { cause });
   if (status === 404 || /model.*(not found|unavailable)|not found/.test(lower)) return new GeminiTtsError(`Gemini TTS 模型不可用：${message}`, "model-unavailable", status, undefined, { cause });
@@ -366,12 +370,39 @@ async function responseBody(response: Response) {
   }
 }
 
+export function geminiProxyUrl(value = process.env.GOOGLE_GEMINI_PROXY_URL) {
+  return value?.trim() || undefined;
+}
+
+const proxyAgents = new Map<string, ProxyAgent>();
+
+/**
+ * Gemini 专用 fetch：配置了代理就只让 Gemini 请求走代理（Node 内置 fetch 不读系统代理），
+ * DashScope 等国内服务商继续直连。
+ */
+export function geminiFetch(proxyUrl?: string): typeof fetch {
+  if (!proxyUrl) return fetch;
+  let agent = proxyAgents.get(proxyUrl);
+  if (!agent) proxyAgents.set(proxyUrl, (agent = new ProxyAgent(proxyUrl)));
+  const dispatcher = agent;
+  return (async (input: string | URL, init?: RequestInit) => {
+    try {
+      return await undiciFetch(input, { ...(init as object), dispatcher } as Parameters<typeof undiciFetch>[1]);
+    } catch (error) {
+      // 连不上代理本身时，别让用户误以为是 Google 拒绝
+      const code = (error as { cause?: { code?: string } }).cause?.code;
+      if (code === "ECONNREFUSED") throw new Error(`无法连接 Gemini 代理 ${proxyUrl}，请确认代理软件已启动、端口正确`, { cause: error });
+      throw error;
+    }
+  }) as unknown as typeof fetch;
+}
+
 export function isGeminiTtsEnabled(value = process.env.GOOGLE_GEMINI_TTS_ENABLED) {
   return /^(1|true|yes|on)$/i.test(value?.trim() || "");
 }
 
-export function geminiApiKey(value = process.env.GOOGLE_GEMINI_API_KEY ?? process.env.GEMINI_API_KEY) {
-  return value?.trim() || undefined;
+export function geminiApiKey(value?: string) {
+  return value?.trim() || process.env.GOOGLE_GEMINI_API_KEY?.trim() || process.env.GEMINI_API_KEY?.trim() || undefined;
 }
 
 function resolveFactoryArgs(apiKeyOrOptions?: string | GeminiTtsOptions, baseUrl?: string, apiVersion?: string, options?: GeminiTtsOptions): GeminiTtsOptions {
@@ -387,7 +418,7 @@ export function createGeminiTts(apiKeyOrOptions?: string | GeminiTtsOptions, bas
   const modelList = config.models ?? geminiTtsModels();
   const voiceList = config.voices ?? voices;
   const maxTextChars = config.maxTextChars ?? (Number(process.env.GOOGLE_GEMINI_TTS_MAX_TEXT_CHARS) || DEFAULT_MAX_TEXT);
-  const fetchImpl = config.fetchImpl ?? fetch;
+  const fetchImpl = config.fetchImpl ?? geminiFetch(config.proxyUrl ?? geminiProxyUrl());
 
   return {
     id: "google-gemini",

@@ -12,7 +12,7 @@ export async function POST(req: Request) {
   return handle(async () => {
     const { brief, modelId, exclude } = await parseBody(req, body);
     const { template } = await loadStyle(brief);
-    const { angles } = await generateJson(modelId, anglesSchema, anglesPrompt(brief, template, exclude));
+    const { angles } = await generateJson(modelId, anglesSchema, anglesPrompt(brief, template, exclude), req.signal);
     return Response.json({ angles: angles.slice(0, 3) });
   });
 }

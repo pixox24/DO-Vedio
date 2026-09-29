@@ -18,8 +18,12 @@ import { spawn, spawnSync } from "node:child_process";
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import nextEnv from "@next/env";
+
+const { loadEnvConfig } = nextEnv;
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+loadEnvConfig(ROOT, process.env.NODE_ENV !== "production");
 const PORT = Number(process.env.PORT || 3000);
 const STATE_FILE = path.join(ROOT, "data", "services.json");
 const LOG_DIR = path.join(ROOT, "logs");
@@ -95,7 +99,8 @@ function usage() {
   stop     停止网页与 Worker
   status   查看是否在运行、PID 与日志位置
   --fg     前台运行，日志打到当前终端
-  --prod   生产模式（next start + worker），需先 npm run build`);
+  --prod   生产模式（next start + worker），需先 npm run build
+           默认只监听 127.0.0.1；设置 DO_VEDIO_HOST 才会更改监听地址`);
 }
 
 function isAlive(pid) {

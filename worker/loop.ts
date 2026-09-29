@@ -1,7 +1,7 @@
 import { hostname } from "os";
 import { randomUUID } from "crypto";
 import { db } from "../lib/server/db";
-import { claim, failJob, heartbeat, recoverExpired, registerWorker, runningCounts, succeed, unregisterWorker, workerHeartbeat, pruneJobs } from "../lib/server/jobs";
+import { claim, failJob, getJob, heartbeat, isCurrentExecution, recoverExpired, registerWorker, runningCounts, succeed, unregisterWorker, workerHeartbeat, pruneJobs } from "../lib/server/jobs";
 import { ledger } from "../lib/server/cache";
 import { errorMessage } from "../lib/llm";
 import { isRetryable, type Stage } from "../lib/pipeline/stage";
@@ -39,49 +39,67 @@ export function startLoop(opts: LoopOptions) {
     recoverExpired();
     for (const [id, a] of active) {
       // 续租约；返回 false 说明任务已被取消
-      if (!heartbeat(id, workerId)) a.ctrl.abort(new DOMException("任务已取消", "AbortError"));
+      if (!heartbeat(id, workerId, undefined, undefined, a.job.lockToken)) a.ctrl.abort(new DOMException("任务已取消", "AbortError"));
     }
   }, 10_000);
 
   async function execute(job: Job, stage: Stage<never, unknown>) {
     const ctrl = new AbortController();
+    // 同一任务在租约过期后可能被重新领取；旧执行必须尽快停止，且不能清理新执行的 active 记录。
+    active.get(job.id)?.ctrl.abort(new DOMException("任务已被新代次接管", "AbortError"));
     active.set(job.id, { job, ctrl });
     let lastBeat = 0;
     let spent = 0;
     const started = Date.now();
     log(`▶ ${job.stage}${job.target ? ` · ${job.target}` : ""}（第 ${job.attempts} 次）`);
     let ok = false;
+    let stale = false;
     try {
       const result = await stage.run(job.input as never, {
         job,
         signal: ctrl.signal,
+        current: () => !ctrl.signal.aborted && isCurrentExecution(job.id, job.lockToken),
         progress(p, message) {
           const now = Date.now();
           if (now - lastBeat < 400 && p < 1) return;
           lastBeat = now;
-          if (!heartbeat(job.id, workerId, p, message)) ctrl.abort(new DOMException("任务已取消", "AbortError"));
+          if (!heartbeat(job.id, workerId, p, message, job.lockToken)) ctrl.abort(new DOMException("任务已取消", "AbortError"));
         },
         spend(e) {
+          if (!isCurrentExecution(job.id, job.lockToken)) {
+            ctrl.abort(new DOMException("任务已取消", "AbortError"));
+            return 0;
+          }
           spent += e.costYuan;
           return ledger({ ...e, projectId: job.projectId, jobId: job.id });
         },
         log: (...a) => log(`  [${job.stage}]`, ...a),
       });
       if (ctrl.signal.aborted) throw ctrl.signal.reason;
-      succeed(job.id, workerId, result, spent);
+      const committed = succeed(job.id, workerId, result, spent, job.lockToken);
+      if (!committed) {
+        stale = true;
+        return;
+      }
       ok = true;
       log(`✓ ${job.stage}${job.target ? ` · ${job.target}` : ""} ${((Date.now() - started) / 1000).toFixed(1)}s`);
     } catch (e) {
       const canceled = ctrl.signal.aborted;
-      if (canceled) log(`■ ${job.stage} 已取消`);
+      if (canceled) {
+        log(`■ ${job.stage} 已取消`);
+        // 取消后可能已被立即重试；旧代次不能再触发编排阻塞新任务。
+        if (getJob(job.id)?.status !== "canceled") stale = true;
+      }
       else {
         log(`✗ ${job.stage}${job.target ? ` · ${job.target}` : ""}：${errorMessage(e)}`);
-        failJob(job.id, workerId, errorMessage(e), isRetryable(e), (e as { retryAfterMs?: number })?.retryAfterMs);
+        const committed = failJob(job.id, workerId, errorMessage(e), isRetryable(e), (e as { retryAfterMs?: number })?.retryAfterMs, job.lockToken);
+        if (!committed) stale = true;
       }
     } finally {
-      active.delete(job.id);
+      if (active.get(job.id)?.job.lockToken === job.lockToken) active.delete(job.id);
       wake?.();
     }
+    if (stale) return;
     try {
       await opts.onSettled?.(job, ok);
     } catch (e) {

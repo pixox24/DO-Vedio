@@ -39,5 +39,23 @@ describe("文档同步与合并", () => {
     expect(r.conflict).toBe(true);
   });
 
+  it("双方独立新增的句子都保留", () => {
+    const base = syncLines({ ...emptyDoc(), segments: [{ title: "a", text: "第一句话。" }] });
+    const mine = { ...base, lines: [...base.lines, { ...base.lines[0], id: "mine-new", text: "我的新增句。" }] };
+    const theirs = { ...base, lines: [...base.lines, { ...base.lines[0], id: "theirs-new", text: "对方新增句。" }] };
+    const r = mergeDocs(base, mine, theirs);
+    expect(r.conflict).toBe(false);
+    expect(r.doc.lines.map((line) => line.id)).toEqual([base.lines[0].id, "mine-new", "theirs-new"]);
+  });
+
+  it("删除与对方修改同一项时报告冲突并保留对方数据", () => {
+    const base = syncLines({ ...emptyDoc(), segments: [{ title: "a", text: "第一句话。" }] });
+    const mine = { ...base, lines: [] };
+    const theirs = { ...base, lines: [{ ...base.lines[0], mood: "温暖" as const }] };
+    const r = mergeDocs(base, mine, theirs);
+    expect(r.conflict).toBe(true);
+    expect(r.doc.lines[0].mood).toBe("温暖");
+  });
+
   it("newId 格式", () => expect(newId()).toMatch(/^[0-9a-f-]{36}$/));
 });

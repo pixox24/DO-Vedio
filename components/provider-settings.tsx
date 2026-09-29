@@ -10,6 +10,7 @@ const tabs: { id: ProviderKind | "all"; label: string }[] = [
   { id: "video", label: "视频" }, { id: "tts", label: "配音" },
 ];
 const labels: Record<ProviderKind, string> = { text: "文本", image: "图片", video: "视频", tts: "配音", align: "对齐", lipsync: "口型" };
+type ConnectionCheck = { state: "testing" | "success" | "error"; message?: string; latencyMs?: number };
 
 export function ProviderSettings() {
   const [models, setModels] = useState<ProviderProfile[]>([]);
@@ -22,6 +23,7 @@ export function ProviderSettings() {
   const [interfaceType, setInterfaceType] = useState<"openai-compatible" | "anthropic">("openai-compatible");
   const [apiKey, setApiKey] = useState("");
   const [adding, setAdding] = useState(false);
+  const [connectionChecks, setConnectionChecks] = useState<Record<string, ConnectionCheck>>({});
   const { confirm, toast } = useFeedback();
   const refresh = () => fetch("/api/providers", { cache: "no-store" }).then((r) => r.json()).then((data) => setModels(data.providers ?? []));
   useEffect(() => { refresh().catch((cause) => setError(String(cause))).finally(() => setLoading(false)); }, []);
@@ -40,6 +42,24 @@ export function ProviderSettings() {
       setModels((list) => list.map((item) => item.providerId === next.providerId && item.modelId === next.modelId ? next : item));
     } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
     finally { setBusy(null); }
+  }
+
+  async function testConnection(model: ProviderProfile) {
+    const key = `${model.providerId}/${model.modelId}`;
+    setConnectionChecks((current) => ({ ...current, [key]: { state: "testing" } }));
+    try {
+      const response = await fetch("/api/providers/test", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ providerId: model.providerId, modelId: model.modelId, voiceId: "Kore" }),
+      });
+      const result = await response.json().catch(() => ({})) as { ok?: boolean; message?: string; latencyMs?: number };
+      if (!response.ok || !result.ok) throw new Error(result.message || "连接测试失败");
+      setConnectionChecks((current) => ({ ...current, [key]: { state: "success", latencyMs: result.latencyMs } }));
+      await refresh();
+    } catch (cause) {
+      setConnectionChecks((current) => ({ ...current, [key]: { state: "error", message: cause instanceof Error ? cause.message : String(cause) } }));
+    }
   }
 
   async function addProvider() {
@@ -90,10 +110,19 @@ export function ProviderSettings() {
             <div className="divide-y divide-white/[0.07]">{items.map((model) => {
               const key = `${model.providerId}/${model.modelId}`;
               const available = model.enabled && model.configured && model.adapterStatus === "ready";
+              const check = connectionChecks[key];
               return <div key={key} className="grid gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                 <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="truncate text-sm font-medium">{model.modelLabel}</h3><span className="rounded border border-white/10 px-1.5 py-0.5 text-[10px] text-white/45">{labels[model.kind]}</span><span className={`text-xs ${available ? "text-accent" : "text-white/35"}`}>{available ? "可用" : !model.configured ? "待配置" : model.enabled ? "暂不可用" : "已停用"}</span></div><p className="mt-1 truncate font-mono text-[11px] text-white/35">{model.modelId}</p></div>
                 <div className="flex items-center gap-4 sm:justify-end">
                   {model.custom && model.interfaceType === "openai-compatible" && <Select aria-label={`${model.modelLabel} 用途`} className="w-28 text-xs" value={model.kind} disabled={busy === key} onChange={(value) => patch(model, { kind: value as "text" | "image" })}><option value="text">文本模型</option><option value="image">生图模型</option></Select>}
+                  {model.providerId === "google-gemini" && <div className="flex min-w-0 items-center gap-2">
+                    <button type="button" className="btn btn-ghost btn-sm whitespace-nowrap" disabled={check?.state === "testing"} onClick={() => testConnection(model)}>
+                      {check?.state === "testing" ? <Spinner className="size-3.5" /> : check?.state === "success" ? <Icon name="check" className="size-3.5 text-accent" /> : <Icon name="play" className="size-3.5" />}
+                      {check?.state === "testing" ? "测试中" : "测试连接"}
+                    </button>
+                    {check?.state === "success" && <span className="text-xs text-accent">连接正常 · {((check.latencyMs ?? 0) / 1000).toFixed(1)}s</span>}
+                    {check?.state === "error" && <span className="max-w-56 truncate text-xs text-red-200" title={check.message}>{check.message}</span>}
+                  </div>}
                   <Switch checked={model.enabled} label={`${model.modelLabel}${model.enabled ? "停用" : "启用"}`} onChange={(enabled) => patch(model, { enabled })} />
                 </div>
               </div>;

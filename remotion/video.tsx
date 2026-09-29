@@ -9,6 +9,7 @@ import { ImageShot } from "./shots/image";
 import { PlaceholderShot } from "./shots/placeholder";
 import { QuoteShot } from "./shots/quote";
 import { TitleShot } from "./shots/title";
+import { VideoShot } from "./shots/video";
 import { ThemeContext } from "./theme";
 
 ensureFonts();
@@ -25,6 +26,8 @@ export function ShotView({ shot, durationInFrames, theme }: { shot: TimelineShot
       case "upload":
       case "image":
         return <ImageShot shot={shot} durationInFrames={durationInFrames} />;
+      case "video":
+        return <VideoShot shot={shot} durationInFrames={durationInFrames} />;
       default:
         return <PlaceholderShot shot={shot} durationInFrames={durationInFrames} />;
     }

@@ -37,8 +37,10 @@ export const shotGenerateStage = defineStage<ShotGenerateInput, { shotId: string
     const candidateIds = Array.from({ length: candidateCount }, () => randomUUID());
     const slots: (string | undefined)[] = Array.from({ length: candidateCount });
     const writeAsset = (index: number, assetId: string) => {
+      if (!ctx.current()) return;
       slots[index] = assetId;
       mutateProject(input.projectId, (doc) => {
+        if (!ctx.current()) return null;
         const current = doc.shots.find((item) => item.id === shot.id);
         if (!current) return null;
         const ready = slots.filter((asset): asset is string => !!asset);
@@ -68,6 +70,7 @@ export const shotGenerateStage = defineStage<ShotGenerateInput, { shotId: string
       {
         itemKey: (index) => `${baseKey}:${ctx.job.id}:${index}`,
         signal: ctx.signal,
+        current: ctx.current,
         onProgress: (done, total) => ctx.progress(done / total, `候选 ${done}/${total}`),
         onAsset: writeAsset,
         run: async (index) => {

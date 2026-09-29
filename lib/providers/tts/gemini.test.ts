@@ -5,6 +5,8 @@ import {
   classifyGeminiError,
   createGeminiTts,
   geminiApiKey,
+  geminiFetch,
+  geminiProxyUrl,
   normalizeAudio,
   parseGeminiResponse,
   retryAfterMsFromBody,
@@ -79,10 +81,30 @@ describe("Google Gemini TTS 适配器", () => {
     expect(geminiApiKey("  alias-key  ")).toBe("alias-key");
   });
 
+  it("Google Key 为空时回退到通用别名", () => {
+    vi.stubEnv("GOOGLE_GEMINI_API_KEY", "");
+    vi.stubEnv("GEMINI_API_KEY", "  alias-from-env  ");
+    expect(geminiApiKey()).toBe("alias-from-env");
+    vi.unstubAllEnvs();
+  });
+
   it("保留 fetch failed 的底层网络原因", () => {
     const error = classifyGeminiError(undefined, undefined, Object.assign(new Error("fetch failed"), { cause: { code: "ENOTFOUND" } }));
     expect(error.code).toBe("upstream");
     expect(error.message).toContain("找不到 Gemini 服务地址");
     expect(error.message).toContain("ENOTFOUND");
+  });
+
+  it("地区不支持时提示配置 Gemini 代理，且不重试", () => {
+    const error = classifyGeminiError(400, { error: { code: 400, message: "User location is not supported for the API use.", status: "FAILED_PRECONDITION" } });
+    expect(error.message).toContain("GOOGLE_GEMINI_PROXY_URL");
+    expect(error.retryable).toBe(false);
+  });
+
+  it("未配置代理时用内置 fetch；代理连不上时报代理地址", async () => {
+    expect(geminiProxyUrl("  ")).toBeUndefined();
+    expect(geminiFetch(undefined)).toBe(fetch);
+    const proxied = geminiFetch("http://127.0.0.1:1");
+    await expect(proxied("https://generativelanguage.googleapis.com/v1beta/models")).rejects.toThrow("无法连接 Gemini 代理 http://127.0.0.1:1");
   });
 });

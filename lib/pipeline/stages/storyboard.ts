@@ -52,6 +52,25 @@ type Draft = z.infer<typeof draftSchema>["shots"];
 
 export type StoryboardInput = { projectId: string; modelId: string; mode: "full" | "stale" };
 
+/**
+ * A storyboard draft is generated from a contiguous slice of lines. Apply it
+ * only while the same IDs are still contiguous and their text is unchanged.
+ * This rejects inserts, deletes, and reorders inside the slice before any
+ * sourceHash is refreshed against the newer document.
+ */
+export function rangeMatchesCurrent(source: Line[], current: Line[], range: { from: number; to: number }): boolean {
+  const slice = source.slice(range.from, range.to + 1);
+  if (!slice.length) return false;
+  const currentById = new Map(current.map((line, index) => [line.id, { line, index }]));
+  const first = currentById.get(slice[0].id);
+  if (!first) return false;
+  const signature = (line: Line) => JSON.stringify({ segmentIndex: line.segmentIndex, text: line.text, keywords: line.keywords, mood: line.mood });
+  return slice.every((line, offset) => {
+    const found = currentById.get(line.id);
+    return !!found && found.index === first.index + offset && signature(found.line) === signature(line);
+  });
+}
+
 /** 需要重做的连续句子范围 */
 export function staleRanges(doc: ProjectDoc): { from: number; to: number }[] {
   if (doc.shots.length === 0) return doc.lines.length ? [{ from: 0, to: doc.lines.length - 1 }] : [];
@@ -172,7 +191,8 @@ export const storyboardStage = defineStage<StoryboardInput, { shots: number; llm
         const prompt = storyboardPrompt(payload);
         const generation = beginGenerationRun({ projectId: input.projectId, jobId: ctx.job.id, providerId: input.modelId === "claude" ? "anthropic" : input.modelId, modelId: input.modelId, kind: "text", inputHash: key, params: { stage: "storyboard", lineCount: slice.length, range: [r.from, r.to] } });
         try {
-          const raw = await generateJson(input.modelId, draftSchema, prompt);
+          const raw = await generateJson(input.modelId, draftSchema, prompt, ctx.signal);
+          if (!ctx.current()) throw ctx.signal.reason ?? new DOMException("任务已取消", "AbortError");
           draft = raw.shots;
           cachePut(key, "storyboard", draft);
           calls++;
@@ -184,26 +204,43 @@ export const storyboardStage = defineStage<StoryboardInput, { shots: number; llm
           throw e;
         }
       }
+      if (!ctx.current()) throw ctx.signal.reason ?? new DOMException("任务已取消", "AbortError");
       const shots = toShots(draft, slice, castIds);
       // 保证范围的第一句有镜头
       if (!shots.some((s) => s.at.lineId === slice[0].id && s.at.char === 0)) shots.unshift(blankShot(randomUUID(), slice[0].id));
       fresh.push(...shots);
     }
 
-    // 写回：以最新文档为准；期间句子被改了的部分下次对账再处理
+    if (!ctx.current()) throw ctx.signal.reason ?? new DOMException("任务已取消", "AbortError");
+
+    // 写回：只替换仍与生成时一致的范围。文案在生成期间变化时，保留
+    // 当前镜头及其旧 sourceHash，让编排层在下一轮继续识别为过期。
     let count = 0;
     mutateProject(input.projectId, (cur) => {
+      if (!ctx.current()) return null;
       const lineIds = new Set(cur.lines.map((l) => l.id));
       const replaced = new Set<string>();
-      for (const r of ranges) for (const l of doc.lines.slice(r.from, r.to + 1)) replaced.add(l.id);
-      const keep = input.mode === "full" ? cur.shots.filter((s) => s.locked) : cur.shots.filter((s) => s.locked || !replaced.has(s.at.lineId));
+      ranges.forEach((r) => {
+        if (!rangeMatchesCurrent(doc.lines, cur.lines, r)) return;
+        for (const l of doc.lines.slice(r.from, r.to + 1)) replaced.add(l.id);
+      });
+      const keep = cur.shots.filter((s) => s.locked || !replaced.has(s.at.lineId));
       const keepAt = new Set(keep.map((s) => `${s.at.lineId}:${s.at.char}`));
-      const merged = [...keep, ...fresh.filter((s) => lineIds.has(s.at.lineId) && !keepAt.has(`${s.at.lineId}:${s.at.char}`))];
+      const merged = [...keep, ...fresh.filter((s) => replaced.has(s.at.lineId) && lineIds.has(s.at.lineId) && !keepAt.has(`${s.at.lineId}:${s.at.char}`))];
       const curArt = loadArtifacts(cur, input.projectId);
       const curLaid = layoutLines(cur.lines, curArt);
       const times = new Map(curLaid.lines.map((l) => [l.id, l]));
       const normalized = normalizeShots(merged, cur.lines, times, curLaid.endMs, () => randomUUID());
-      const stamped = stampShots(normalized, cur.lines).map((s) => (s.locked ? (cur.shots.find((x) => x.id === s.id) ?? s) : s));
+      const stampedFreshIds = new Set(fresh.map((s) => s.id));
+      const existingById = new Map(cur.shots.map((s) => [s.id, s]));
+      const stamped = stampShots(normalized, cur.lines).map((s) => {
+        // Keep concurrent/current shots' sourceHash untouched. Only drafts
+        // generated from a matching snapshot (and normalization shots inside
+        // an applied range) receive a hash for the current text.
+        if (stampedFreshIds.has(s.id)) return s;
+        if (!existingById.has(s.id)) return replaced.has(s.at.lineId) ? s : { ...s, sourceHash: "" };
+        return { ...s, sourceHash: existingById.get(s.id)!.sourceHash };
+      });
       count = stamped.length;
       return { ...cur, shots: stamped };
     });

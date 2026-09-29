@@ -41,7 +41,8 @@ export const castStage = defineStage<CastInput, { characters: number; skipped: n
       const prompt = castPrompt(payload);
       const generation = beginGenerationRun({ projectId: input.projectId, jobId: ctx.job.id, providerId: input.modelId === "claude" ? "anthropic" : input.modelId, modelId: input.modelId, kind: "text", inputHash: key, params: { stage: "cast", lineCount: doc.lines.length } });
       try {
-        draft = await generateJson(input.modelId, castDraftSchema, prompt);
+        draft = await generateJson(input.modelId, castDraftSchema, prompt, ctx.signal);
+        if (!ctx.current()) throw ctx.signal.reason ?? new DOMException("任务已取消", "AbortError");
         cachePut(key, "cast", draft);
         const costYuan = estimateLlmCost(input.modelId, prompt.instructions.length + prompt.prompt.length, JSON.stringify(draft).length);
         const ledgerId = ctx.spend({ provider: input.modelId, model: input.modelId, unit: "call", quantity: 1, costYuan });
@@ -51,9 +52,11 @@ export const castStage = defineStage<CastInput, { characters: number; skipped: n
         throw e;
       }
     }
+    if (!ctx.current()) throw ctx.signal.reason ?? new DOMException("任务已取消", "AbortError");
     const { cards, skipped } = decideCharacters(draft, doc.lines);
     let count = 0;
     mutateProject(input.projectId, (cur) => {
+      if (!ctx.current()) return null;
       const characters = reconcileCharacters(cur.characters, cards, () => randomUUID());
       count = characters.filter((c) => !c.absent).length;
       const segments = new Set(cur.lines.map((l) => l.segmentIndex));

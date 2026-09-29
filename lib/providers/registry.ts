@@ -1,5 +1,6 @@
 import pricing from "../../config/pricing.json";
 import { all, get, json, run } from "../server/db";
+import { geminiApiKey } from "./tts/gemini";
 import { baseUrlOf, builtinModels, modelEnvName, type BuiltinModel } from "./catalog";
 import type { ModelProfileOverride, ProviderProfile } from "./types";
 import { customModels, customProvider, customProviders, customProviderApiKey, customProviderConfigured, setCustomModelEnabled, setCustomModelKind } from "./custom";
@@ -31,6 +32,7 @@ export function listProviderProfiles(): ProviderProfile[] {
   const builtins = builtinModels.map((raw) => {
     const model = effectiveBuiltinModel(raw);
     const row = overrides.get(`${model.providerId}/${model.modelId}`) ?? overrides.get(`${raw.providerId}/${raw.modelId}`);
+    const authConfigured = model.providerId === "google-gemini" ? !!geminiApiKey() : !!env(model.authEnv);
     const override = row && {
       enabled: !!row.enabled,
       price: parse(row.price, {}),
@@ -46,7 +48,7 @@ export function listProviderProfiles(): ProviderProfile[] {
       adapter: model.adapter,
       adapterStatus: model.adapterStatus,
       capabilities: model.capabilities,
-      configured: !!env(model.authEnv) && (model.configEnvs ?? []).every((name) => !!env(name)) && enabledEnv(model.featureFlagEnv),
+      configured: authConfigured && (model.configEnvs ?? []).every((name) => !!env(name)) && enabledEnv(model.featureFlagEnv),
       enabled: override?.enabled ?? model.enabled,
       authEnv: model.authEnv,
       baseUrl: baseUrlOf(model),

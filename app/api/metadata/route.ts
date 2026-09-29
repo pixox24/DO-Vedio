@@ -11,6 +11,6 @@ const body = withBrief.extend({ script: z.string().min(1, "请先生成文案") 
 export async function POST(req: Request) {
   return handle(async () => {
     const { brief, modelId, script } = await parseBody(req, body);
-    return Response.json(await generateJson(modelId, metadataSchema, metadataPrompt(brief, script)));
+    return Response.json(await generateJson(modelId, metadataSchema, metadataPrompt(brief, script), req.signal));
   });
 }

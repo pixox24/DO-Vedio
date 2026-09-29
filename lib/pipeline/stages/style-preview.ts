@@ -42,6 +42,7 @@ export const stylePreviewStage = defineStage<StylePreviewInput, StylePreview>({
     const assets = await generateBatch(prompts, {
       itemKey: (k) => `${key}:${k}`,
       signal: ctx.signal,
+      current: ctx.current,
       onProgress: (done, total) => ctx.progress(done / total, `样张 ${done}/${total}`),
       run: async (prompt, k) => {
         const run = beginGenerationRun({ jobId: ctx.job.id, providerId: mediaProviderId("image", input.modelId), modelId: input.modelId, kind: "image", inputHash: `${key}:${k}`, params: { stage: "style-preview", style: input.style.name, scene: PREVIEW_SCENES[k].name, prompt: prompt.full } });
@@ -55,6 +56,7 @@ export const stylePreviewStage = defineStage<StylePreviewInput, StylePreview>({
         }
       },
     });
+    if (!ctx.current()) throw ctx.signal.reason ?? new DOMException("样张任务已取消", "AbortError");
     const result = { assets };
     cachePut(key, "style-preview", result);
     ctx.progress(1, "样张已生成");
