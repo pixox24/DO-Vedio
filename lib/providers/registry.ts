@@ -6,12 +6,13 @@ import { customModels, customProvider, customProviders, customProviderApiKey, cu
 
 type OverrideRow = { provider_id: string; model_id: string; enabled: number; price: string; defaults: string; limits: string };
 const env = (name?: string) => (name ? process.env[name]?.trim() || undefined : undefined);
+const enabledEnv = (name?: string) => !name || /^(1|true|yes|on)$/i.test(process.env[name]?.trim() || "");
 const parse = <T>(raw: string | null | undefined, fallback: T): T => {
   try { return raw == null ? fallback : JSON.parse(raw) as T; } catch { return fallback; }
 };
 
 function effectiveBuiltinModel(model: BuiltinModel): BuiltinModel {
-  if (model.kind !== "text") return model;
+  if (!model.modelEnv) return model;
   const modelId = modelEnvName(model);
   return modelId === model.modelId ? model : { ...model, modelId, modelLabel: `${model.modelLabel} · ${modelId}` };
 }
@@ -45,7 +46,7 @@ export function listProviderProfiles(): ProviderProfile[] {
       adapter: model.adapter,
       adapterStatus: model.adapterStatus,
       capabilities: model.capabilities,
-      configured: !!env(model.authEnv) && (model.configEnvs ?? []).every((name) => !!env(name)),
+      configured: !!env(model.authEnv) && (model.configEnvs ?? []).every((name) => !!env(name)) && enabledEnv(model.featureFlagEnv),
       enabled: override?.enabled ?? model.enabled,
       authEnv: model.authEnv,
       baseUrl: baseUrlOf(model),

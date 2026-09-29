@@ -179,10 +179,13 @@ function synthesizeWebSocket(apiKey: string, url: string, req: SynthRequest, sig
         const durationMs = Math.round((pcm.length / 2 / SAMPLE_RATE) * 1000);
         done(null, {
           audio: pcmToWav(pcm, SAMPLE_RATE),
+          mime: "audio/wav",
           sampleRate: SAMPLE_RATE,
+          channels: 1,
           durationMs,
           words: mergeSentences(sentences),
           billedChars: msg.payload?.usage?.characters ?? 0,
+          alignmentSource: "provider",
         });
       } else if (ev === "task-failed") {
         done(classify(msg.header.error_code, msg.header.error_message ?? "未知错误"));
@@ -350,7 +353,7 @@ async function synthesizeHttp(apiKey: string, url: string, req: SynthRequest, si
   const dataOffset = wav.indexOf(Buffer.from("data"), 12);
   const pcmBytes = dataOffset >= 0 ? wav.length - dataOffset - 8 : Math.max(0, wav.length - 44);
   const durationMs = Math.round((pcmBytes / 2 / SAMPLE_RATE) * 1000);
-  return { audio: wav, sampleRate: SAMPLE_RATE, durationMs, words: parsed.words, billedChars: parsed.billedChars };
+  return { audio: wav, mime: "audio/wav", sampleRate: SAMPLE_RATE, channels: 1, durationMs, words: parsed.words, billedChars: parsed.billedChars, alignmentSource: parsed.words.length ? "provider" : "estimated" };
 }
 
 /** 多个句子的词表按序拼接；若某句时间从 0 重新计，则平移到上一句之后 */

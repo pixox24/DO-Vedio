@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { characterCardSchema, emptyDoc, type Shot } from "./types";
 import { shotGenerationKey, ttsKey, ttsRequestForLine, ttsTextForLine } from "./keys";
+import { quickHash } from "./hash";
 import { builtinVisualStyles } from "../visual-styles/builtin";
 
 const shot = (patch: Partial<Shot> = {}): Shot => ({
@@ -74,5 +75,18 @@ describe("Qwen-Audio 逐句表达标签", () => {
     expect(ttsKey("同一句", voice, "SSML")).not.toBe(ttsKey("同一句", voice));
     expect(ttsKey("<speak>SSML</speak>", voice, "SSML")).toBe(ttsKey("<speak>SSML</speak>", { ...voice, instruction: "另一种全局指令" }, "SSML"));
     expect(ttsKey("历史纯文本", voice)).toBe(ttsKey("历史纯文本", voice, "PlainText"));
+  });
+});
+
+describe("Gemini TTS 缓存指纹", () => {
+  it("忽略已停用的 style，仍区分输出编码、采样率和对齐策略", () => {
+    const voice = { ...emptyDoc().settings.voice, provider: "google-gemini" as const, model: "gemini-3.8-flash-tts", voiceId: "Kore", google: { stylePrompt: "沉稳", outputEncoding: "LINEAR16" as const, sampleRateHertz: 24000, alignment: "estimated" as const } };
+    const base = ttsKey("同一句", voice);
+    const oldKey = `tts:${quickHash({ v: 3, s: "同一句", p: voice.provider, m: voice.model, id: voice.voiceId, r: voice.rate, pi: voice.pitch, vo: voice.volume, instruction: voice.instruction, google: voice.google })}`;
+    expect(base).not.toBe(oldKey);
+    expect(ttsKey("同一句", { ...voice, google: { ...voice.google, stylePrompt: "明快" } })).toBe(base);
+    expect(ttsKey("同一句", { ...voice, google: { ...voice.google, outputEncoding: "WAV" } })).not.toBe(base);
+    expect(ttsKey("同一句", { ...voice, google: { ...voice.google, sampleRateHertz: 48000 } })).not.toBe(base);
+    expect(ttsKey("同一句", { ...voice, google: { ...voice.google, alignment: "provider" } })).not.toBe(base);
   });
 });

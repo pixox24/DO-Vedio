@@ -76,7 +76,7 @@ export function startLoop(opts: LoopOptions) {
       if (canceled) log(`■ ${job.stage} 已取消`);
       else {
         log(`✗ ${job.stage}${job.target ? ` · ${job.target}` : ""}：${errorMessage(e)}`);
-        failJob(job.id, workerId, errorMessage(e), isRetryable(e));
+        failJob(job.id, workerId, errorMessage(e), isRetryable(e), (e as { retryAfterMs?: number })?.retryAfterMs);
       }
     } finally {
       active.delete(job.id);

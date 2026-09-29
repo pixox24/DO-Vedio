@@ -58,6 +58,16 @@ describe("任务队列", () => {
     expect(getJob(k.id)?.status).toBe("failed");
   });
 
+  it("队列不会早于上游建议时间重试", async () => {
+    const { enqueue, claim, failJob, getJob } = await import("@/lib/server/jobs");
+    const job = enqueue({ projectId: "p", stage: "echo", key: "retry-after", input: {} });
+    claim("w", ["echo"]);
+    const now = Date.now();
+    failJob(job.id, "w", "配额限制", true, 21_850);
+    expect(getJob(job.id)?.status).toBe("queued");
+    expect(getJob(job.id)!.runAfter).toBeGreaterThanOrEqual(now + 21_850);
+  });
+
   it("Worker 端到端：执行、重试、取消", async () => {
     const { enqueue, getJob, cancelJob } = await import("@/lib/server/jobs");
     const { run } = await import("@/lib/server/db");

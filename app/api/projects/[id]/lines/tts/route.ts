@@ -5,7 +5,7 @@ import { effectiveLexicon } from "@/lib/server/lexicon";
 import { getProject } from "@/lib/server/projects";
 import { enqueue } from "@/lib/server/jobs";
 import { billedCharsOf, estimateTtsCost } from "@/lib/pipeline/pricing";
-import { dashscopeTts } from "@/lib/providers/tts/dashscope";
+import { ttsProviderOf } from "@/lib/providers/tts/factory";
 import { cacheGet } from "@/lib/server/cache";
 import { run } from "@/lib/server/db";
 import type { TtsResult } from "@/lib/core/keys";
@@ -28,7 +28,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/projects/[id]/l
       return { line, index, speech, ttsText: tts.text, textType: tts.textType, key, hit };
     }).filter((row) => mode === "all" || !row.hit);
     if (!rows.length) return fail(mode === "missing" ? "所有句子都已有配音" : "没有可重录的句子", 409);
-    const provider = dashscopeTts();
+    const provider = ttsProviderOf(project.doc.settings.voice);
     const jobs = rows.map((row) => {
       run("DELETE FROM jobs WHERE project_id = ? AND key = ? AND status IN ('queued', 'running')", id, row.key);
       return enqueue({

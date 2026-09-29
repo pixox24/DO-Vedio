@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import { AudioButton, AutoTextarea, Field, Icon, RangeField, Select, Spinner, Switch } from "@/components/ui";
@@ -23,12 +23,14 @@ type ProjectStore = {
   setDoc: (fn: (doc: ProjectDoc) => ProjectDoc) => void;
   save: SaveState;
   flush: () => Promise<unknown>;
+  reload: () => Promise<void>;
 };
 
 type LineInfo = {
   id: string;
   spoken: string;
-  audio: { src: string; startMs: number; endMs: number; aligned: boolean } | null;
+  audio: { src: string; startMs: number; endMs: number; aligned: boolean; alignmentSource?: "provider" | "forced" | "estimated" } | null;
+  capabilities?: string[];
   job: { id: string; status: string; error: string | null } | null;
 };
 
@@ -47,7 +49,9 @@ export function SentencePanel({ id, store, jobs, onChanged, onSeek }: { id: stri
   const { confirm, toast } = useFeedback();
   const ttsExpressionRevision = store.doc?.lines.map((line) => `${line.id}:${line.mood ?? ""}:${line.voiceTag ?? "auto"}`).join("|") ?? "";
   const voiceSettings = store.doc?.settings.voice;
-  const supportsEmotionTags = voiceSettings?.model.startsWith("qwen-audio-") ?? false;
+  const capabilities = lines[0]?.capabilities ?? [];
+  const supportsEmotionTags = capabilities.includes("emotion-tags");
+  const supportsStylePrompt = capabilities.includes("style-prompt");
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -67,7 +71,7 @@ export function SentencePanel({ id, store, jobs, onChanged, onSeek }: { id: stri
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     refresh();
-  }, [refresh, store.doc?.lines.length, ttsExpressionRevision, voiceSettings?.model, voiceSettings?.voiceId, voiceSettings?.rate, voiceSettings?.pitch, voiceSettings?.volume, voiceSettings?.instruction, ttsJobRevision]);
+  }, [refresh, store.doc?.lines.length, ttsExpressionRevision, voiceSettings?.provider, voiceSettings?.model, voiceSettings?.voiceId, voiceSettings?.rate, voiceSettings?.pitch, voiceSettings?.volume, voiceSettings?.instruction, voiceSettings?.google?.stylePrompt, ttsJobRevision]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const toggleLock = (lineId: string) => {
@@ -204,7 +208,7 @@ export function SentencePanel({ id, store, jobs, onChanged, onSeek }: { id: stri
                   </button>
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-2 pl-7">
-                  {item.audio ? <AudioButton src={item.audio.src} startMs={item.audio.startMs} endMs={item.audio.endMs} /> : <span className="text-sm text-amber-200/80">未配音</span>}
+                  {item.audio ? <><AudioButton src={item.audio.src} startMs={item.audio.startMs} endMs={item.audio.endMs} /><span className="text-[11px] text-white/40">{item.audio.alignmentSource === "provider" ? "精确对齐" : "估算对齐"}</span></> : <span className="text-sm text-amber-200/80">未配音</span>}
                   {item.job && <span className="text-xs text-white/35">{item.job.status === "running" ? "合成中" : item.job.status === "queued" ? "排队中" : item.job.error || item.job.status}</span>}
                   <button className="chip h-7 px-2.5" onClick={() => revoice(item.id)}>重录</button>
                 </div>
@@ -217,7 +221,7 @@ export function SentencePanel({ id, store, jobs, onChanged, onSeek }: { id: stri
                           {voiceTagChoices.map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}
                         </Select>
                       </label>
-                        <p className="pb-1 text-[11px] leading-5 text-white/40">{supportsEmotionTags ? line.voiceTag?.startsWith("ssml:") ? "SSML 只调节句内停顿；本句不叠加情绪标签或全局表达指令。点击「重录」试听。" : `句子情绪：${line.mood ?? "未标注"}；修改后点击本句「重录」生效。` : "切换到 Qwen-Audio 模型后可设置逐句情绪和 SSML 停顿。"}</p>
+                        <p className="pb-1 text-[11px] leading-5 text-white/40">{supportsEmotionTags ? line.voiceTag?.startsWith("ssml:") ? "SSML 只调节句内停顿；本句不叠加情绪标签或全局表达指令。点击「重录」试听。" : `句子情绪：${line.mood ?? "未标注"}；修改后点击本句「重录」生效。` : supportsStylePrompt ? "当前模型使用制作设置中的全局表达指令，不提供逐句情绪标签。" : "当前模型不支持逐句表达控制。"}</p>
                     </div>
                     <button className="mb-2 text-xs text-white/55 hover:text-white" onClick={() => { setLexOpen(true); setLexWord(""); setLexSay(""); }}>添加词典规则</button>
                     {lexOpen && <>
@@ -457,36 +461,76 @@ export function MusicPanel({ id, store }: { id: string; store: ProjectStore }) {
   </section>;
 }
 
-type VoiceCatalog = { providers: { models: { id: string; label: string; configured?: boolean; configurationHint?: string; capabilities?: string[]; voices: { id: string; name: string; gender: string; style: string; timestamps: boolean; instruct?: boolean; ssml?: boolean; emotionTags?: boolean }[] }[] }[] };
+type VoiceCatalog = { providers: { id: string; label: string; models: { id: string; label: string; configured?: boolean; configurationHint?: string; capabilities?: string[]; voices: { id: string; name: string; gender: string; style: string; timestamps: boolean; instruct?: boolean; ssml?: boolean; emotionTags?: boolean }[] }[] }[] };
 
-export function SettingsPanel({ id, store }: { id: string; store: ProjectStore }) {
+type VoiceChange = { status: "pending" | "applied"; voice: VoiceSettings; total: number; ready: number; missing: number; failed: number; revertible: boolean };
+type VoiceQuote = { total: number; existing: number; affected: number; reusable: number; generate: number; estimatedCostYuan: number | null; changed: boolean };
+
+export function SettingsPanel({ id, store, draft, setDraft, onChanged }: { id: string; store: ProjectStore; draft: VoiceSettings | null; setDraft: Dispatch<SetStateAction<VoiceSettings | null>>; onChanged?: () => void }) {
   const doc = store.doc;
   const [catalog, setCatalog] = useState<VoiceCatalog | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState(false);
+  const [change, setChange] = useState<VoiceChange | null>(null);
+  const [voiceBusy, setVoiceBusy] = useState(false);
   const { confirm, toast } = useFeedback();
+  const { reload } = store;
   useEffect(() => { fetch("/api/voices").then((r) => r.json()).then(setCatalog).catch(() => setCatalog(null)); }, []);
-  if (!doc) return null;
-  const projectDoc = doc;
-  const models = catalog?.providers.flatMap((p) => p.models) ?? [];
-  const currentModel = models.find((m) => m.id === doc.settings.voice.model) ?? models[0];
-  const voices = currentModel?.voices ?? [];
-  const voice = doc.settings.voice;
-  const updateVoice = (patch: Partial<VoiceSettings>) => store.setDoc((d) => ({ ...d, settings: { ...d.settings, voice: { ...d.settings.voice, ...patch } } }));
-  async function changeVoice(patch: Partial<VoiceSettings>) {
-    const changed = Object.entries(patch).some(([key, value]) => voice[key as keyof VoiceSettings] !== value);
-    const voicedLines = projectDoc.lines.length;
-    if (changed && voicedLines > 0 && !(await confirm({ title: "更换音色并重新配音？", message: `当前已有 ${voicedLines} 句配音。更换音色后这些配音会失效，并按新音色重新排队。`, confirmLabel: "更换并重录", tone: "danger" }))) return;
-    updateVoice(patch);
-    if (changed && voicedLines > 0) {
-      try {
-        if ((await store.flush()) == null) throw new Error("音色设置保存失败，请重试");
-        const result = await postJson<{ count: number }>(`/api/projects/${id}/lines/tts`, { mode: "all" });
-        toast(`已按新音色排队 ${result.count} 句配音`, "success");
-      } catch (error) {
-        toast(error instanceof Error ? error.message : String(error), "error");
-      }
+  const refreshChange = useCallback(async () => {
+    const res = await fetch(`/api/projects/${id}/voice-change`, { cache: "no-store" });
+    if (!res.ok) return;
+    const data = await res.json() as { change: VoiceChange | null };
+    setChange(data.change);
+    if (data.change?.status === "applied") {
+      await reload();
+      onChanged?.();
     }
+  }, [id, reload, onChanged]);
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => { void refreshChange(); }, [refreshChange]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (change?.status !== "pending") return;
+    const timer = window.setInterval(() => { void refreshChange(); }, 2000);
+    return () => window.clearInterval(timer);
+  }, [change?.status, refreshChange]);
+  if (!doc) return null;
+  const voice = draft ?? (change?.status === "pending" ? change.voice : doc.settings.voice);
+  const pending = change?.status === "pending";
+  const dirtyVoice = JSON.stringify(voice) !== JSON.stringify(doc.settings.voice);
+  const currentProvider = catalog?.providers.find((p) => p.id === voice.provider);
+  const models = currentProvider?.models ?? [];
+  const currentModel = models.find((m) => m.id === voice.model) ?? models[0];
+  const voices = currentModel?.voices ?? [];
+  const updateVoice = (patch: Partial<VoiceSettings>) => setDraft({ ...voice, ...patch });
+  async function applyVoice() {
+    setVoiceBusy(true);
+    try {
+      if ((await store.flush()) == null) throw new Error("项目设置保存失败，请重试");
+      const quote = await postJson<VoiceQuote>(`/api/projects/${id}/voice-change`, { action: "quote", voice });
+      if (!quote.changed) return;
+      const cost = quote.estimatedCostYuan == null ? "费用暂无法准确估算，以服务商账单为准。" : `预计费用约 ¥${quote.estimatedCostYuan.toFixed(2)}，实际以服务商账单为准。`;
+      const message = quote.existing ? `当前 ${quote.existing} 句已有配音，其中 ${quote.affected} 句会受新设置影响。新设置可复用 ${quote.reusable} 句缓存，预计需生成 ${quote.generate} 句。生成期间继续使用旧配音，全部就绪后统一切换。${cost}` : `当前没有已生成配音，本次只保存配音设置，不会发起配音请求。`;
+      if (!(await confirm({ title: "应用配音设置？", message, confirmLabel: quote.generate ? "应用并生成" : "应用设置" }))) return;
+      const result = await postJson<{ change: VoiceChange | null }>(`/api/projects/${id}/voice-change`, { action: "apply", voice });
+      setChange(result.change);
+      setDraft(null);
+      if (result.change?.status === "applied") { await store.reload(); onChanged?.(); }
+      toast(quote.generate ? `已开始生成 ${quote.generate} 句新配音` : "配音设置已应用", "success");
+    } catch (error) {
+      toast(error instanceof Error ? error.message : String(error), "error");
+    } finally { setVoiceBusy(false); }
+  }
+  async function voiceAction(action: "retry" | "cancel" | "revert") {
+    setVoiceBusy(true);
+    try {
+      const result = await postJson<{ change: VoiceChange | null }>(`/api/projects/${id}/voice-change`, { action });
+      setChange(result.change);
+      if (action === "cancel") setDraft(change?.voice ?? null);
+      if (action === "revert" || result.change?.status === "applied") { await store.reload(); onChanged?.(); }
+      toast(action === "retry" ? "已补齐排队中的新配音" : action === "cancel" ? "已取消，继续使用原配音" : "已恢复原配音", "success");
+    } catch (error) { toast(error instanceof Error ? error.message : String(error), "error"); }
+    finally { setVoiceBusy(false); }
   }
   async function previewVoice() {
     setPreviewing(true);
@@ -506,13 +550,18 @@ export function SettingsPanel({ id, store }: { id: string; store: ProjectStore }
   }
   return <section className="panel p-5"><div className="flex items-center justify-between gap-3"><div><p className="label">设置</p><h2 className="mt-1 text-base font-medium">制作设置</h2></div><span className="text-sm text-text-muted">{store.save === "saving" ? "保存中" : store.save === "saved" ? "已保存" : ""}</span></div>
     <div className="mt-4 grid gap-4 md:grid-cols-2">
-      <Field label="音色模型"><Select value={doc.settings.voice.model} onChange={(v) => { const m = models.find((x) => x.id === v); void changeVoice({ model: v, voiceId: m?.voices[0]?.id ?? doc.settings.voice.voiceId }); }}><option value={doc.settings.voice.model}>{currentModel?.label ?? doc.settings.voice.model}{currentModel && !currentModel.configured ? `（${currentModel.configurationHint ?? "待配置"}）` : ""}</option>{models.filter((m) => m.id !== doc.settings.voice.model).map((m) => <option key={m.id} value={m.id} disabled={m.configured === false}>{m.label}{m.configured === false ? `（${m.configurationHint ?? "待配置"}）` : ""}</option>)}</Select></Field>
-      <Field label="音色"><div className="flex gap-2"><Select value={doc.settings.voice.voiceId} onChange={(v) => { void changeVoice({ voiceId: v }); }} className="min-w-0 flex-1">{voices.length ? voices.map((v) => <option key={v.id} value={v.id}>{v.name} · {v.style}</option>) : <option value={doc.settings.voice.voiceId}>{doc.settings.voice.voiceId}</option>}</Select><button className="btn btn-ghost btn-sm" disabled={previewing} onClick={previewVoice}>{previewing ? <Spinner className="size-3" /> : "试听"}</button>{preview && <audio id="voice-preview" className="hidden" src={preview} />}</div></Field>
-      <Field label="语速"><RangeField label="" value={doc.settings.voice.rate} min={0.5} max={2} step={0.05} suffix="x" onChange={(value) => updateVoice({ rate: value })} /></Field>
-      <Field label="音量"><RangeField label="" value={doc.settings.voice.volume} min={0} max={100} step={1} suffix="" onChange={(value) => updateVoice({ volume: value })} /></Field>
-      <Field label="旁白表达指令" hint="仅支持该能力的模型生效；修改后需重新配音"><AutoTextarea value={voice.instruction} onChange={(event) => updateVoice({ instruction: event.target.value })} className="input min-h-16 py-2 text-xs leading-5" placeholder="例如：沉稳、清晰，略带悬念的纪录片旁白表达" maxLength={500} /></Field>
+      <Field label="配音服务商"><Select value={voice.provider} disabled={pending} onChange={(value) => { const provider = catalog?.providers.find((item) => item.id === value); const model = provider?.models.find((item) => item.configured !== false) ?? provider?.models[0]; updateVoice({ provider: value as VoiceSettings["provider"], model: model?.id ?? voice.model, voiceId: model?.voices[0]?.id ?? voice.voiceId }); }}>{catalog?.providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}</Select></Field>
+      {voice.provider === "google-gemini" && <p className="md:col-span-2 -mt-2 text-xs leading-5 text-amber-200/70">启用 Google Gemini 后，本项目的配音文本会发送到 Google Gemini API。</p>}
+      <Field label="音色模型"><Select value={voice.model} disabled={pending} onChange={(v) => { const m = models.find((x) => x.id === v); updateVoice({ model: v, voiceId: m?.voices[0]?.id ?? voice.voiceId }); }}><option value={voice.model}>{currentModel?.label ?? voice.model}{currentModel && !currentModel.configured ? `（${currentModel.configurationHint ?? "待配置"}）` : ""}</option>{models.filter((m) => m.id !== voice.model).map((m) => <option key={m.id} value={m.id} disabled={m.configured === false}>{m.label}{m.configured === false ? `（${m.configurationHint ?? "待配置"}）` : ""}</option>)}</Select></Field>
+      <Field label="音色"><div className="flex gap-2"><Select value={voice.voiceId} disabled={pending} onChange={(v) => updateVoice({ voiceId: v })} className="min-w-0 flex-1">{voices.length ? voices.map((v) => <option key={v.id} value={v.id}>{v.name} · {v.style}</option>) : <option value={voice.voiceId}>{voice.voiceId}</option>}</Select><button className="btn btn-ghost btn-sm" disabled={previewing} onClick={previewVoice}>{previewing ? <Spinner className="size-3" /> : "试听"}</button>{preview && <audio id="voice-preview" className="hidden" src={preview} />}</div></Field>
+      <Field label="语速"><fieldset disabled={pending}><RangeField label="" value={voice.rate} min={0.5} max={2} step={0.05} suffix="x" onChange={(value) => updateVoice({ rate: value })} /></fieldset></Field>
+      <Field label="音量"><fieldset disabled={pending}><RangeField label="" value={voice.volume} min={0} max={100} step={1} suffix="" onChange={(value) => updateVoice({ volume: value })} /></fieldset></Field>
+      <Field label={voice.provider === "google-gemini" ? "旁白表达指令（暂不可用）" : "旁白表达指令"} hint={voice.provider === "google-gemini" ? "当前不生效；已填写内容保留。" : "应用后生效"}><AutoTextarea value={voice.provider === "google-gemini" ? voice.google?.stylePrompt ?? "" : voice.instruction} onChange={(event) => updateVoice({ instruction: event.target.value })} className="input min-h-16 py-2 text-xs leading-5" placeholder="例如：沉稳、清晰，略带悬念的纪录片旁白表达" maxLength={voice.provider === "google-gemini" ? 1000 : 500} disabled={voice.provider === "google-gemini" || pending} /></Field>
       <Field label="预算（元）"><input className="input" type="number" min="0" step="1" value={doc.settings.budgetYuan ?? ""} onChange={(e) => store.setDoc((d) => ({ ...d, settings: { ...d.settings, budgetYuan: e.target.value ? Number(e.target.value) : null } }))} placeholder="不设上限" /></Field>
       <Field label="AI 标识"><Select value={doc.settings.aiLabel.position} onChange={(v) => store.setDoc((d) => ({ ...d, settings: { ...d.settings, aiLabel: { ...d.settings.aiLabel, enabled: true, position: v as "auto" | "top-left" | "top-right" } } }))}><option value="auto">自动位置</option><option value="top-left">左上角</option><option value="top-right">右上角</option></Select></Field>
+    </div>
+    <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-white/[0.06] pt-4 text-sm">
+      {pending ? <><span className="text-white/65">新配音 {change.ready}/{change.total} 句就绪，当前仍播放原配音{change.failed ? `；${change.failed} 句生成失败` : ""}</span><button className="btn btn-ghost btn-sm" disabled={voiceBusy || change.missing === 0} onClick={() => void voiceAction("retry")}>补齐缺失句</button><button className="btn btn-ghost btn-sm" disabled={voiceBusy} onClick={() => void voiceAction("cancel")}>取消应用</button></> : <><button className="btn btn-primary btn-sm" disabled={!dirtyVoice || voiceBusy} onClick={() => void applyVoice()}>{voiceBusy ? <Spinner className="size-3" /> : null}应用到项目</button>{dirtyVoice && <button className="btn btn-ghost btn-sm" disabled={voiceBusy} onClick={() => setDraft(null)}>放弃修改</button>}{change?.status === "applied" && change.revertible && !dirtyVoice && <button className="btn btn-ghost btn-sm" disabled={voiceBusy} onClick={() => void voiceAction("revert")}>撤回本次应用</button>}{dirtyVoice && <span className="text-white/45">待应用；当前配音不变</span>}</>}
     </div>
     <div className="mt-4 flex flex-wrap gap-x-5 gap-y-3 border-t border-white/[0.06] pt-4 text-sm text-text-muted"><label className="flex items-center gap-2">字幕 <Switch checked={doc.settings.subtitle.enabled} label="字幕" onChange={(checked) => store.setDoc((d) => ({ ...d, settings: { ...d.settings, subtitle: { ...d.settings.subtitle, enabled: checked } } }))} /></label><label className="flex items-center gap-2">关键词高亮 <Switch checked={doc.settings.subtitle.highlight} label="关键词高亮" onChange={(checked) => store.setDoc((d) => ({ ...d, settings: { ...d.settings, subtitle: { ...d.settings.subtitle, highlight: checked } } }))} /></label><label className="flex items-center gap-2">AI 生成标识 <Switch checked={doc.settings.aiLabel.enabled} label="AI 生成标识" onChange={(checked) => { void toggleAiLabel(checked); }} /></label><label className="flex items-center gap-2">转场音效 <Switch checked={doc.settings.sfx.enabled} label="转场音效" onChange={(checked) => store.setDoc((d) => ({ ...d, settings: { ...d.settings, sfx: { enabled: checked } } }))} /></label><label className="flex items-center gap-2">样片后暂停 <Switch checked={doc.settings.pauseAfterPreview} label="样片后暂停" onChange={(checked) => store.setDoc((d) => ({ ...d, settings: { ...d.settings, pauseAfterPreview: checked } }))} /></label></div>
   </section>;

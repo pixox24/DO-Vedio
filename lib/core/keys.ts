@@ -9,7 +9,7 @@ import type { Line, Mood, ProjectDoc, Shot, VoiceSettings, VoiceTag } from "./ty
  * 改了某步骤的算法就把版本号加 1，旧缓存自然失效。
  */
 
-export const STAGE_VERSION = { annotate: 1, tts: 2, storyboard: 3, music: 1, render: 1, shotGeneration: 3, cast: 3, characterSheet: 1 } as const;
+export const STAGE_VERSION = { annotate: 1, tts: 3, storyboard: 3, music: 1, render: 1, shotGeneration: 3, cast: 3, characterSheet: 1 } as const;
 
 /** 标注：输入是一个段落的全部句子 */
 export function annotateKey(lines: Pick<Line, "id" | "text">[], lex: LexEntry[], modelId: string) {
@@ -68,12 +68,31 @@ export function ttsTextForLine(spoken: string, line: Pick<Line, "mood" | "voiceT
 }
 
 export function voiceKeyOf(v: VoiceSettings) {
-  return `${v.provider}/${v.model}/${v.voiceId}/${v.instruction}`;
+  return `${v.provider}/${v.model}/${v.voiceId}/${quickHash({
+    rate: v.rate,
+    pitch: v.pitch,
+    volume: v.volume,
+    instruction: v.instruction,
+    google: v.provider === "google-gemini" && v.google ? { ...v.google, stylePrompt: undefined } : v.google,
+  })}`;
 }
 
 /** 配音：由朗读文本和音色参数决定，与句子 ID 无关——相同文本天然复用 */
 export function ttsKey(spoken: string, v: VoiceSettings, textType?: "PlainText" | "SSML") {
-  return `tts:${quickHash({ v: STAGE_VERSION.tts, s: spoken, ...(textType === "SSML" ? { textType } : {}), p: v.provider, m: v.model, id: v.voiceId, r: v.rate, pi: v.pitch, vo: v.volume, instruction: textType === "SSML" ? "" : v.instruction })}`;
+  return `tts:${quickHash({
+    // ponytail: bump only Gemini so cached audio that spoke old style instructions cannot be reused.
+    v: STAGE_VERSION.tts + (v.provider === "google-gemini" ? 1 : 0),
+    s: spoken,
+    ...(textType === "SSML" ? { textType } : {}),
+    p: v.provider,
+    m: v.model,
+    id: v.voiceId,
+    r: v.rate,
+    pi: v.pitch,
+    vo: v.volume,
+    instruction: textType === "SSML" ? "" : v.instruction,
+    google: v.provider === "google-gemini" && v.google ? { ...v.google, stylePrompt: undefined } : v.google,
+  })}`;
 }
 
 /** 配音结果（写在 cache 里） */
@@ -88,6 +107,7 @@ export type TtsResult = {
   chars: { i: number; startMs: number; endMs: number }[];
   /** 时间戳是否由服务商返回（false 表示按字数估算） */
   aligned: boolean;
+  alignmentSource?: "provider" | "forced" | "estimated";
   spokenChars: number;
 };
 

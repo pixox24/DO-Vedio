@@ -28,6 +28,10 @@ export async function preflight() {
 /** 任务结束后：失败/取消则暂停自动推进；成功则继续对账 */
 export async function onSettled(job: Job, ok: boolean) {
   const { advance } = await import("./plan");
+  if (job.stage === "tts" && job.projectId && job.key.startsWith(`voice-change:${job.projectId}:`)) {
+    if (ok && (await import("../server/voice-change")).finalizeVoiceChange(job.projectId)) advance(job);
+    return;
+  }
   if (!ok) {
     const cur = (await import("../server/jobs")).getJob(job.id);
     // 还会自动重试的不算失败

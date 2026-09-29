@@ -7,7 +7,9 @@
     "dashscope/qwen-audio-3.0-tts-flash": { "perTenThousandChars": 1, "verified": false },
     "dashscope/qwen-audio-3.1-tts-flash": { "perTenThousandChars": 1, "verified": false },
     "dashscope/cosyvoice-v3.5-flash": { "perTenThousandChars": 1, "verified": false },
-    "dashscope/cosyvoice-v3.5-plus": { "perTenThousandChars": 2, "verified": false }
+    "dashscope/cosyvoice-v3.5-plus": { "perTenThousandChars": 2, "verified": false },
+    "google-gemini/gemini-3.8-flash-tts": { "perTenThousandChars": 0, "verified": false, "unit": "unknown" },
+    "google-gemini/gemini-3.8-flash-lite-tts": { "perTenThousandChars": 0, "verified": false, "unit": "unknown" }
   },
   "llm": {
     "_default": { "perMillionInputChars": 2, "perMillionOutputChars": 8, "verified": false },

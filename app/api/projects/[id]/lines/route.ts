@@ -8,6 +8,7 @@ import { effectiveLexicon } from "@/lib/server/lexicon";
 import { getProject, mutateProject } from "@/lib/server/projects";
 import type { TtsResult } from "@/lib/core/keys";
 import { mediaUrl } from "@/lib/core/types";
+import { getProviderProfile } from "@/lib/providers/registry";
 
 /** 句子列表的派生信息：朗读文本、配音状态、试听地址 */
 export async function GET(_req: Request, ctx: RouteContext<"/api/projects/[id]/lines">) {
@@ -21,6 +22,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/projects/[id]/l
     const lex = effectiveLexicon(id);
     const keys = lineTtsKeys(p.doc, id);
     const hits = cacheMany<TtsResult>(keys.map((k) => k.key));
+    const voiceProfile = getProviderProfile(p.doc.settings.voice.provider, p.doc.settings.voice.model);
     return Response.json({
       revision: p.revision,
       lines: keys.map((k) => {
@@ -31,7 +33,8 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/projects/[id]/l
           id: k.line.id,
           spoken: lineSpeech(k.line, lex).spoken,
           ttsKey: k.key,
-          audio: tts ? { src: mediaUrl(tts.assetId), startMs: tts.speechStartMs, endMs: tts.speechEndMs, aligned: tts.aligned } : null,
+          audio: tts ? { src: mediaUrl(tts.assetId), startMs: tts.speechStartMs, endMs: tts.speechEndMs, aligned: tts.aligned, alignmentSource: tts.alignmentSource ?? (tts.aligned ? "provider" : "estimated") } : null,
+          capabilities: voiceProfile?.capabilities ?? [],
           job: job ? { id: job.id, status: job.status, error: job.error } : null,
         };
       }),

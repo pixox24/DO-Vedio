@@ -39,6 +39,63 @@ export const changeKindOrder: ChangeKind[] = ["feature", "improvement", "fix", "
 
 export const changelog: ChangeEntry[] = [
   {
+    version: "0.9.0",
+    date: "2026-09-29",
+    title: "配音设置先试听再应用",
+    summary: "切换音色或调整参数时先保留为草稿，确认后按需生成；旧配音持续可用，待新配音全部就绪后统一切换。",
+    items: [
+      { kind: "improvement", title: "配音草稿与一次确认", detail: "调整服务商、模型、音色、语速、音量和表达指令时不再逐项弹出重录提示；可先试听，再查看受影响句数、缓存复用、请求量和费用后应用。" },
+      { kind: "feature", title: "后台准备并统一切换", detail: "新配音生成期间保留原音频，失败后只补缺句；支持取消待应用设置，并在旧缓存完整时撤回已应用的设置。" },
+    ],
+  },
+  {
+    version: "0.8.1",
+    date: "2026-09-29",
+    title: "Gemini 配音完整性与配额重试修复",
+    summary: "修复 Gemini 把表达指令读进旁白的问题，并按上游 429 给出的等待时间重试；受影响的旧音频缓存不再复用。",
+    items: [
+      { kind: "fix", title: "只朗读正文", detail: "Gemini 请求只发送朗读文本，暂停表达指令控件并保留已填内容；旧 Gemini 缓存失效，避免把包含指令的音频用于成片。" },
+      { kind: "fix", title: "遵守配额等待时间", detail: "解析 Google 429 正文及响应头中的重试时间，API 和 Worker 队列都等待足够时间后再试，减少手动补录。" },
+    ],
+  },
+  {
+    version: "0.8.0",
+    date: "2026-09-28",
+    title: "Gemini TTS Phase 3 灰度验证",
+    summary: "使用真实中文样本验证 Gemini 3.8 Flash 与 Flash-Lite 的模型 ID、音频协议、表达指令和配额行为；当前数据未达到默认生产门槛，Google provider 继续受 feature flag 控制。",
+    items: [
+      { kind: "feature", title: "真实模型探针", detail: "确认可用模型为 gemini-3.8-flash-tts 与 gemini-3.8-flash-lite-tts，并保存基线、长稿、尾句和表达样本报告。" },
+      { kind: "improvement", title: "协议兼容", detail: "按实际 SpeechConfig schema 移除无效的 stylePrompt 字段，将表达指令编译到用户 prompt，避免上游 400。" },
+      { kind: "fix", title: "Key 兼容读取", detail: "服务端、探针和音色配置接口同时支持 GOOGLE_GEMINI_API_KEY 与 GEMINI_API_KEY，避免已配置的通用 Key 被误报为缺失。" },
+      { kind: "fix", title: "网络错误可诊断", detail: "保留 Gemini fetch 失败的 DNS、连接超时和连接中断错误码，试听失败时能区分网络故障与鉴权、模型或请求参数错误。" },
+      { kind: "infra", title: "灰度门槛记录", detail: "记录 HTTP 状态、重试、429、usage、WAV 参数和 p95 延迟；配额不足、价格未核实和人工评分缺失时保持 Google 默认关闭。" },
+    ],
+  },
+  {
+    version: "0.7.0",
+    date: "2026-09-28",
+    title: "Gemini TTS 生产流水线接入",
+    summary: "Google Gemini TTS 现在可以从制作设置进入试听、批量重录和后台配音任务，同时保留能力、对齐质量和未核实计费单位的明确记录。",
+    items: [
+      { kind: "feature", title: "生产链路接入", detail: "Gemini provider 接入 TTS worker、试听和批量重录；DashScope 原有配音链路继续可用。" },
+      { kind: "improvement", title: "缓存与运行记录", detail: "缓存指纹覆盖表达指令和音频输出参数，GenerationRun、voice_stats、资产 metadata 和账本记录实际 usage 与音频信息。" },
+      { kind: "improvement", title: "能力驱动设置", detail: "设置页按模型能力展示表达控制，句子面板标明精确对齐或估算对齐，避免把不支持的逐句情绪控制展示给用户。" },
+      { kind: "infra", title: "计费口径可追溯", detail: "字符、token、秒数和未知 usage 使用不同账本单位；Gemini 尚未核实的价格保持 unknown，不当作免费字符计费。" },
+    ],
+  },
+  {
+    version: "0.6.0",
+    date: "2026-09-28",
+    title: "Gemini TTS 协议探针与服务端适配器",
+    summary: "新增 Google Gemini Flash / Flash-Lite TTS 的服务端适配器和可重复协议探针，先验证音频、正文完整性与连续段落表现，再进入生产流水线。",
+    items: [
+      { kind: "feature", title: "Gemini TTS 适配器", detail: "新增正文与 stylePrompt 分离的 Gemini HTTP 请求、Flash / Flash-Lite 模型目录、服务端 API Key 读取和 WAV 统一输出。" },
+      { kind: "feature", title: "协议探针", detail: "探针支持基线、表达指令、长稿尾句和六段连续短句样本，保存 JSON、Markdown 和可试听音频目录；未配置 Key 时明确跳过。" },
+      { kind: "improvement", title: "音频与错误校验", detail: "识别已有 WAV、裸 PCM 和无效容器，避免重复包装 WAV 头，并对鉴权、配额、限流、超时、安全拒绝和损坏音频分类。" },
+      { kind: "infra", title: "受控启用", detail: "增加 Gemini 环境变量、未核实价格标记和 feature flag，默认关闭，不影响现有 DashScope 配音链路。" },
+    ],
+  },
+  {
     version: "0.5.0",
     date: "2026-09-28",
     title: "统一下拉菜单：更清晰、更稳定",

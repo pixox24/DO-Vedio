@@ -19,7 +19,7 @@ export function lineTtsKeys(doc: ProjectDoc, projectId: string) {
 
 /** 实测语速（字/分钟）；样本不足时返回 undefined */
 export function measuredCpm(doc: ProjectDoc) {
-  const r = get<{ chars: number; speech_ms: number; samples: number }>("SELECT * FROM voice_stats WHERE voice_key = ?", `${voiceKeyOf(doc.settings.voice)}@${doc.settings.voice.rate}`);
+  const r = get<{ chars: number; speech_ms: number; samples: number }>("SELECT * FROM voice_stats WHERE voice_key = ?", voiceKeyOf(doc.settings.voice));
   return r && r.samples >= 5 && r.speech_ms > 0 ? (r.chars / r.speech_ms) * 60_000 : undefined;
 }
 

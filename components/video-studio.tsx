@@ -10,7 +10,7 @@ import { CastPanel } from "@/components/cast-panel";
 import { Icon, SegmentedControl, Spinner } from "@/components/ui";
 import { postJson, useProject, useProjectEvents } from "@/lib/client";
 import type { Timeline } from "@/lib/core/timeline";
-import { mediaUrl, type Aspect } from "@/lib/core/types";
+import { mediaUrl, type Aspect, type VoiceSettings } from "@/lib/core/types";
 import { useFeedback } from "@/components/feedback";
 import type { VideoPreviewHandle } from "@/components/video-preview";
 import { useProjectShortcuts } from "@/lib/shortcuts";
@@ -41,6 +41,7 @@ export function VideoStudio({ id }: { id: string }) {
   const [timelineHashes, setTimelineHashes] = useState<Partial<Record<Aspect, string>>>({});
   const [renders, setRenders] = useState<Render[]>([]);
   const [plan, setPlan] = useState<PlanInfo | null>(null);
+  const [voiceDraft, setVoiceDraft] = useState<VoiceSettings | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [startQuality, setStartQuality] = useState<"draft" | "final" | null>(null);
@@ -260,7 +261,7 @@ export function VideoStudio({ id }: { id: string }) {
                 {panel === "cast" && <CastPanel id={id} store={store} jobs={jobs} />}
                 {panel === "storyboard" && <StoryboardPanel id={id} store={store} timeline={timeline} jobs={jobs} onSeek={(ms) => previewRef.current?.seekToMs(ms)} />}
                 {panel === "music" && <MusicPanel id={id} store={store} />}
-                {panel === "settings" && <SettingsPanel id={id} store={store} />}
+                {panel === "settings" && <SettingsPanel id={id} store={store} draft={voiceDraft} setDraft={setVoiceDraft} onChanged={refresh} />}
               </div>
             </div>
           </div>

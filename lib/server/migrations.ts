@@ -305,4 +305,17 @@ ALTER TABLE memes ADD COLUMN since_month TEXT NOT NULL DEFAULT '';
 ALTER TABLE meme_fetches ADD COLUMN unverified INTEGER NOT NULL DEFAULT 0;
 `,
   },
+  {
+    id: 11,
+    name: "voice_changes",
+    sql: `
+CREATE TABLE voice_changes (
+  project_id TEXT PRIMARY KEY,
+  voice TEXT NOT NULL,
+  previous_voice TEXT NOT NULL,
+  status TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+`,
+  },
 ];

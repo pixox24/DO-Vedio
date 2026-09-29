@@ -2,7 +2,7 @@ import { z } from "zod";
 import { handle, parseBody } from "@/lib/api";
 import { ttsKey, type TtsResult } from "@/lib/core/keys";
 import { mediaUrl, voiceSettingsSchema } from "@/lib/core/types";
-import { dashscopeTts } from "@/lib/providers/tts/dashscope";
+import { ttsProviderOf } from "@/lib/providers/tts/factory";
 import { cacheGet, cachePut } from "@/lib/server/cache";
 import { putBuffer } from "@/lib/server/media";
 
@@ -15,8 +15,19 @@ export async function POST(req: Request) {
     const key = `preview:${ttsKey(text, voice, textType)}`;
     const hit = cacheGet<Pick<TtsResult, "assetId">>(key);
     if (hit) return Response.json({ src: mediaUrl(hit.assetId) });
-    const r = await dashscopeTts().synthesize({ text, model: voice.model, voice: voice.voiceId, rate: voice.rate, pitch: voice.pitch, volume: voice.volume, instruction: textType === "SSML" ? undefined : voice.instruction || undefined, textType }, req.signal);
-    const a = await putBuffer(r.audio, { ext: "wav", mime: "audio/wav", meta: { source: "voice-preview", voice: voice.voiceId } });
+    const provider = ttsProviderOf(voice);
+    const r = await provider.synthesize({
+      text,
+      model: voice.model,
+      voice: voice.voiceId,
+      rate: voice.rate,
+      pitch: voice.pitch,
+      volume: voice.volume,
+      instruction: voice.provider === "dashscope" && textType !== "SSML" ? voice.instruction || undefined : undefined,
+      textType,
+      ...(voice.provider === "google-gemini" && voice.google ? { output: { encoding: voice.google.outputEncoding, sampleRateHertz: voice.google.sampleRateHertz }, alignment: voice.google.alignment } : {}),
+    }, req.signal);
+    const a = await putBuffer(r.audio, { ext: "wav", mime: "audio/wav", meta: { source: "voice-preview", provider: provider.id, model: voice.model, voice: voice.voiceId, sampleRate: r.sampleRate, channels: r.channels, bitsPerSample: r.bitsPerSample, durationMs: r.durationMs, alignmentSource: r.alignmentSource ?? "estimated", usage: r.usage } });
     cachePut(key, "preview", { assetId: a.hash });
     return Response.json({ src: mediaUrl(a.hash) });
   });

@@ -147,18 +147,18 @@ export function succeed(id: string, workerId: string, result: unknown, costActua
 }
 
 /** 失败：可重试时按 2s / 8s / 30s 退避后重新排队 */
-export function failJob(id: string, workerId: string, error: string, retryable: boolean) {
+export function failJob(id: string, workerId: string, error: string, retryable: boolean, retryAfterMs = 0) {
   const j = getJob(id);
   if (!j) return;
   const again = retryable && j.attempts < j.maxAttempts;
-  const delay = [2_000, 8_000, 30_000][Math.min(j.attempts - 1, 2)] ?? 30_000;
+  const delay = Math.max([2_000, 8_000, 30_000][Math.min(j.attempts - 1, 2)] ?? 30_000, retryAfterMs);
   run(
     `UPDATE jobs SET status = ?, error = ?, run_after = ?, locked_by = NULL, lease_until = NULL, message = ?, updated_at = ?
      WHERE id = ? AND locked_by = ?`,
     again ? "queued" : "failed",
     error,
     again ? Date.now() + delay : 0,
-    again ? `第 ${j.attempts} 次失败，${delay / 1000} 秒后重试` : "",
+    again ? `第 ${j.attempts} 次失败，${Math.ceil(delay / 1000)} 秒后重试` : "",
     Date.now(),
     id,
     workerId,

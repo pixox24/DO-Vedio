@@ -314,7 +314,7 @@ export const musicCueSchema = z.object({
 export type MusicCue = z.infer<typeof musicCueSchema>;
 
 export const voiceSettingsSchema = z.object({
-  provider: z.literal("dashscope").default("dashscope"),
+  provider: z.enum(["dashscope", "google-gemini"]).default("dashscope"),
   model: z.string().default("cosyvoice-v3-flash"),
   voiceId: z.string().default("longanyang"),
   /** 语速倍率 0.5–2 */
@@ -323,6 +323,14 @@ export const voiceSettingsSchema = z.object({
   volume: z.number().int().min(0).max(100).default(50),
   /** 可选的自然语言表达控制；Qwen-Audio 模型会原样透传。 */
   instruction: z.string().trim().max(500).default(""),
+  /** Google Gemini 的服务商参数；正文与表达指令保持分离。 */
+  google: z.object({
+    stylePrompt: z.string().trim().max(1000).default(""),
+    locale: z.string().trim().max(32).optional(),
+    outputEncoding: z.enum(["LINEAR16", "WAV"]).default("LINEAR16"),
+    sampleRateHertz: z.number().int().positive().optional(),
+    alignment: z.enum(["provider", "estimated"]).default("estimated"),
+  }).optional(),
 });
 export type VoiceSettings = z.infer<typeof voiceSettingsSchema>;
 
