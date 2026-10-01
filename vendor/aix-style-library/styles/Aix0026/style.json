@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0026",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "墨绿红线海报",
+  "description": "做旧海报质感的墨绿与鲜红撞色：垂直色条分割画面，黑白主体在高对比中显得冷峻，粗颗粒磨出印刷品的年代感。",
+  "category": "graphic",
+  "tags": [
+    "撞色",
+    "海报",
+    "墨绿",
+    "做旧",
+    "噪点"
+  ],
+  "aliases": [
+    "墨绿鲜红",
+    "deep green poster",
+    "撞色分割海报"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以墨绿背景与鲜红竖条分割、黑白主体高对比表现做旧海报质感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "palette",
+      "tier": "core",
+      "text": "墨绿与鲜红强撞色，黑白色主体高对比"
+    },
+    {
+      "id": "F02",
+      "axis": "medium",
+      "tier": "core",
+      "text": "做旧平涂结合粗糙噪点，海报印刷质感"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "垂直分割构图，上下主体隔色条呼应"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "高对比剪影式明暗，无柔和过渡"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "墙面与纸张的粗糙肌理"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "光滑数字渐变"
+    },
+    {
+      "id": "N02",
+      "text": "甜美配色"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "海报",
+    "封面",
+    "文化主题"
+  ],
+  "weak_for": [
+    "柔和治愈题材"
+  ],
+  "known_failures": [
+    "画面元素过多时撞色会互相抢眼。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0026.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0026.json"
+  },
+  "replacement_id": null
+}

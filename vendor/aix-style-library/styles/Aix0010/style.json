@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0010",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "复古丝网印刷",
+  "description": "复古丝网印刷海报，专色平涂与半调网点，轻微套印错位与纸张颗粒的印刷质感。",
+  "category": "graphic",
+  "tags": ["丝网印", "复古", "海报", "专色", "印刷"],
+  "aliases": ["丝网印刷", "screen print", "risograph"],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以专色平涂、半调网点与套印错位表现的代表图。"
+  },
+  "features": [
+    {"id": "F01", "axis": "medium", "tier": "core", "text": "丝网印刷专色平涂，边缘带轻微手工感"},
+    {"id": "F02", "axis": "palette", "tier": "core", "text": "2–3 种限定专色，纸白底色参与整体构图"},
+    {"id": "F03", "axis": "texture", "tier": "support", "text": "半调网点颗粒与轻微套印错位"},
+    {"id": "F04", "axis": "line", "tier": "support", "text": "粗壮图形化的轮廓线"},
+    {"id": "F05", "axis": "composition", "tier": "accent", "text": "复古海报版式，中心对称或对角线构图"}
+  ],
+  "avoid": [
+    {"id": "N01", "text": "写实渐变光影与照片质感"},
+    {"id": "N02", "text": "光滑数字渲染质感"}
+  ],
+  "suitable_for": ["海报", "品牌图形", "音乐周边"],
+  "weak_for": ["写实人像"],
+  "known_failures": ["多色照片会被简化为色块，不适合要求色彩精确还原的需求。"],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0010.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-19",
+    "evidence_ref": "results/0.2.0/Aix0010.json"
+  },
+  "replacement_id": null
+}

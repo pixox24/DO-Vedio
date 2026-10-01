@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0054",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "深蓝粉未眠",
+  "description": "午夜未眠的一角：深蓝底上一只手搭在桌边，手机屏幕的粉色光照亮指尖，硬边平涂把失眠画得干净利落。",
+  "category": "illustration",
+  "tags": [
+    "未眠",
+    "手机",
+    "深蓝",
+    "粉光",
+    "硬边平涂"
+  ],
+  "aliases": [
+    "未眠之夜",
+    "sleepless blue",
+    "夜半桌面"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以深蓝底色与屏幕粉光表现未眠深夜感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "数字硬边平涂，线条干净利落"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "深蓝底色，手部被粉红色光染亮"
+    },
+    {
+      "id": "F03",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "单一屏幕光源的局部照明"
+    },
+    {
+      "id": "F04",
+      "axis": "composition",
+      "tier": "core",
+      "text": "手部与手机的特写对角构图"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "平滑色块，轻微数字噪点"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "多光源复杂照明"
+    },
+    {
+      "id": "N02",
+      "text": "明亮环境"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "氛围插画",
+    "故事分镜",
+    "社媒配图"
+  ],
+  "weak_for": [
+    "白天场景"
+  ],
+  "known_failures": [
+    "屏幕界面元素需简化。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0054.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0054.json"
+  },
+  "replacement_id": null
+}

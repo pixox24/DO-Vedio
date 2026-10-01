@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0088",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "灰蓝流线解构",
+  "description": "灰与淡蓝的双色分区中，侧面人物被流畅线条拆解为烟、水和眼形，轻盈的解构感取代了厚重异化。",
+  "category": "graphic",
+  "tags": [
+    "流线",
+    "灰蓝双色",
+    "解构",
+    "侧面肖像",
+    "轻盈"
+  ],
+  "aliases": [
+    "灰蓝流线",
+    "flowing deconstruction",
+    "双色解构肖像"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以灰蓝双色分割、流畅抽象线条和侧面轮廓解构表现轻盈心理空间的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "精细矢量线条与平滑色块结合，边缘流畅"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "中性灰与淡蓝分区，红黑微点作为焦点"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "人物位于双色交界，线流向一侧持续扩散"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "柔和均匀光，线条层叠制造轻微深度"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "干净数字表面，烟雾般半透明线层"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "粗糙厚涂和重颗粒"
+    },
+    {
+      "id": "N02",
+      "text": "高饱和多色背景"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念肖像",
+    "编辑插画",
+    "封面"
+  ],
+  "weak_for": [
+    "动作场面",
+    "写实建筑"
+  ],
+  "known_failures": [
+    "流线如果没有明确起点和终点，会变成装饰噪声，需保持与主体轮廓的连接。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0088.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0088.json"
+  },
+  "replacement_id": null
+}

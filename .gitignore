@@ -44,9 +44,10 @@ next-env.d.ts
 /data/
 !.env.local.example
 
-# 曲库音频（授权文件不进仓库；清单 bgm/library.json 进仓库）
+# 曲库音频（授权文件不进仓库；清单 bgm/library.json 与署名 NOTICE.md 进仓库）
 /bgm/*
 !/bgm/library.json
+!/bgm/NOTICE.md
 
 # 后台运行日志（启动.bat / scripts/start.mjs 产出）
 /logs/

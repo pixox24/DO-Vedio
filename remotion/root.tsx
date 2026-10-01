@@ -1,9 +1,11 @@
 import { Composition } from "remotion";
 import type { Timeline } from "@/lib/core/timeline";
+import { DEFAULT_SUBTITLE_CONFIG } from "@/lib/core/subtitle";
 import { defaultTheme } from "@/lib/core/theme";
 import { Video, type VideoProps } from "./video";
 
 const empty: Timeline = {
+  outputSpecId: "landscape-1080p",
   fps: 30,
   width: 1920,
   height: 1080,
@@ -16,9 +18,10 @@ const empty: Timeline = {
   lines: [],
   shots: [],
   cues: [],
+  subtitleBlocks: [],
   music: [],
   sfx: [],
-  subtitle: { enabled: true, highlight: true },
+  subtitle: DEFAULT_SUBTITLE_CONFIG,
   aiLabel: { enabled: true, position: "top-right" },
   issues: [],
 };

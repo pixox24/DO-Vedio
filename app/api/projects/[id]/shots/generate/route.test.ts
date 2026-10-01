@@ -37,4 +37,28 @@ it("全量生图只提交缺图且未锁定的镜头", async () => {
   const data = await response.json();
   expect(data.count).toBe(1);
   expect(data.jobs[0].input.shotId).toBe("missing");
+  expect(data.batchId).toEqual(expect.any(String));
+  const duplicate = await POST(new Request(`http://localhost/api/projects/${project.id}/shots/generate`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ modelId: `custom-${providerId}::image-model`, candidateCount: 1 }),
+  }), { params: Promise.resolve({ id: project.id }) });
+  expect(duplicate.status).toBe(409);
+  const { claim, enqueue, getJob, isCurrentExecution } = await import("../../../../../../lib/server/jobs");
+  const running = claim("image-worker", ["shot-generate"]);
+  expect(running?.id).toBe(data.jobs[0].id);
+  const single = enqueue({ projectId: project.id, stage: "shot-generate", key: "single-shot", input: { projectId: project.id, shotId: "other", kind: "image" } });
+  const { POST: cancel } = await import("./cancel/route");
+  const cancelResponse = await cancel(new Request(`http://localhost/api/projects/${project.id}/shots/generate/cancel`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ batchId: data.batchId }),
+  }), { params: Promise.resolve({ id: project.id }) });
+  expect(cancelResponse.status).toBe(200);
+  expect((await cancelResponse.json()).canceled).toBe(1);
+  expect(isCurrentExecution(running!.id, running!.lockToken)).toBe(false);
+  expect(getJob(single.id)?.status).toBe("queued");
+  const resumed = await POST(new Request(`http://localhost/api/projects/${project.id}/shots/generate`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ modelId: `custom-${providerId}::image-model`, candidateCount: 1 }),
+  }), { params: Promise.resolve({ id: project.id }) });
+  expect(resumed.status).toBe(200);
+  expect((await resumed.json()).batchId).not.toBe(data.batchId);
 });

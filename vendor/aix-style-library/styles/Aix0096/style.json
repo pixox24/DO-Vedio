@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0096",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "彩虹放射虫洞",
+  "description": "黑色中心向外喷射彩虹色碎片和光流，一个微小人物站在原点，狂野厚涂把穿越时空变成放射式奇观。",
+  "category": "painting",
+  "tags": [
+    "彩虹放射",
+    "虫洞",
+    "中心透视",
+    "能量爆发",
+    "微小人物"
+  ],
+  "aliases": [
+    "放射虫洞",
+    "rainbow wormhole",
+    "彩光爆发"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以黑色中心、彩虹放射光流和微小人物尺度对比表现穿越奇观的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "狂野数字厚涂，碎片和笔触沿放射方向运动"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "黑色空间中红绿蓝紫高饱和彩光集中爆发"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "中心透视和放射结构把所有动势拉向原点"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "中心白光最亮，彩色光晕向外递减"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "粗细混合笔触、粒子碎片和光雾"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "静态单色平涂"
+    },
+    {
+      "id": "N02",
+      "text": "均匀无焦点的渐变"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "科幻海报",
+    "音乐视觉",
+    "概念封面"
+  ],
+  "weak_for": [
+    "极简说明图",
+    "温馨日常"
+  ],
+  "known_failures": [
+    "放射线过多或中心不明确时会变成杂色，必须保留清楚的穿越原点。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0096.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0096.json"
+  },
+  "replacement_id": null
+}

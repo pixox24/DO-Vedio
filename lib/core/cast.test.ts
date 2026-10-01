@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { anchorText, castIssues, castSourceHash, decideCharacters, editCharacterField, lookAt, reconcileCharacters, sheetSourceHash, type CastDraft } from "./cast";
-import { builtinVisualStyles } from "../visual-styles/builtin";
+import { aixFixture, aixFixtureStyles } from "../aix/test-fixture";
 import { characterCardSchema, emptyDoc, type Line } from "./types";
 
 const line = (id: string, text: string, segmentIndex = 0): Pick<Line, "id" | "text" | "segmentIndex"> => ({ id, text, segmentIndex });
@@ -92,10 +92,10 @@ describe("身份锚", () => {
   });
 
   it("外貌或风格变了，定妆指纹就变", () => {
-    const h = sheetSourceHash(card, builtinVisualStyles[0]);
-    expect(sheetSourceHash({ ...card, hair: "长发" }, builtinVisualStyles[0])).not.toBe(h);
-    expect(sheetSourceHash(card, builtinVisualStyles[1])).not.toBe(h);
-    expect(sheetSourceHash({ ...card, personality: "外向" }, builtinVisualStyles[0])).toBe(h);
+    const h = sheetSourceHash(card, aixFixture());
+    expect(sheetSourceHash({ ...card, hair: "长发" }, aixFixture())).not.toBe(h);
+    expect(sheetSourceHash(card, aixFixtureStyles[1])).not.toBe(h);
+    expect(sheetSourceHash({ ...card, personality: "外向" }, aixFixture())).toBe(h);
   });
 });
 

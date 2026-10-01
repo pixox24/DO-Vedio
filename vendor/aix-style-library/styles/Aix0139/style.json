@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0139",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "抗光长影",
+  "description": "人物举手遮住强光，背后放射出巨大长影，黄底黑剪影与紫色衣物把抗拒真相变成强烈平面符号。",
+  "category": "graphic",
+  "tags": [
+    "强背光",
+    "放射长影",
+    "黄黑紫",
+    "剪影",
+    "抗拒真相"
+  ],
+  "aliases": [
+    "抗光长影",
+    "resisting light",
+    "radiant shadow"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以强烈黄底、黑色剪影和放射长影表现个体抗拒光明与真相。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "硬边剪影与几何放射线条，整体保持海报式平面。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "亮黄背景、纯黑主体和少量紫色形成有限高对比。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "手势位于光源前方，长影向四周放射并构成中心压力。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "背光均匀而直接，影子采用图形化边缘而非真实投影。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "平滑色面配极轻印刷颗粒。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "写实太阳光晕"
+    },
+    {
+      "id": "N02",
+      "text": "复杂背景物件"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "社会海报",
+    "概念封面",
+    "动作寓言"
+  ],
+  "weak_for": [
+    "柔和肖像",
+    "产品静物"
+  ],
+  "known_failures": [
+    "放射线过密会淹没手势，应保留一个清楚的遮光动作和少量主影线。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0139.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0139.json"
+  },
+  "replacement_id": null
+}

@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0152",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "青橙停站",
+  "description": "紫色车辆停在青绿色公路旁，红日和横贯电线把极简几何压成一帧关于旅行停滞的高饱和海报。",
+  "category": "graphic",
+  "tags": [
+    "青橙几何",
+    "红日",
+    "公路停滞",
+    "紫色车辆",
+    "极简"
+  ],
+  "aliases": [
+    "青橙停站",
+    "teal orange road",
+    "geometric pause"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以青绿色背景、红日、紫色车辆和横向电线表现公路旅行中的停滞。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "极简矢量平涂，车辆和电线用几何轮廓而非写实细节。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "青绿环境、红色太阳和紫色物体形成高饱和三色平衡。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "横向电线切过画面，车辆位于低处，圆日提供视觉锚点。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "平面日落光，无复杂天空渐变或反射。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "纯净色面配轻微套印颗粒。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "写实汽车广告"
+    },
+    {
+      "id": "N02",
+      "text": "复杂道路标识文字"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "旅行海报",
+    "品牌概念",
+    "编辑插画"
+  ],
+  "weak_for": [
+    "细节丰富的城市图",
+    "柔和肖像"
+  ],
+  "known_failures": [
+    "三种高饱和颜色若面积相等会互相争抢，应让红日和电线承担焦点与秩序。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0152.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0152.json"
+  },
+  "replacement_id": null
+}

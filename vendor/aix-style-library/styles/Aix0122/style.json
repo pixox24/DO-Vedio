@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0122",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "风暴接天",
+  "description": "海边静坐人物的头部接入倒置漏斗云，蓝绿海天与白色风暴将宁静姿态和狂暴内心连成超现实竖轴。",
+  "category": "painting",
+  "tags": [
+    "倒置风暴",
+    "蓝绿海天",
+    "超现实连接",
+    "静坐",
+    "漏斗云"
+  ],
+  "aliases": [
+    "风暴接天",
+    "storm conduit",
+    "sea vortex"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以蓝绿海天、静坐人物和倒置风暴连接表现宁静与内在狂暴。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "写实与超现实数字绘画混合，云体边缘柔软、人物轮廓简化。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "蓝绿环境、白色云体和黑色人物形成冷色层次。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "人物位于下方，风暴垂直连接天空，形成天地贯通的长轴。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "海天漫射光与云体高亮并置，避免多彩霓虹。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "云雾软纹理、海面细波与轻微颗粒空气感。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "灾难电影式爆炸"
+    },
+    {
+      "id": "N02",
+      "text": "过度写实人物细节"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "奇幻封面",
+    "冥想视觉",
+    "自然寓言"
+  ],
+  "weak_for": [
+    "产品静物",
+    "热闹街景"
+  ],
+  "known_failures": [
+    "风暴若只像普通云朵会失去概念连接，应保留倒置漏斗和人物头部的连续关系。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0122.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0122.json"
+  },
+  "replacement_id": null
+}

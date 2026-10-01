@@ -390,8 +390,12 @@ export function geminiFetch(proxyUrl?: string): typeof fetch {
       return await undiciFetch(input, { ...(init as object), dispatcher } as Parameters<typeof undiciFetch>[1]);
     } catch (error) {
       // 连不上代理本身时，别让用户误以为是 Google 拒绝
-      const code = (error as { cause?: { code?: string } }).cause?.code;
-      if (code === "ECONNREFUSED") throw new Error(`无法连接 Gemini 代理 ${proxyUrl}，请确认代理软件已启动、端口正确`, { cause: error });
+      const code = (error as { code?: string; cause?: { code?: string; cause?: { code?: string } } }).code
+        ?? (error as { cause?: { code?: string } }).cause?.code
+        ?? (error as { cause?: { cause?: { code?: string } } }).cause?.cause?.code;
+      if (code === "ECONNREFUSED" || (error instanceof Error && error.message === "fetch failed")) {
+        throw new Error(`无法连接 Gemini 代理 ${proxyUrl}，请确认代理软件已启动、端口正确`, { cause: error });
+      }
       throw error;
     }
   }) as unknown as typeof fetch;

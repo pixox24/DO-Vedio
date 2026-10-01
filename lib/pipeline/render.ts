@@ -32,6 +32,12 @@ async function hashDir(dir: string): Promise<string> {
 
 let bundling: Promise<string> | null = null;
 let bundled: { sig: string; url: string } | null = null;
+const activeBundleSigs = new Set<string>();
+
+/** 正在渲染或已缓存的打包签名；存储清理据此避免删掉使用中的缓存目录 */
+export function activeBundleSigsSnapshot(): string[] {
+  return [...activeBundleSigs, ...(bundled ? [bundled.sig] : [])];
+}
 
 /** Remotion 打包（按源码签名缓存）；源码包括 remotion/ 和 lib/core/ */
 export async function getBundle(onProgress?: (p: number) => void): Promise<string> {
@@ -114,6 +120,8 @@ export async function renderTimeline(opts: {
   projectId: string;
   timeline: Timeline;
   timelineHash: string;
+  contentHash: string;
+  animationHash: string;
   quality: Quality;
   signal: AbortSignal;
   current: () => boolean;
@@ -121,9 +129,9 @@ export async function renderTimeline(opts: {
 }): Promise<RenderOutput> {
   const { timeline: t, quality } = opts;
   const existing = get<{ id: string; video_hash: string; srt_hash: string | null; duration_ms: number; loudness: number }>(
-    "SELECT * FROM renders WHERE project_id = ? AND timeline_hash = ? AND quality = ? ORDER BY created_at DESC LIMIT 1",
+    "SELECT * FROM renders WHERE project_id = ? AND content_hash = ? AND quality = ? ORDER BY created_at DESC LIMIT 1",
     opts.projectId,
-    opts.timelineHash,
+    opts.contentHash,
     quality,
   );
   if (existing && getAsset(existing.video_hash)) {
@@ -135,6 +143,8 @@ export async function renderTimeline(opts: {
   await ensureBrowser();
   opts.progress(0.02, "打包合成代码");
   const serveUrl = await getBundle((p) => opts.progress(0.02 + p * 0.06, "打包合成代码"));
+  const bundleSig = path.basename(serveUrl);
+  activeBundleSigs.add(bundleSig);
 
   const server = await startMediaServer();
   const { cancelSignal, cancel } = makeCancelSignal();
@@ -173,6 +183,7 @@ export async function renderTimeline(opts: {
   } finally {
     opts.signal.removeEventListener("abort", onAbort);
     await server.close();
+    activeBundleSigs.delete(bundleSig);
   }
   if (!opts.current()) throw opts.signal.reason ?? new DOMException("渲染任务已取消", "AbortError");
 
@@ -219,12 +230,14 @@ export async function renderTimeline(opts: {
   if (!opts.current()) throw opts.signal.reason ?? new DOMException("渲染任务已取消", "AbortError");
   const loudness = after?.i ?? m.i;
   run(
-    "INSERT INTO renders (id, project_id, aspect, quality, timeline_hash, video_hash, srt_hash, duration_ms, loudness, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO renders (id, project_id, aspect, quality, timeline_hash, content_hash, animation_hash, video_hash, srt_hash, duration_ms, loudness, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     renderId,
     opts.projectId,
     t.aspect,
     quality,
     opts.timelineHash,
+    opts.contentHash,
+    opts.animationHash,
     video.hash,
     srt?.hash ?? null,
     t.durationMs,

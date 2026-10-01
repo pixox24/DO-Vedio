@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0143",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "青光圆场",
+  "description": "深蓝空间中人物被圆形青色聚光灯圈住，极简几何切割把舞台中心的孤独变成冷静图标。",
+  "category": "graphic",
+  "tags": [
+    "圆形聚光",
+    "深蓝",
+    "青光",
+    "极简几何",
+    "舞台孤独"
+  ],
+  "aliases": [
+    "青光圆场",
+    "cyan spotlight",
+    "lonely stage"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以深蓝空间、圆形青色聚光和单一人物表现舞台中心的孤独。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "矢量几何平涂，圆形光场边缘利落，主体概括清楚。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "深蓝底、青色光场和白灰主体形成低彩度冷调。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "圆形光场切割矩形空间，人物位于中心但显得微小。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "单一聚光，无多余光源或复杂舞台设备。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "平滑色面配轻微颗粒，保持图标般清洁。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "戏剧性烟雾堆积"
+    },
+    {
+      "id": "N02",
+      "text": "复杂舞台布景"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "音乐封面",
+    "演讲主题",
+    "极简海报"
+  ],
+  "weak_for": [
+    "自然摄影",
+    "热闹群像"
+  ],
+  "known_failures": [
+    "圆形光场若变成普通白圈会失去氛围，应保留青色冷光和暗空间比例。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0143.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0143.json"
+  },
+  "replacement_id": null
+}

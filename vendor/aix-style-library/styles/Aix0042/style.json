@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0042",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "蓝紫夜读时光",
+  "description": "Lo-Fi 式的深夜室内：蓝紫冷调里一盏暖黄台灯，硬朗线稿配赛璐璐平涂，织物质感与堆叠的杂物把夜拉得很慢。",
+  "category": "illustration",
+  "tags": [
+    "Lo-Fi",
+    "夜读",
+    "蓝紫",
+    "赛璐璐",
+    "室内"
+  ],
+  "aliases": [
+    "夜读时光",
+    "lofi night",
+    "深夜室内"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以蓝紫冷调与暖黄台灯表现 Lo-Fi 深夜室内氛围的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "赛璐璐平涂结合硬朗线稿，动画美术质感"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "蓝紫冷调室内与暖黄灯光对比"
+    },
+    {
+      "id": "F03",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "室内局部暖光，窗外冷月光辅衬"
+    },
+    {
+      "id": "F04",
+      "axis": "composition",
+      "tier": "support",
+      "text": "中心构图，环境细节围绕主体堆叠"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "轻微复古噪点，织物与纸页质感"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "强霓虹"
+    },
+    {
+      "id": "N02",
+      "text": "写实厚涂"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "日常插画",
+    "氛围图",
+    "音乐封面"
+  ],
+  "weak_for": [
+    "宏大场景"
+  ],
+  "known_failures": [
+    "杂物堆叠过多时主体易混淆。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0042.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0042.json"
+  },
+  "replacement_id": null
+}

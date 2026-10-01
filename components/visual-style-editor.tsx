@@ -5,6 +5,7 @@ import Image from "next/image";
 import { AutoTextarea, Field, Icon, SegmentedControl, Select, Spinner } from "@/components/ui";
 import { postJson, useImageModels, useTemplates } from "@/lib/client";
 import { compilePrompt } from "@/lib/core/prompt-compiler";
+import { easingLabels, easingNames, motionPresetIds, motionPresetLabels, motionProfile, type EasingName, type MotionPresetId } from "@/lib/core/motion";
 import { mediaUrl, moods, shotSizeLabels, styleMediumLabels, styleMediums, type Job, type Mood, type VisualStyleInput } from "@/lib/core/types";
 
 /**
@@ -50,6 +51,71 @@ export function StyleEditor({ value, onChange }: { value: VisualStyleInput; onCh
         <Field label="风格强度" hint="写实科普类内容建议「轻」，避免风格把信息画歪">
           <SegmentedControl value={value.strength} options={strengthOptions} onChange={(v) => set({ strength: v })} label="风格强度" />
         </Field>
+      </Group>
+
+      <Group title="动效" hint="代码画面（信息卡、标题卡）的节奏与质感。选一个基调，再按需微调">
+        <Field label="动效基调">
+          <Select
+            value={value.motion.preset}
+            onChange={(v) => set({ motion: motionProfile(v as MotionPresetId) })}
+          >
+            {motionPresetIds.map((id) => (
+              <option key={id} value={id}>
+                {motionPresetLabels[id]}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="缓动">
+            <Select value={value.motion.easing} onChange={(v) => set({ motion: { ...value.motion, easing: v as EasingName } })}>
+              {easingNames.map((name) => (
+                <option key={name} value={name}>
+                  {easingLabels[name]}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="入场方向">
+            <Select value={value.motion.enterFrom} onChange={(v) => set({ motion: { ...value.motion, enterFrom: v as VisualStyleInput["motion"]["enterFrom"] } })}>
+              <option value="below">自下而上</option>
+              <option value="side">自侧滑入</option>
+              <option value="scale">缩放浮现</option>
+              <option value="none">原地淡入</option>
+            </Select>
+          </Field>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Field label="幅度" hint="0.3 克制 — 2 张扬">
+            <input
+              className="input"
+              type="number"
+              min={0.3}
+              max={2}
+              step={0.05}
+              value={value.motion.energy}
+              onChange={(e) => set({ motion: { ...value.motion, energy: Math.max(0.3, Math.min(2, Number(e.target.value) || 0.85)) } })}
+            />
+          </Field>
+          <Field label="圆角">
+            <Select value={value.motion.corner} onChange={(v) => set({ motion: { ...value.motion, corner: v as VisualStyleInput["motion"]["corner"] } })}>
+              <option value="sharp">直角</option>
+              <option value="soft">微圆</option>
+              <option value="round">圆润</option>
+            </Select>
+          </Field>
+          <Field label="纹理">
+            <Select value={value.motion.texture} onChange={(v) => set({ motion: { ...value.motion, texture: v as VisualStyleInput["motion"]["texture"] } })}>
+              <option value="none">无</option>
+              <option value="grain">颗粒</option>
+              <option value="paper">纸纹</option>
+              <option value="scanline">扫描线</option>
+            </Select>
+          </Field>
+        </div>
+      </Group>
+
+      <Group title="推荐">
         <Field label="适合的解说风格" hint="新项目会优先推荐">
           <div className="flex flex-wrap gap-1.5">
             {templates.map((t) => {

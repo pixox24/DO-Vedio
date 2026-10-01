@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0002",
+  "version": "1.1.0",
+  "status": "active",
+  "name": "柔光水彩绘本",
+  "description": "手绘水彩纸面表现，低饱和奶油色系与松弛铅笔轮廓，晕染柔和、光照通透。",
+  "category": "illustration",
+  "tags": ["水彩", "绘本", "柔和", "低饱和", "手绘"],
+  "aliases": ["柔光水彩", "soft watercolor picture book"],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以奶油色水彩晕染和松弛铅笔轮廓表现的代表图。"
+  },
+  "features": [
+    {"id": "F01", "axis": "medium", "tier": "core", "text": "手绘水彩纸面，湿画法与自然晕染边缘"},
+    {"id": "F02", "axis": "palette", "tier": "core", "text": "低饱和奶油色系与柔和互补点缀"},
+    {"id": "F03", "axis": "line", "tier": "support", "text": "松弛铅笔轮廓线，粗细不均"},
+    {"id": "F04", "axis": "lighting", "tier": "support", "text": "通透均匀的柔光，无强烈阴影"},
+    {"id": "F05", "axis": "texture", "tier": "accent", "text": "纸张纹理与轻微水痕"}
+  ],
+  "avoid": [
+    {"id": "N01", "text": "高对比硬边矢量描边"},
+    {"id": "N02", "text": "大面积深黑阴影与厚重厚涂"}
+  ],
+  "suitable_for": ["儿童绘本", "角色设定", "自然场景"],
+  "weak_for": ["写实产品图"],
+  "known_failures": ["精细机械结构可能因晕染而模糊，需明确保留清晰轮廓要求。"],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0002.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-19",
+    "evidence_ref": "results/0.2.0/Aix0002.json"
+  },
+  "replacement_id": null
+}

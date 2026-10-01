@@ -3,9 +3,9 @@ import path from "path";
 import { randomUUID } from "crypto";
 import { dataDir } from "../server/db";
 import { visualStyleSchema, type VisualStyle, type VisualStyleInput } from "../core/types";
-import { builtinVisualStyles, recommendVisualStyles } from "./builtin";
+import { recommendedAixVisualStyle as getRecommendedAixVisualStyle } from "../aix/catalog";
 
-/** 视觉风格库：内置 + 自定义（data/visual-styles.json），和解说风格模板的存储方式一致 */
+/** 用户自定义视觉风格存储；Aix 系统目录由 lib/aix/catalog 提供。 */
 
 const file = () => path.join(dataDir(), "visual-styles.json");
 
@@ -24,7 +24,7 @@ async function writeCustom(list: VisualStyle[]) {
 }
 
 export async function listVisualStyles() {
-  return [...builtinVisualStyles, ...(await readCustom())];
+  return readCustom();
 }
 
 export async function getVisualStyle(id: string) {
@@ -55,8 +55,8 @@ export async function deleteVisualStyle(id: string) {
 }
 
 /** 项目没有选风格时的推荐：适合当前解说风格的第一张 */
-export async function recommendedVisualStyle(templateId: string) {
-  return recommendVisualStyles(templateId, await listVisualStyles())[0];
+export async function recommendedAixVisualStyle(templateId: string) {
+  return getRecommendedAixVisualStyle(templateId);
 }
 
 /**
@@ -67,6 +67,7 @@ export async function ensureProjectVisualStyle(projectId: string) {
   const { getProject, mutateProject } = await import("../server/projects");
   const project = getProject(projectId);
   if (!project || project.doc.visualStyle) return project;
-  const style = await recommendedVisualStyle(project.doc.brief.templateId);
+  const style = await recommendedAixVisualStyle(project.doc.brief.templateId);
+  if (!style) return project;
   return mutateProject(projectId, (doc) => (doc.visualStyle ? null : { ...doc, visualStyle: style }));
 }

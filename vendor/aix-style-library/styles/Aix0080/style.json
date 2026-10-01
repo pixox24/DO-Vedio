@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0080",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "暗室希望光",
+  "description": "深灰暗室里一束金色光柱从高处落下，粗糙墙面和光中浮现的开放景象，把希望做成象征主义海报的唯一叙事。",
+  "category": "graphic",
+  "tags": [
+    "希望光柱",
+    "暗室",
+    "金色光",
+    "象征主义",
+    "海报"
+  ],
+  "aliases": [
+    "暗室希望",
+    "hope beam poster",
+    "金色光柱"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以极暗空间、单一金色光柱和光中开放意象表现象征主义希望海报的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "概念海报式数字绘画，形体概括而叙事清晰"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "深灰黑环境与金黄光柱形成极端明暗对比"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "对角光束把暗部引向上方出口或远景"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "单一体积光源，光中区域明显变亮"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "粗糙墙面和细微尘埃增强真实触感"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "多光源霓虹"
+    },
+    {
+      "id": "N02",
+      "text": "明亮商业广告感"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "公益概念海报",
+    "叙事插画",
+    "封面"
+  ],
+  "weak_for": [
+    "欢快商业广告",
+    "纯色图标"
+  ],
+  "known_failures": [
+    "象征物过多会削弱光柱的叙事中心，光中只保留一个明确意象。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0080.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0080.json"
+  },
+  "replacement_id": null
+}

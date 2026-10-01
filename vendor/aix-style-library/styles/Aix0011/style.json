@@ -1,0 +1,106 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0011",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "撞色黑色电影海报",
+  "description": "硬边矢量平涂的黑色电影海报气质：深砖红与芥末黄的垂直双色分割背景，主体呈深青近黑剪影并带亮黄受光面，干净利落的印刷质感。",
+  "category": "graphic",
+  "tags": [
+    "黑色电影",
+    "硬边",
+    "撞色",
+    "海报",
+    "矢量",
+    "复古"
+  ],
+  "aliases": [
+    "双色分割海报",
+    "硬边黑色电影",
+    "noir split-color poster"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以深砖红与芥末黄垂直分割背景、深青近黑主体配亮黄受光面表现硬边撞色海报气质的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "硬边矢量平涂，明暗由色块直接切换，无渐变与柔和笔触"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "高饱和互补撞色：深砖红与芥末黄，主体深青近黑，受光面亮黄"
+    },
+    {
+      "id": "F03",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "高对比硬边侧光，光影以整块色块替换表达"
+    },
+    {
+      "id": "F04",
+      "axis": "line",
+      "tier": "support",
+      "text": "无轮廓描边，形体由硬边色块的轮廓切分"
+    },
+    {
+      "id": "F05",
+      "axis": "composition",
+      "tier": "support",
+      "text": "竖幅构图，背景纯色垂直分割，主体横跨分割线"
+    },
+    {
+      "id": "F06",
+      "axis": "texture",
+      "tier": "accent",
+      "text": "干净数字质感，无噪点、无纸张或印刷纹理"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "柔和渐变与写实光影过渡"
+    },
+    {
+      "id": "N02",
+      "text": "照片写实材质与复杂笔触"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字印章"
+    }
+  ],
+  "suitable_for": [
+    "海报",
+    "封面",
+    "角色视觉",
+    "品牌图形"
+  ],
+  "weak_for": [
+    "写实摄影",
+    "柔美水彩"
+  ],
+  "known_failures": [
+    "写实题材会被压缩为色块语言；渐变与细腻材质需求不适合本风格。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0011.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.3.0/Aix0011.json"
+  },
+  "replacement_id": null
+}

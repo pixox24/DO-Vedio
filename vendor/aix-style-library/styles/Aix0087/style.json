@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0087",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "赤壁万眼",
+  "description": "鲜红有机纹理铺满画面，密集蓝灰眼睛形成被凝视的墙，中央的深色剪影成为唯一安静锚点。",
+  "category": "graphic",
+  "tags": [
+    "万眼",
+    "赤红纹理",
+    "凝视",
+    "密集图案",
+    "剪影"
+  ],
+  "aliases": [
+    "赤壁万眼",
+    "wall of eyes",
+    "凝视之墙"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以鲜红满版有机纹理、重复蓝灰眼睛和中央暗色剪影表现密集凝视感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "纹理插画结合平面剪影，图案重复而边缘清楚"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "鲜红大面积底色配蓝灰眼睛与黑色锚点"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "满版图案包围中心下方主体，形成压迫性边界"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "平面光影，以颜色密度而非体积塑造氛围"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "有机纤维、颗粒和密集重复图案"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "稀疏留白的轻柔画面"
+    },
+    {
+      "id": "N02",
+      "text": "明亮商业摄影"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "心理海报",
+    "暗黑封面",
+    "概念插画"
+  ],
+  "weak_for": [
+    "儿童主题",
+    "极简产品展示"
+  ],
+  "known_failures": [
+    "眼睛图案排列过于规则会显得装饰化，应保留不均匀密度和一个清晰剪影。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0087.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0087.json"
+  },
+  "replacement_id": null
+}

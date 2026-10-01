@@ -1,7 +1,8 @@
 import { PARAGRAPH_JOINERS, blockLimitsFor, planBlocks } from "../core/blocks";
 import { lineSpeech, ttsBlockKey, ttsBlockLineKey, ttsKey, ttsRequestForLine, type TtsResult } from "../core/keys";
 import { buildTimeline, type Artifacts } from "../core/timeline";
-import { mediaUrl, type Aspect, type Line, type ProjectDoc, type VoiceSettings } from "../core/types";
+import { mediaUrl, outputSpecs, type Aspect, type Line, type OutputSpecId, type ProjectDoc, type VoiceSettings } from "../core/types";
+import { outputSpecForRequest } from "../core/output-spec";
 import { cacheMany } from "../server/cache";
 import { get } from "../server/db";
 import { effectiveLexicon } from "../server/lexicon";
@@ -68,6 +69,7 @@ export function loadArtifacts(doc: ProjectDoc, projectId: string, media: (hash: 
   };
 }
 
-export function timelineFor(doc: ProjectDoc, projectId: string, aspect: Aspect, media?: (hash: string) => string) {
-  return buildTimeline(doc, loadArtifacts(doc, projectId, media), aspect);
+export function timelineFor(doc: ProjectDoc, projectId: string, aspectOrSpec: Aspect | OutputSpecId, media?: (hash: string) => string) {
+  const spec = aspectOrSpec === "landscape-1080p" || aspectOrSpec === "portrait-1080p" ? outputSpecs[aspectOrSpec] : outputSpecForRequest(doc.settings, undefined, aspectOrSpec);
+  return buildTimeline(doc, loadArtifacts(doc, projectId, media), spec);
 }

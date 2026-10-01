@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0149",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "青橙伞影",
+  "description": "巨大雨伞和背影人物切过青绿天空与锈橙建筑，复古排线和噪点把现代孤独画成一幅悬疑海报。",
+  "category": "graphic",
+  "tags": [
+    "青橙互补",
+    "雨伞背影",
+    "复古排线",
+    "城市压迫",
+    "悬疑"
+  ],
+  "aliases": [
+    "青橙伞影",
+    "teal orange umbrella",
+    "retro rain noir"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以青绿天空、锈橙建筑、巨大雨伞和复古排线表现都市孤独与悬疑。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "墨线漫画与蚀刻排线结合，伞沿和建筑保持硬朗轮廓。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "青绿冷色与锈橙暖色形成强互补，阴影偏深青或深褐。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "伞的对角线与建筑垂直线冲突，人物位于两者交界。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "冷天空漫射光配暖建筑局部光，不使用摄影级高光。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "密集排线、旧纸颗粒和雨尘喷溅。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "清晰品牌文字"
+    },
+    {
+      "id": "N02",
+      "text": "柔焦浪漫摄影"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "黑色电影",
+    "都市封面",
+    "叙事海报"
+  ],
+  "weak_for": [
+    "明亮儿童图",
+    "白底商品图"
+  ],
+  "known_failures": [
+    "排线太重会压平青橙关系，应保留天空留白和伞的完整对角轮廓。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0149.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0149.json"
+  },
+  "replacement_id": null
+}

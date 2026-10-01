@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0044",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "深蓝孤甲留白",
+  "description": "纯蓝底色上的孤甲背影：厚涂笔触与手绘排线结合，大面积留白把孤独推向史诗感，仿佛远征前的静默。",
+  "category": "painting",
+  "tags": [
+    "留白",
+    "盔甲",
+    "厚涂",
+    "纯蓝",
+    "史诗"
+  ],
+  "aliases": [
+    "孤甲背影",
+    "lone armor",
+    "蓝底留白"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以纯蓝底色大面积留白与厚涂盔甲背影表现史诗孤独感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "数字厚涂结合硬边轮廓与手绘排线"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "纯蓝底色，米白灰褐的盔甲色"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "大面积留白，主体置于一角"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "柔和渐变体积光"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "纸张纹理与笔触肌理"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "多色杂糅"
+    },
+    {
+      "id": "N02",
+      "text": "硬边矢量"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念插画",
+    "封面",
+    "海报"
+  ],
+  "weak_for": [
+    "日常轻松题材"
+  ],
+  "known_failures": [
+    "盔甲细节过多时留白感被破坏。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0044.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0044.json"
+  },
+  "replacement_id": null
+}

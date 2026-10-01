@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0147",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "暗夜守徽",
+  "description": "戴帽风衣人物站在黑暗里，胸口简化徽记成为唯一亮色，粗犷美漫线条把守护与隐秘身份凝成剪影。",
+  "category": "illustration",
+  "tags": [
+    "风衣剪影",
+    "暗夜守护",
+    "美漫",
+    "黑白灰",
+    "隐秘身份"
+  ],
+  "aliases": [
+    "暗夜守徽",
+    "noir guardian",
+    "hidden hero"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以风衣人物剪影、黑白灰美漫线条和简化徽记表现暗夜守护与隐秘身份。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "粗线条漫画渲染与概括明暗结合，避免复制具体超级英雄标志。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "黑白灰为主，徽记可用少量冷白或灰蓝作焦点。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "低角度人物占据画面中心，背景留黑制造未知空间。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "单一侧光勾出帽檐和肩线，不加入炫目的城市光效。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "墨线、块面阴影和轻微纸张颗粒。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "现成品牌标志"
+    },
+    {
+      "id": "N02",
+      "text": "写实肌肉细节"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "英雄寓言",
+    "漫画封面",
+    "黑色电影"
+  ],
+  "weak_for": [
+    "甜美生活插画",
+    "产品静物"
+  ],
+  "known_failures": [
+    "徽记过于像已有角色会产生串味，应使用抽象几何符号且让剪影成为主角。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0147.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0147.json"
+  },
+  "replacement_id": null
+}

@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0107",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "黑白波纹远行",
+  "description": "黑白线条从中心向远方展开成同心波纹，小小剪影站在波谷之间，木刻般密度与留白构成无限迷惘。",
+  "category": "graphic",
+  "tags": [
+    "黑白线条",
+    "同心波纹",
+    "木刻",
+    "远行",
+    "深邃"
+  ],
+  "aliases": [
+    "波纹远行",
+    "black white ripples",
+    "木刻远方"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以纯黑白同心波纹、微小剪影和木刻线条密度表现无限远行感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "黑白钢笔或木刻线条，线条疏密塑造空间"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "纯黑白二色，不使用彩色点缀"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "中心透视和同心波纹把视线带向远方圆面"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "以线条密度模拟光暗，不做渐变光影"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "木纹、刻痕和不均匀墨线"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "彩色渐变和写实材质"
+    },
+    {
+      "id": "N02",
+      "text": "光滑无纹理数字图"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "版画海报",
+    "文化封面",
+    "概念插画"
+  ],
+  "weak_for": [
+    "商业产品图",
+    "明亮生活方式"
+  ],
+  "known_failures": [
+    "波纹线条过密会堵死远方焦点，应在中心或地平线处留出白色呼吸区。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0107.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0107.json"
+  },
+  "replacement_id": null
+}

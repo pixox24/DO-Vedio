@@ -1,8 +1,10 @@
+import type { DatabaseSync } from "node:sqlite";
+
 /**
  * 数据库迁移，按顺序执行，执行过的记录在 schema_migrations。
  * 只追加，不修改已发布的迁移。
  */
-export const migrations: { id: number; name: string; sql: string }[] = [
+export const migrations: { id: number; name: string; sql: string; apply?: (db: DatabaseSync) => void }[] = [
   {
     id: 1,
     name: "init",
@@ -325,5 +327,101 @@ CREATE TABLE voice_changes (
 ALTER TABLE jobs ADD COLUMN lock_token TEXT;
 CREATE INDEX jobs_lock_token ON jobs(id, lock_token);
     `,
+  },
+  {
+    id: 13,
+    name: "tts_takes_and_started_at",
+    sql: `
+-- 重录归档：同 key 覆盖前把旧的配音结果存一份，让重录可以撤销
+CREATE TABLE IF NOT EXISTS tts_takes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id TEXT NOT NULL,
+  cache_key TEXT NOT NULL,
+  result TEXT NOT NULL,
+  archived_at INTEGER NOT NULL,
+  reason TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_tts_takes_key ON tts_takes(project_id, cache_key, archived_at DESC);
+    `,
+    // SQLite 没有通用的 ALTER TABLE ... ADD COLUMN IF NOT EXISTS。已有安装
+    // 可能被手工补过 started_at，因此先 introspect 再添加，迁移可安全重放。
+    apply: (db) => {
+      db.exec(`
+CREATE TABLE IF NOT EXISTS tts_takes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id TEXT NOT NULL,
+  cache_key TEXT NOT NULL,
+  result TEXT NOT NULL,
+  archived_at INTEGER NOT NULL,
+  reason TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_tts_takes_key ON tts_takes(project_id, cache_key, archived_at DESC);
+      `);
+      const columns = db.prepare("PRAGMA table_info(jobs)").all() as { name: string }[];
+      if (!columns.some((column) => column.name === "started_at")) db.exec("ALTER TABLE jobs ADD COLUMN started_at INTEGER");
+    },
+  },
+  {
+    id: 14,
+    name: "render_content_animation_hashes",
+    sql: "",
+    apply: (db) => {
+      const columns = db.prepare("PRAGMA table_info(renders)").all() as { name: string }[];
+      if (!columns.some((column) => column.name === "content_hash")) db.exec("ALTER TABLE renders ADD COLUMN content_hash TEXT NOT NULL DEFAULT ''");
+      if (!columns.some((column) => column.name === "animation_hash")) db.exec("ALTER TABLE renders ADD COLUMN animation_hash TEXT NOT NULL DEFAULT ''");
+      db.exec("UPDATE renders SET content_hash = timeline_hash WHERE content_hash = ''");
+    },
+  },
+  {
+    id: 15,
+    name: "production_presets",
+    sql: `
+CREATE TABLE IF NOT EXISTS production_presets (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  payload TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS app_meta (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+`,
+  },
+  {
+    id: 16,
+    name: "music_library_rights",
+    sql: "",
+    // 可审计曲库字段：授权、来源、哈希、节奏与质检信息。逐列 introspect 后添加，
+    // 迁移可安全重放（已有安装可能被手工补过部分列）。
+    apply: (db) => {
+      const columns = db.prepare("PRAGMA table_info(music_tracks)").all() as { name: string }[];
+      const ensure = (name: string, ddl: string) => {
+        if (!columns.some((c) => c.name === name)) db.exec(`ALTER TABLE music_tracks ADD COLUMN ${ddl}`);
+      };
+      ensure("author", "author TEXT NOT NULL DEFAULT ''");
+      ensure("license_url", "license_url TEXT NOT NULL DEFAULT ''");
+      ensure("source_page", "source_page TEXT NOT NULL DEFAULT ''");
+      ensure("download_url", "download_url TEXT NOT NULL DEFAULT ''");
+      ensure("attribution", "attribution TEXT NOT NULL DEFAULT ''");
+      ensure("commercial_use", "commercial_use INTEGER");
+      ensure("rights_status", "rights_status TEXT NOT NULL DEFAULT 'pending'");
+      ensure("rights_checked_at", "rights_checked_at TEXT NOT NULL DEFAULT ''");
+      ensure("sha256", "sha256 TEXT NOT NULL DEFAULT ''");
+      ensure("normalized_sha256", "normalized_sha256 TEXT NOT NULL DEFAULT ''");
+      ensure("bpm", "bpm REAL");
+      ensure("energy", "energy TEXT");
+      ensure("instrumental", "instrumental INTEGER");
+      ensure("tags", "tags TEXT NOT NULL DEFAULT '[]'");
+      ensure("disabled_reason", "disabled_reason TEXT NOT NULL DEFAULT ''");
+      ensure("evidence", "evidence TEXT NOT NULL DEFAULT '{}'");
+      db.exec("CREATE INDEX IF NOT EXISTS music_tracks_rights ON music_tracks(rights_status, disabled_reason)");
+      db.exec("CREATE INDEX IF NOT EXISTS music_tracks_sha ON music_tracks(sha256)");
+      db.exec("CREATE INDEX IF NOT EXISTS music_tracks_normalized ON music_tracks(normalized_sha256)");
+      // 旧数据没有授权证据，统一保守标记为待核实，避免继续作为已核实曲目参与生产选曲。
+      db.exec("UPDATE music_tracks SET rights_status = 'pending' WHERE rights_status = '' OR rights_status IS NULL");
+    },
   },
 ];

@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0060",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "青色思绪线条",
+  "description": "思绪具象为发光的线团：深色人群背景前，一团青色乱线勾勒出头部轮廓，孤独又躁动的数字时代画像。",
+  "category": "illustration",
+  "tags": [
+    "思绪",
+    "线条",
+    "发光",
+    "青色",
+    "概念"
+  ],
+  "aliases": [
+    "思绪线团",
+    "thought lines",
+    "发光线团"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以深色背景与青色发光线条表现思绪具象化的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "发光线条与暗调背景的对比"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "深黑绿底配亮青色发光线条"
+    },
+    {
+      "id": "F03",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "线团自发光，背景人群虚暗"
+    },
+    {
+      "id": "F04",
+      "axis": "composition",
+      "tier": "core",
+      "text": "居中构图，背景虚化的人群"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "光晕与细颗粒"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "明亮平涂"
+    },
+    {
+      "id": "N02",
+      "text": "硬边色块"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念视觉",
+    "封面",
+    "情绪插画"
+  ],
+  "weak_for": [
+    "温馨日常"
+  ],
+  "known_failures": [
+    "线条过密时轮廓易碎，保持头型可辨。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0060.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0060.json"
+  },
+  "replacement_id": null
+}

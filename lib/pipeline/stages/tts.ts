@@ -18,6 +18,8 @@ export type TtsInput = {
   voice: VoiceSettings;
   /** 重录时保留旧缓存，直到新音频成功后再覆盖。 */
   force?: boolean;
+  /** 批次 id：只用于「停止本次提交」，不参与缓存键 */
+  batchId?: string;
 };
 
 export const ttsStage = defineStage<TtsInput, { key: string; durationMs: number }>({
@@ -36,7 +38,7 @@ export const ttsStage = defineStage<TtsInput, { key: string; durationMs: number 
       assertCurrent(ctx);
       const asset = await putBuffer(res.audio, { ext: "wav", mime: "audio/wav", meta: { provider: input.voice.provider, model: input.voice.model, voice: input.voice.voiceId, sampleRate: res.sampleRate, channels: res.channels, bitsPerSample: res.bitsPerSample, durationMs: res.durationMs, alignmentSource: timing.alignmentSource, usage: res.usage, text: input.text, spoken: input.spoken } });
       const value: TtsResult = { assetId: asset.hash, ...timing };
-      commitCache(ctx, [[key, value]]);
+      commitCache(ctx, [[key, value]], "revoice", input.force === true);
       return { value, outputAssets: [asset.hash], alignmentSource: timing.alignmentSource! };
     });
     if (ttsText === input.spoken) recordVoiceStats(input.voice, result.spokenChars, result.speechEndMs - result.speechStartMs);

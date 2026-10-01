@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0063",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "黑红丝网之眼",
+  "description": "黑底上的红与白：一块红色矩形中一只眼睛淌下白色长泪，丝网印刷的粗糙颗粒把恐惧浓缩到极简。",
+  "category": "graphic",
+  "tags": [
+    "丝网印刷",
+    "眼睛",
+    "黑红",
+    "极简",
+    "海报"
+  ],
+  "aliases": [
+    "丝网之眼",
+    "screen print eye",
+    "黑红极简"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以黑红白三色与丝网颗粒表现极简恐惧感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "丝网印刷式平涂，边缘带颗粒毛糙"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "纯黑、鲜红与白三色极简"
+    },
+    {
+      "id": "F03",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "高对比，红块如发光体"
+    },
+    {
+      "id": "F04",
+      "axis": "composition",
+      "tier": "core",
+      "text": "极简居中构图，色块几何切割"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "丝网颗粒与墨点"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "多色渐变"
+    },
+    {
+      "id": "N02",
+      "text": "写实细节"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念海报",
+    "封面",
+    "音像视觉"
+  ],
+  "weak_for": [
+    "温馨题材"
+  ],
+  "known_failures": [
+    "简要素材下构图位置偏差会放大。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0063.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0063.json"
+  },
+  "replacement_id": null
+}

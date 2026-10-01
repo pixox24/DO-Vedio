@@ -30,7 +30,7 @@ export function VersionHistory({ id, store, onClose }: { id: string; store: Stor
 
   async function restore() {
     if (!selected || !store.project) return;
-    if (!(await confirm({ title: "恢复这个版本？", message: "当前文档会先保存为“恢复版本前”，之后可再次恢复。", confirmLabel: "恢复版本", tone: "danger" }))) return;
+    if (!(await confirm({ title: "恢复这个版本？", message: "当前文档会先保存为“恢复版本前”，之后可再次恢复。", confirmLabel: "恢复版本", tone: "danger", bullets: ["预计费用：不产生服务商费用。", "影响范围：当前文档会替换为所选版本，并保存一个恢复前快照。", "可恢复：可以再次恢复“恢复版本前”快照。"] }))) return;
     setBusy(true);
     setError("");
     try {

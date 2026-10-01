@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0129",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "黑玫绷带",
+  "description": "黑玫瑰丛中的人物以白色绷带包裹头部，蝴蝶在暗色花影间飞出，死亡与治愈以细腻哥特笔触相遇。",
+  "category": "painting",
+  "tags": [
+    "黑玫瑰",
+    "白绷带",
+    "蝴蝶",
+    "哥特",
+    "死亡与治愈"
+  ],
+  "aliases": [
+    "黑玫绷带",
+    "black rose bandage",
+    "gothic healing"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以黑玫瑰、白色包扎和蝴蝶飞舞表现受损、治愈与死亡之美。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "细腻数字厚涂，花瓣、布带和翅膀边缘柔和但主体层次清楚。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "黑色与白色构成主关系，只用极少冷灰或暗红调节。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "人物被花丛包围，白色布带和蝴蝶形成向外的轻盈动势。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "暗背景中以柔和侧光托出白布与翅膀，不使用强烈舞台光。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "丝绒暗面、花瓣细节和轻微胶片颗粒。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "鲜艳花园色"
+    },
+    {
+      "id": "N02",
+      "text": "血腥伤口细节"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "暗黑浪漫",
+    "书封",
+    "叙事肖像"
+  ],
+  "weak_for": [
+    "快节奏运动",
+    "明亮儿童图"
+  ],
+  "known_failures": [
+    "花丛过密会遮住包扎结构，应保留一条白色视觉流向和少量蝴蝶焦点。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0129.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0129.json"
+  },
+  "replacement_id": null
+}

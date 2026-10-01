@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { builtinVisualStyles } from "../visual-styles/builtin";
+import { aixFixture } from "../aix/test-fixture";
 import { blankShot } from "./shots";
 import { assetStale, compilePrompt, compileShotPrompt, filterStyleWords, needsGeneratedImage, shotMood, shotReferenceIds } from "./prompt-compiler";
 import { themeOf, defaultTheme } from "./theme";
 import { characterCardSchema, emptyDoc, type Line, type VisualStyle } from "./types";
 
-const style = (id: string): VisualStyle => builtinVisualStyles.find((s) => s.id === id)!;
+const style = (id: string): VisualStyle => {
+  const base = aixFixture({ id, name: id, rendering: id });
+  if (id === "ink-guofeng") return aixFixture({ ...base, medium: "ink", rendering: "水墨线条", strength: "strong" });
+  if (id === "noir-suspense") return aixFixture({ ...base, lighting: "冷色环境光，高对比光影", colorGrade: "低饱和冷青色调", saturation: "low", contrast: "high", moodTweaks: { 温暖: { lighting: "冷色环境中只有一处暖色灯光" } }, deniedMoods: ["激昂"] });
+  if (id === "cinematic-real") return aixFixture({ ...base, medium: "cinematic", lens: "电影镜头", texture: "真实胶片颗粒" });
+  return base;
+};
 const line = (id: string, text: string, mood?: Line["mood"]): Line => ({ id, segmentIndex: 0, text, spans: [], keywords: [], locked: false, mood });
 
 describe("画风词过滤", () => {
@@ -30,7 +36,7 @@ describe("提示词编译", () => {
     expect(a.hash).not.toBe(b.hash);
     expect(b.slots.style).toContain("整体统一为水墨风格");
     expect(a.full).toContain("画面中不要出现：文字、字幕、水印");
-    expect(a.negative).toContain("卡通感");
+    expect(a.negative).toContain("塑料磨皮");
   });
 
   it("情绪在风格范围内调制；风格不承载的情绪保持基调并提示", () => {
@@ -69,7 +75,7 @@ describe("提示词编译", () => {
 });
 
 describe("镜头编译", () => {
-  const doc = { ...emptyDoc(), visualStyle: style("warm-handdrawn"), lines: [line("a", "他推开门，屋里一个人都没有。", "悬疑"), line("b", "只有桌上一封信。", "忧伤"), line("c", "很短。", "忧伤")] };
+  const doc = { ...emptyDoc(), visualStyle: style("Aix0001"), lines: [line("a", "他推开门，屋里一个人都没有。", "悬疑"), line("b", "只有桌上一封信。", "忧伤"), line("c", "很短。", "忧伤")] };
   const shot = { ...blankShot("s", "a"), kind: "image" as const, mode: "generate" as const, shotSize: "wide" as const, description: "空荡荡的客厅，电影感" };
   doc.shots = [shot, blankShot("t", "c")];
 
@@ -85,7 +91,7 @@ describe("镜头编译", () => {
   it("换风格后已生成的图片过期", () => {
     const generated = { ...shot, assetId: "img", assetPromptHash: compileShotPrompt(doc, shot).hash };
     expect(assetStale(doc, generated)).toBe(false);
-    expect(assetStale({ ...doc, visualStyle: style("noir-suspense") }, generated)).toBe(true);
+    expect(assetStale({ ...doc, visualStyle: style("Aix0002") }, generated)).toBe(true);
     expect(assetStale(doc, { ...generated, motion: "pan-left" })).toBe(false);
     // 旧版本生成的素材没有指纹，不算过期
     expect(assetStale({ ...doc, visualStyle: null }, { ...generated, assetPromptHash: undefined })).toBe(false);
@@ -103,15 +109,15 @@ describe("代码画面主题", () => {
   it("由风格卡的配色派生", () => {
     expect(themeOf(null)).toBe(defaultTheme);
     const t = themeOf(style("noir-suspense"));
-    expect(t.accent).toBe("#c8373b");
-    expect(t.palettes[0]).toEqual(["#0d1117", "#1f2a36", "#5c6f80"]);
+    expect(t.accent).toBe(style("noir-suspense").palette.accent);
+    expect(t.palettes[0]).toEqual(style("noir-suspense").palette.schemes[0]);
   });
 });
 
 describe("镜头里的角色", () => {
   const lin = characterCardSchema.parse({ id: "lin", name: "林夏", ageRange: "二十出头", gender: "女性", hair: "齐耳短发", signature: ["红色围巾"], looks: [{ id: "L1", name: "默认", wardrobe: "米色风衣" }, { id: "L2", name: "五年后", wardrobe: "深灰色西装", fromLineId: "b" }], referenceAssetIds: ["up1"], sheet: { portraitAssetId: "p1", turnaroundAssetIds: ["t1", "t2"] } });
   const wang = characterCardSchema.parse({ id: "wang", name: "老王", ageRange: "六十多岁", gender: "男性", sheet: { portraitAssetId: "p2" } });
-  const doc = { ...emptyDoc(), visualStyle: style("warm-handdrawn"), characters: [lin, wang], lines: [line("a", "第一句。"), line("b", "五年后。")] };
+  const doc = { ...emptyDoc(), visualStyle: style("Aix0001"), characters: [lin, wang], lines: [line("a", "第一句。"), line("b", "五年后。")] };
   const shot = { ...blankShot("s", "a"), kind: "image" as const, mode: "generate" as const, description: "林夏和老王在书店门口说话", characterIds: ["lin", "wang", "missing"] };
 
   it("人物槽紧跟内容，按镜头位置选造型", () => {

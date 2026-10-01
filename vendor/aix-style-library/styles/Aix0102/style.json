@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0102",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "故障饮影",
+  "description": "淡蓝背景上的人物剪影被像素错位和通道分离切碎，数字故障边缘把普通饮料瞬间变成冷静而不安的科技肖像。",
+  "category": "graphic",
+  "tags": [
+    "故障艺术",
+    "像素错位",
+    "冷蓝",
+    "剪影",
+    "通道分离"
+  ],
+  "aliases": [
+    "故障饮影",
+    "glitch silhouette",
+    "蓝白故障"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以冷蓝白背景、黑色剪影和像素错位边缘表现数字故障不安感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "数字剪影结合故障切片和通道错位"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "淡蓝白背景、黑色主体与少量蓝红故障边缘"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "侧面人物占据主体，故障沿轮廓水平切断"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "高对比均匀光，重点在轮廓断裂而非体积"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "像素块、扫描线和轻微电视噪声"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "柔和自然主义"
+    },
+    {
+      "id": "N02",
+      "text": "高细节写实环境"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "科技封面",
+    "实验海报",
+    "音乐视觉"
+  ],
+  "weak_for": [
+    "古典肖像",
+    "温馨插画"
+  ],
+  "known_failures": [
+    "故障切片过宽会遮住动作和主体，需保留可辨的轮廓与手部关系。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0102.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0102.json"
+  },
+  "replacement_id": null
+}

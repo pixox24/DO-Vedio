@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0058",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "粉紫灵体环绕",
+  "description": "神圣而诡异的光环时刻：深蓝底色中，粉紫发光的多张面孔像开屏一样在背后展开，中心的身影合十静立。",
+  "category": "illustration",
+  "tags": [
+    "灵体",
+    "光环",
+    "粉紫",
+    "神秘",
+    "厚涂"
+  ],
+  "aliases": [
+    "灵光环绕",
+    "spirit aura",
+    "粉紫光环"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以深蓝底色与粉紫自发光面孔环绕表现神秘感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "数字厚涂质感，柔和平滑过渡"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "深蓝底配粉紫自发光"
+    },
+    {
+      "id": "F03",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "中心发光，四周沉入暗部"
+    },
+    {
+      "id": "F04",
+      "axis": "composition",
+      "tier": "core",
+      "text": "垂直对称构图，光环式环绕布局"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "梦幻平滑质感，微颗粒"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "明亮写实"
+    },
+    {
+      "id": "N02",
+      "text": "硬边矢量"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念插画",
+    "封面",
+    "音乐视觉"
+  ],
+  "weak_for": [
+    "日常轻快"
+  ],
+  "known_failures": [
+    "环绕元素过多时中心易失焦。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0058.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0058.json"
+  },
+  "replacement_id": null
+}

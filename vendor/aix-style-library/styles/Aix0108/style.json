@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0108",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "青烟黑洞",
+  "description": "灰色空间里，人物头部化为黑洞，青绿色烟雾和流体绕身上升，柔和渲染与地面倒影让异化具有冷静的物理感。",
+  "category": "3d",
+  "tags": [
+    "黑洞",
+    "青绿色烟雾",
+    "流体",
+    "灰色空间",
+    "冷静异化"
+  ],
+  "aliases": [
+    "青烟黑洞",
+    "teal smoke void",
+    "流体黑洞"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以灰色空间、黑洞化头部和青绿色发光流体表现冷静超现实异化的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "三维或厚涂数字渲染，烟雾和人物体积平滑"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "中性灰背景、黑色主体与青绿色烟雾对比"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "居中坐姿或站姿，流体围绕核心向上盘旋"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "柔和室内光与青绿色自发光共同照亮地面"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "半透明烟雾、光泽地面和细腻反射"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "粗颗粒木刻"
+    },
+    {
+      "id": "N02",
+      "text": "鲜艳多色背景"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念肖像",
+    "科幻封面",
+    "情绪视觉"
+  ],
+  "weak_for": [
+    "欢快儿童题材",
+    "纯平信息图"
+  ],
+  "known_failures": [
+    "烟雾过厚会遮住姿态，黑洞和身体轮廓必须仍能被一眼识别。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0108.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0108.json"
+  },
+  "replacement_id": null
+}

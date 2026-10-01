@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0132",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "红蓝困室",
+  "description": "红色房间里的瘫坐人物被蓝色窗光切开，粗犷表现主义笔触让安静室内充满焦虑和躁动。",
+  "category": "painting",
+  "tags": [
+    "红色室内",
+    "蓝色阴影",
+    "瘫坐",
+    "表现主义",
+    "焦虑"
+  ],
+  "aliases": [
+    "红蓝困室",
+    "red blue room",
+    "expressionist stillness"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以红蓝强对比室内、瘫坐姿态和粗犷笔触表现压抑中的焦虑。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "表现主义数字厚涂，形体略扭曲但动作和空间关系可读。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "红色主调与蓝色窗口阴影互相挤压，黑色作为结构线。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "低矮坐姿被墙面和窗框包围，形成封闭矩形空间。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "窗外冷光与室内红光对撞，避免多余光源。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "粗刷痕、干裂边缘和厚重颗粒增强心理重量。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "平滑商业插画"
+    },
+    {
+      "id": "N02",
+      "text": "明亮欢快色彩"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "心理叙事",
+    "电影感封面",
+    "表现主义海报"
+  ],
+  "weak_for": [
+    "轻盈儿童题材",
+    "纯白产品图"
+  ],
+  "known_failures": [
+    "红蓝面积失衡会变成普通房间，应让两种光色都参与叙事并保留坐姿。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0132.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0132.json"
+  },
+  "replacement_id": null
+}

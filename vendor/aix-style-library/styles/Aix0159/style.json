@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0159",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "绿门擦肩",
+  "description": "深绿色地铁门像一个框中框，里面两个人短暂相遇，复古矢量海报用留白讲都市通勤的擦肩缘分。",
+  "category": "graphic",
+  "tags": [
+    "地铁门",
+    "框中框",
+    "深绿",
+    "复古海报",
+    "擦肩"
+  ],
+  "aliases": [
+    "绿门擦肩",
+    "subway doorway",
+    "passing strangers"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以深绿色地铁门、框中框人物和复古留白表现都市通勤中的擦肩缘分。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "复古矢量平涂，人物形体简化，门框结构清楚而不复制现成标识。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "深绿大面积底色配有限暖色人物和米白边框。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "门框形成稳定矩形，双人物在同一框内形成微妙距离。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "均匀站台平光，强调图形关系而非写实灯光。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "轻微套印颗粒、旧纸纹理和简洁海报边缘。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "真实城市标牌文字"
+    },
+    {
+      "id": "N02",
+      "text": "拥挤人群"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "城市故事",
+    "复古封面",
+    "编辑海报"
+  ],
+  "weak_for": [
+    "自然全景",
+    "产品说明图"
+  ],
+  "known_failures": [
+    "人物过多会失去擦肩关系，应保留两人、门框和明确的空隙。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0159.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0159.json"
+  },
+  "replacement_id": null
+}

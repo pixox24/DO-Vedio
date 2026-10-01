@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0150",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "红地长影",
+  "description": "青色树影投向红色地面，孩子在长影中玩耍，扁平互补色把童年黄昏变成带有时间压力的寓言。",
+  "category": "graphic",
+  "tags": [
+    "长阴影",
+    "红色地面",
+    "青色树影",
+    "童年",
+    "互补色"
+  ],
+  "aliases": [
+    "红地长影",
+    "long shadow play",
+    "red dusk"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以红色地面、青色树影和孩子剪影表现童年游戏与时光压迫。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "平面矢量色块和极简人物，长影轮廓清晰延展。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "红与青形成主互补关系，黑色或深青用于树和人物。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "低角度长影从树和孩子向远处拉伸，构成斜向时间线。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "均匀黄昏平光，影子用色块而非真实投影渐变。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "平滑色面配轻微印刷颗粒和纸张噪点。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "写实儿童肖像"
+    },
+    {
+      "id": "N02",
+      "text": "多色糖果装饰"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "童年主题",
+    "编辑海报",
+    "寓言插画"
+  ],
+  "weak_for": [
+    "复杂室内",
+    "产品展示"
+  ],
+  "known_failures": [
+    "长影方向混乱会削弱时间感，应让主要影子拥有统一消失方向。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0150.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0150.json"
+  },
+  "replacement_id": null
+}

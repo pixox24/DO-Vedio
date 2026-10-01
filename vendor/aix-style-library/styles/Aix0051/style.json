@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0051",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "界面巨大超现实",
+  "description": "日常界面被巨大化：视频进度条成了可以趴上去的地面，硬边平涂与对角构图把疲惫变成超现实的一幕。",
+  "category": "illustration",
+  "tags": [
+    "界面",
+    "巨大化",
+    "超现实",
+    "硬边",
+    "平涂"
+  ],
+  "aliases": [
+    "界面巨物",
+    "giant ui",
+    "日常超现实"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以巨大化界面元素与硬边平涂表现日常超现实感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "数字硬边平涂，线条清晰"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "深蓝底色配暗红与纯白对比"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "界面元素巨大化的超现实构图"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "平涂硬边阴影，简洁明确"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "干净数字质感"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "写实光影"
+    },
+    {
+      "id": "N02",
+      "text": "粗糙肌理"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念插画",
+    "社媒配图",
+    "封面"
+  ],
+  "weak_for": [
+    "自然风景"
+  ],
+  "known_failures": [
+    "界面元素需保持可辨识，避免细节乱码。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0051.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0051.json"
+  },
+  "replacement_id": null
+}

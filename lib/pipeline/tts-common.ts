@@ -5,7 +5,7 @@ import { ttsProviderOf, ttsRequestOf } from "../providers/tts/factory";
 import type { SynthResult, SynthWord } from "../providers/tts/types";
 import { beginGenerationRun, failGenerationRun, finishGenerationRun, noteGenerationRun } from "../providers/runs";
 import { cachePut } from "../server/cache";
-import { run, tx } from "../server/db";
+import { get, parseJson, run, tx } from "../server/db";
 import { billedCharsOf, ttsBilling } from "./pricing";
 import type { StageContext } from "./stage";
 
@@ -61,14 +61,67 @@ export function lineResult(line: { text: string; spoken: string; map: number[] }
   return { durationMs, speechStartMs, speechEndMs: Math.max(speechEndMs, speechStartMs + 1), chars, aligned, alignmentSource: alignmentSource ?? (aligned ? "provider" : "estimated"), spokenChars: contentCount(line.text) };
 }
 
-/** 一次性写入配音缓存；任务已被取消或接管时整批不写 */
-export function commitCache(ctx: StageContext, entries: [string, TtsResult][]) {
+/**
+ * 一次性写入配音缓存；任务已被取消或接管时整批不写。
+ *
+ * 覆盖前把旧结果归档到 `tts_takes`，让「重录」可以撤销 —— 否则用户点了重录就只能接受新版本，
+ * 而重录是要花钱的。归档只在调用方显式传入 `force` 时发生；正常自动编排即使
+ * 因为重新排队而写入缓存，也不会污染撤销记录。
+ */
+export function commitCache(ctx: StageContext, entries: [string, TtsResult][], reason: string = "revoice", force = false) {
   const committed = tx(() => {
     if (!ctx.current()) return false;
-    for (const [key, value] of entries) cachePut(key, "tts", value);
+    const projectId = ctx.job.projectId;
+    for (const [key, value] of entries) {
+      const previous = get<{ result: string }>("SELECT result FROM cache WHERE key = ?", key);
+      // 只有明确的强制重录才会覆盖当前结果并提供撤销；自动编排/补齐命中
+      // 同一个 key 时不应把正常运行历史塞进撤销栈。
+      if (force && previous && projectId) {
+        // 每个 key 只保留一个可撤销版本，避免连续点击「撤销」一路回到更早的音频。
+        run("DELETE FROM tts_takes WHERE project_id = ? AND cache_key = ?", projectId, key);
+        run(
+          "INSERT INTO tts_takes (project_id, cache_key, result, archived_at, reason) VALUES (?, ?, ?, ?, ?)",
+          projectId,
+          key,
+          previous.result,
+          Date.now(),
+          reason,
+        );
+      }
+      cachePut(key, "tts", value);
+    }
     return true;
   });
   if (!committed) throw canceled(ctx);
+}
+
+/**
+ * 撤销上一次重录：把该 key 最近一条归档写回缓存，并删掉这条记录（只允许回一步）。
+ * 返回真正被回退的 key 数量。
+ */
+export function undoLastTake(projectId: string, keys: string[]) {
+  return tx(() => {
+    const uniqueKeys = [...new Set(keys)];
+    if (uniqueKeys.length === 0) return 0;
+    const takes = uniqueKeys.map((key) => ({
+      key,
+      take: get<{ id: number; result: string }>(
+        "SELECT id, result FROM tts_takes WHERE project_id = ? AND cache_key = ? ORDER BY archived_at DESC, id DESC LIMIT 1",
+        projectId,
+        key,
+      ),
+    }));
+    // 一次批量重录要么整体可撤销，要么明确告知没有记录，不能只恢复一半。
+    if (takes.some(({ take }) => !take)) return 0;
+    for (const { key, take } of takes) {
+      if (!take) return 0;
+      const value = parseJson<TtsResult>(take.result, undefined as unknown as TtsResult);
+      if (!value) return 0;
+      cachePut(key, "tts", value);
+      run("DELETE FROM tts_takes WHERE id = ?", take.id);
+    }
+    return takes.length;
+  });
 }
 
 /** 语速实测：累计「有效语音时长 / 字数」，写稿阶段用它估算时长 */

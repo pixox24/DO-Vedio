@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { characterCardSchema, emptyDoc, voiceSettingsSchema, type Shot } from "./types";
 import { shotGenerationKey, ttsBlockKey, ttsBlockLineKey, ttsKey, ttsRequestForLine, ttsTextForLine } from "./keys";
 import { quickHash } from "./hash";
-import { builtinVisualStyles } from "../visual-styles/builtin";
+import { aixFixture, aixFixtureStyles } from "../aix/test-fixture";
+import { outputSpecs } from "./types";
 
 const shot = (patch: Partial<Shot> = {}): Shot => ({
   id: "shot-1",
@@ -14,6 +15,7 @@ const shot = (patch: Partial<Shot> = {}): Shot => ({
   referenceAssetIds: ["a"],
   characterIds: [],
   candidates: [],
+  assetVariants: {},
   sourceHash: "source",
   locked: false,
   ...patch,
@@ -36,12 +38,20 @@ describe("镜头生成缓存键", () => {
   });
 
   it("随风格和画面描述变化，不随运镜变化", () => {
-    const doc = { ...emptyDoc(), visualStyle: builtinVisualStyles[0] };
+    const doc = { ...emptyDoc(), visualStyle: aixFixture() };
     const base = shotGenerationKey(doc, shot(), "image", "image-generation");
-    expect(shotGenerationKey({ ...doc, visualStyle: builtinVisualStyles[1] }, shot(), "image", "image-generation")).not.toBe(base);
+    expect(shotGenerationKey({ ...doc, visualStyle: aixFixtureStyles[1] }, shot(), "image", "image-generation")).not.toBe(base);
     expect(shotGenerationKey(doc, shot({ description: "一座晴天的城市" }), "image", "image-generation")).not.toBe(base);
     expect(shotGenerationKey(doc, shot({ shotSize: "close" }), "image", "image-generation")).not.toBe(base);
     expect(shotGenerationKey(doc, shot({ motion: "zoom-in" }), "image", "image-generation")).toBe(base);
+  });
+
+  it("不同输出画幅和尺寸不会复用同一生成键，预览切换不影响键", () => {
+    const doc = emptyDoc();
+    const base = shotGenerationKey(doc, shot(), "image", "image-generation", { ...outputSpecs["landscape-1080p"] });
+    const portrait = shotGenerationKey(doc, shot(), "image", "image-generation", { ...outputSpecs["portrait-1080p"] });
+    expect(portrait).not.toBe(base);
+    expect(shotGenerationKey(doc, shot(), "image", "image-generation", { aspect: "16:9", width: 1280, height: 720, fps: 30 })).not.toBe(base);
   });
 });
 

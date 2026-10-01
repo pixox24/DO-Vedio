@@ -1,14 +1,16 @@
 import { randomUUID } from "crypto";
 import { isTtsStage } from "../core/keys";
 import { emptyDoc, projectDocSchema, type Project, type ProjectDoc, type ProjectDocInput, type ProjectPipelineStatus, type ProjectSummary } from "../core/types";
+import { normalizeSettings } from "../core/output-spec";
 import { all, get, json, parseJson, run, tx } from "./db";
+import { cancelProjectJobs } from "./jobs";
 
 type Row = { id: string; title: string; doc: string; revision: number; created_at: number; updated_at: number };
 
 /** 读出的文档一律经过 schema 补默认值，旧文档能平滑升级 */
 function parseDoc(raw: string): ProjectDoc {
   const r = projectDocSchema.safeParse(parseJson(raw, {}));
-  return r.success ? r.data : { ...emptyDoc(), ...(parseJson(raw, {}) as object) };
+  return r.success ? { ...r.data, settings: normalizeSettings(r.data.settings) } : { ...emptyDoc(), ...(parseJson(raw, {}) as object) };
 }
 
 const toProject = (r: Row): Project => ({
@@ -110,8 +112,18 @@ export function mutateProject(id: string, fn: (doc: ProjectDoc, p: Project) => P
   });
 }
 
+/** 删除进回收站；同时取消未结束的任务，避免继续为已删项目付费生成素材 */
 export function deleteProject(id: string) {
-  return run("UPDATE projects SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL", Date.now(), id).changes > 0;
+  return tx(() => {
+    const changed = run("UPDATE projects SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL", Date.now(), id).changes > 0;
+    if (changed) cancelProjectJobs(id);
+    return changed;
+  });
+}
+
+/** 从回收站恢复 */
+export function restoreProject(id: string) {
+  return run("UPDATE projects SET deleted_at = NULL WHERE id = ? AND deleted_at IS NOT NULL", id).changes > 0;
 }
 
 export function duplicateProject(id: string) {

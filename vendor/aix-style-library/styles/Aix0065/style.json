@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0065",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "灰绿几何之门",
+  "description": "无首之人的静默坐姿：灰绿天空下，深色制服的身影坐在门框状结构上，颈部是一团空洞的黑，安静而虚无。",
+  "category": "illustration",
+  "tags": [
+    "无首",
+    "门框",
+    "灰绿",
+    "静默",
+    "虚无"
+  ],
+  "aliases": [
+    "无首之门",
+    "headless gate",
+    "灰绿静默"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以灰绿天空与门框结构衬托无首静默身影的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "平涂结合简洁几何概括"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "灰绿天空配淡粉地面与深灰主体"
+    },
+    {
+      "id": "F03",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "柔和漫射光，哑光质感"
+    },
+    {
+      "id": "F04",
+      "axis": "composition",
+      "tier": "core",
+      "text": "几何框架构图，主体坐于结构之上"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "哑光无纹理，轻微颗粒"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "浓艳色彩"
+    },
+    {
+      "id": "N02",
+      "text": "复杂肌理"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念插画",
+    "封面",
+    "情绪视觉"
+  ],
+  "weak_for": [
+    "热闹题材"
+  ],
+  "known_failures": [
+    "空洞颈部与背景明度接近时易失效。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0065.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0065.json"
+  },
+  "replacement_id": null
+}

@@ -110,7 +110,7 @@ export default function MemesPage() {
   }
 
   async function blockAllDoubtful(n: number) {
-    if (!(await confirm({ title: `把 ${n} 个待核实的梗都不再收录？`, message: "这些梗核实时查不到或来源太少。删除后以后刷新也不会再收录，可以在「已屏蔽」里恢复。", confirmLabel: "全部不再收录", tone: "danger" }))) return;
+    if (!(await confirm({ title: `把 ${n} 个待核实的梗都不再收录？`, message: "这些梗核实时查不到或来源太少。删除后以后刷新也不会再收录，可以在「已屏蔽」里恢复。", confirmLabel: "全部不再收录", tone: "danger", bullets: ["预计费用：不产生服务商费用。", `影响范围：${n} 个待核实的梗会被屏蔽，已有项目不受影响。`, "可恢复：可以在「已屏蔽」里恢复。"] }))) return;
     const r = await postJson<{ blocked: number }>("/api/memes/block-doubtful", {}).catch((e) => (toast(String(e), "error"), null));
     if (r) toast(`已屏蔽 ${r.blocked} 个`, "success");
     setTrust("all");
@@ -129,8 +129,8 @@ export default function MemesPage() {
   async function remove(m: View, block = false) {
     const ok = await confirm(
       block
-        ? { title: `不再收录「${m.term}」？`, message: "删除这个梗，以后刷新搜到它（包括各种写法）都会跳过。可以在页面底部的「已屏蔽」里恢复。已经用过它的项目不受影响。", confirmLabel: "不再收录", tone: "danger" }
-        : { title: `删除「${m.term}」？`, message: "以后刷新如果又搜到，会重新收录；不想再看到它请用「不再收录」。已经用过它的项目不受影响。", confirmLabel: "删除", tone: "danger" },
+        ? { title: `不再收录「${m.term}」？`, message: "删除这个梗，以后刷新搜到它（包括各种写法）都会跳过。可以在页面底部的「已屏蔽」里恢复。已经用过它的项目不受影响。", confirmLabel: "不再收录", tone: "danger", bullets: ["预计费用：不产生服务商费用。", "影响范围：后续刷新不会再收录这个梗，已有项目不受影响。", "可恢复：可以在「已屏蔽」里恢复。"] }
+        : { title: `删除「${m.term}」？`, message: "以后刷新如果又搜到，会重新收录；不想再看到它请用「不再收录」。已经用过它的项目不受影响。", confirmLabel: "删除", tone: "danger", bullets: ["预计费用：不产生服务商费用。", "影响范围：当前梗记录会删除，后续刷新可能再次收录。", "可恢复：不能直接恢复这次删除。"] },
     );
     if (!ok) return;
     await postJson(`/api/memes/${m.id}${block ? "?block=1" : ""}`, undefined, "DELETE").catch((e) => toast(String(e), "error"));

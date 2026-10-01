@@ -21,7 +21,7 @@ export default function TemplatesPage() {
   const strip = (t: StyleTemplate): TemplateInput => templateInputSchema.parse(t);
 
   async function remove(t: StyleTemplate) {
-    if (!(await confirm({ title: `删除模板「${t.name}」？`, message: "删除后，使用这个模板的新稿件将无法再引用它。", confirmLabel: "删除", tone: "danger" }))) return;
+    if (!(await confirm({ title: `删除模板「${t.name}」？`, message: "删除后，使用这个模板的新稿件将无法再引用它。", confirmLabel: "删除", tone: "danger", bullets: ["预计费用：不产生服务商费用。", "影响范围：新稿件不能再引用这条模板，已有稿件不受影响。", "可恢复：删除后不能从模板库恢复。"] }))) return;
     try {
       await postJson(`/api/templates/${t.id}`, undefined, "DELETE");
       await reload();

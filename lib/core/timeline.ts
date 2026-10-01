@@ -5,8 +5,12 @@ import { quickHash } from "./hash";
 import type { TtsResult } from "./keys";
 import { dbToGain, duckEnvelope, type Envelope } from "./mix";
 import { anchorMs, sortShots, type LineTime } from "./shots";
-import { cuesForLine, type Cue } from "./subtitles";
-import { aspectSize, shotKindLabels, type Aspect, type Card, type Line, type ProjectDoc, type ShotKind, type ShotMode, type Motion } from "./types";
+import { cuesForLine, normalizeCues, type Cue } from "./subtitles";
+import { isSecondaryUsable, type SubtitleBlock, type SubtitleConfig } from "./subtitle";
+import { outputSpecs, shotKindLabels, animationSpecSchema, type AnimationFamily, type Aspect, type Card, type Line, type OutputSpec, type ProjectDoc, type ShotKind, type ShotMode, type Motion } from "./types";
+import { outputSpecIdForAspect } from "./output-spec";
+import { normalizeAnimation } from "./animation";
+import { choreograph } from "./choreography";
 
 /**
  * 时间轴 —— 纯函数。输入 = 项目文档 + 机器产物（配音缓存、曲库），输出 = Remotion 的 inputProps。
@@ -40,6 +44,17 @@ export type TimelineShot = {
   mode?: ShotMode;
   /** 信息卡：大模型给的数据优先，没有时按旁白保守兜底（见 lib/core/cards.ts） */
   card: Card;
+  animation?: {
+    family: AnimationFamily;
+    intensity: 1 | 2 | 3;
+    anchors: { frame: number; role: "enter" | "emphasis" | "exit"; target: string }[];
+    params: Record<string, string | number | boolean>;
+  };
+  /** 转场重叠帧数；只扩展渲染区间，不改变音频和字幕时间。 */
+  overlapInFrames?: number;
+  overlapOutFrames?: number;
+  transitionIn?: "cut" | "fade" | "wipe" | "whip" | "push" | "dissolve";
+  safeArea?: { bottomRatio: number; sideRatio: number };
 };
 
 
@@ -47,6 +62,7 @@ export type TimelineMusic = { trackId: string; src: string; startMs: number; end
 export type TimelineSfx = { src: string; atMs: number; gain: number };
 
 export type Timeline = {
+  outputSpecId: "landscape-1080p" | "portrait-1080p";
   fps: number;
   width: number;
   height: number;
@@ -60,9 +76,12 @@ export type Timeline = {
   lines: { id: string; startMs: number; endMs: number; estimated: boolean; segmentIndex: number }[];
   shots: TimelineShot[];
   cues: Cue[];
+  /** 烤录用字幕块（一句一块，含双语副行）；SRT 仍用 cues */
+  subtitleBlocks: SubtitleBlock[];
   music: TimelineMusic[];
   sfx: TimelineSfx[];
-  subtitle: { enabled: boolean; highlight: boolean };
+  /** 完整字幕配置，见 lib/core/subtitle/types.ts */
+  subtitle: SubtitleConfig;
   aiLabel: { enabled: boolean; position: "top-left" | "top-right" };
   issues: { level: "info" | "warn"; message: string; lineId?: string }[];
 };
@@ -107,8 +126,59 @@ export function sameBlock(a: TtsResult | undefined, b: TtsResult | undefined) {
   return !!a?.block && !!b?.block && a.block.key === b.block.key && b.block.index === a.block.index + 1;
 }
 
-export function buildTimeline(doc: ProjectDoc, art: Artifacts, aspect: Aspect): Timeline {
-  const { width, height } = aspectSize[aspect];
+/**
+ * 排版折行后每行在原文中的起始索引 —— 纯函数，渲染层与测试共用。
+ * formatter 折行会去掉用于断行的空白，不能按行长度累加（英文含空格时会整体漂移），
+ * 所以从原文里逐行定位；找不到时退回上次结束位置。
+ */
+export function subtitleLineOffsets(text: string, lines: string[]): number[] {
+  const offsets: number[] = [];
+  let from = 0;
+  for (const line of lines) {
+    const at = line ? text.indexOf(line, from) : -1;
+    const offset = at >= 0 ? at : from;
+    offsets.push(offset);
+    from = offset + line.length;
+  }
+  return offsets;
+}
+
+/**
+ * Karaoke 逐字进度 —— 纯函数，渲染层与测试共用。
+ * 有真实字级时间（charTimes，按 i 排序）时按「已读完（endMs <= ms）的最大字符索引 + 1」统计；
+ * 缺失/不可信时回退整句均匀进度。结果 clamp 到 [0, text.length]，NaN/越界安全。
+ */
+/** 字级时间是否可信：索引有限、非负、严格递增且都在原文范围内（允许跳过标点） */
+function usableCharTimes(chars: LineTime["chars"], textLength: number): boolean {
+  if (chars.length === 0) return false;
+  let prev = -1;
+  for (const char of chars) {
+    if (!Number.isFinite(char.i) || char.i < 0 || char.i >= textLength || char.i <= prev) return false;
+    prev = char.i;
+  }
+  return true;
+}
+
+export function typedCharsAt(block: SubtitleBlock, ms: number): number {
+  const length = Math.max(0, block.text.length);
+  const charTimes = block.charTimes;
+  if (charTimes && charTimes.length > 0) {
+    let read = 0;
+    for (const char of charTimes) {
+      if (Number.isFinite(char.i) && Number.isFinite(char.endMs) && char.endMs <= ms) read = Math.max(read, char.i + 1);
+    }
+    return Math.min(length, read);
+  }
+  const span = Number.isFinite(block.startMs) && Number.isFinite(block.endMs) ? block.endMs - block.startMs : 0;
+  const elapsed = Number.isFinite(block.startMs) && Number.isFinite(ms) ? ms - block.startMs : 0;
+  const progress = span > 0 ? Math.min(1, Math.max(0, elapsed / span)) : 0;
+  const typed = Math.floor(progress * length);
+  return Math.min(length, Number.isFinite(typed) ? typed : 0);
+}
+
+export function buildTimeline(doc: ProjectDoc, art: Artifacts, aspectOrSpec: Aspect | OutputSpec): Timeline {
+  const spec = typeof aspectOrSpec === "string" ? outputSpecs[outputSpecIdForAspect(aspectOrSpec)] : aspectOrSpec;
+  const { aspect, width, height, fps } = spec;
   const issues: Timeline["issues"] = [];
   const { lines: laid, endMs } = layoutLines(doc.lines, art);
   const durationMs = Math.max(1000, Math.round(endMs + TIMING.tailMs - (doc.lines.length ? (doc.lines.at(-1)!.pauseAfterMs ?? TIMING.pauseInSegmentMs) : 0)));
@@ -129,7 +199,10 @@ export function buildTimeline(doc: ProjectDoc, art: Artifacts, aspect: Aspect): 
   });
 
   // 镜头
-  const sorted = sortShots(doc.shots, doc.lines);
+  const profile = themeOf(doc.visualStyle).motion;
+  const normalized = normalizeAnimation(doc.shots, doc.lines, times, profile);
+  const sorted = sortShots(choreograph(normalized, doc.lines, times, profile), doc.lines);
+  const transitionMs = themeOf(doc.visualStyle).motion.punchy ? 520 : 400;
   const shots: TimelineShot[] = sorted.map((s, k) => {
     const startMs = k === 0 ? 0 : (anchorMs(s.at, times) ?? 0);
     const endMs = k + 1 < sorted.length ? (anchorMs(sorted[k + 1].at, times) ?? durationMs) : durationMs;
@@ -148,6 +221,23 @@ export function buildTimeline(doc: ProjectDoc, art: Artifacts, aspect: Aspect): 
     const seg = lineById.get(s.at.lineId)?.segmentIndex ?? 0;
     const caption = covered.map((l) => l.text).join("");
     const seed = s.seed ?? parseInt(quickHash(s.id).slice(0, 6), 16);
+    const variant = s.assetVariants?.[aspect];
+    const assetId = variant?.assetId ?? s.assetId;
+    if (s.assetId && !variant) issues.push({ level: s.importance >= 3 ? "warn" : "info", message: `镜头 ${s.id} 在${aspect}输出中使用共享素材，建议生成该画幅专用素材` });
+    const transitionIn = s.transitionIn;
+    const overlapInFrames = k > 0 && transitionIn && transitionIn !== "cut" ? Math.max(1, Math.round((transitionMs / 1000) * fps)) : 0;
+    const overlapOutFrames = k + 1 < sorted.length && sorted[k + 1].transitionIn && sorted[k + 1].transitionIn !== "cut" ? Math.max(1, Math.round((transitionMs / 1000) * fps)) : 0;
+    const parsedAnimation = s.animation ? animationSpecSchema.parse(s.animation) : undefined;
+    const animation = parsedAnimation ? {
+      family: parsedAnimation.family,
+      intensity: parsedAnimation.intensity,
+      anchors: parsedAnimation.anchors.flatMap((a) => {
+        const at = anchorMs({ lineId: a.lineId, char: a.char }, times);
+        if (at === undefined || at < startMs || at >= endMs) return [];
+        return [{ frame: Math.max(0, Math.round(((at - startMs) / 1000) * fps)), role: a.role, target: a.target }];
+      }),
+      params: parsedAnimation.params,
+    } : undefined;
     return {
       shotId: s.id,
       kind: s.kind,
@@ -156,8 +246,8 @@ export function buildTimeline(doc: ProjectDoc, art: Artifacts, aspect: Aspect): 
       motion: s.motion,
       description: s.description,
       onScreenText: s.onScreenText,
-      imageSrc: s.assetId && s.kind !== "video" ? art.media(s.assetId) : undefined,
-      videoSrc: s.assetId && s.kind === "video" ? art.media(s.assetId) : undefined,
+      imageSrc: assetId && s.kind !== "video" ? art.media(assetId) : undefined,
+      videoSrc: assetId && s.kind === "video" ? art.media(assetId) : undefined,
       focus: s.focus,
       chapter: s.kind === "title" ? { index: seg + 1, title: s.onScreenText || doc.segments[seg]?.title || "" } : undefined,
       caption,
@@ -165,18 +255,50 @@ export function buildTimeline(doc: ProjectDoc, art: Artifacts, aspect: Aspect): 
       seed,
       mode: s.mode,
       card: sanitizeCard(s.card, caption) ?? fallbackCard(caption, keywords),
+      animation,
+      overlapInFrames,
+      overlapOutFrames,
+      transitionIn,
     };
   });
   if (shots.length === 0 && doc.lines.length) {
-    shots.push({ shotId: "auto", kind: "placeholder", startMs: 0, endMs: durationMs, motion: "zoom-in", description: "", caption: "", keywords: [], seed: 1, card: { variant: "headline", headline: doc.brief.title || undefined } });
+    shots.push({ shotId: "auto", kind: "placeholder", startMs: 0, endMs: durationMs, motion: "zoom-in", description: "", caption: "", keywords: [], seed: 1, card: { variant: "headline", headline: doc.brief.title || undefined }, animation: { family: "none", intensity: 1, anchors: [], params: {} } });
     issues.push({ level: "info", message: "还没有分镜，暂用一个占位画面" });
   }
   shots.forEach((s) => {
     if (s.kind === "upload" && !s.imageSrc) issues.push({ level: "warn", message: `有镜头选择了「${shotKindLabels.upload}」但还没上传图片` });
   });
 
-  // 字幕
-  const cues: Cue[] = doc.settings.subtitle.enabled ? laid.flatMap((l) => cuesForLine(l.id, lineById.get(l.id)!.text, l.chars, aspect, doc.settings.subtitle.highlight ? lineById.get(l.id)!.keywords : [])) : [];
+  // 字幕：cues 负责断句与 SRT，subtitleBlocks 负责烤录排版（双语按句显示）
+  const subtitle = doc.settings.subtitle;
+  const rawCues: Cue[] = subtitle.enabled ? laid.flatMap((l) => cuesForLine(l.id, lineById.get(l.id)!.text, l.chars, aspect, subtitle.highlight ? lineById.get(l.id)!.keywords : [])) : [];
+  // 全局收口：最短时长只是建议，cue 不得越过下一句的真实开始或媒体总时长
+  const cues: Cue[] = normalizeCues(rawCues, durationMs);
+  const subtitleBlocks: SubtitleBlock[] = subtitle.enabled
+    ? laid.map((l) => {
+        const line = lineById.get(l.id)!;
+        // 逐句识别语言，混合语言稿不会用第一句的方向误判其他句
+        const secondaryText = subtitle.bilingual && isSecondaryUsable(line) ? line.secondaryText?.trim() : undefined;
+        const block: SubtitleBlock = {
+          lineId: l.id,
+          startMs: l.startMs,
+          endMs: l.endMs,
+          text: line.text,
+          secondaryText,
+          keywords: subtitle.highlight ? line.keywords : [],
+        };
+        // 非估算且索引可信时 Karaoke 用真实逐字时间。
+        // 真实 TTS 的字级时间不含标点（索引是稀疏子集），只要单调且都在原文范围内即可，
+        // 渲染端按「已读完的最大 i + 1」高亮，标点自然跟随前一个字。
+        if (!l.estimated && usableCharTimes(l.chars, line.text.length)) {
+          block.charTimes = l.chars.map((c) => ({ i: c.i, startMs: c.startMs, endMs: c.endMs })).sort((a, b) => a.i - b.i);
+        }
+        return block;
+      })
+    : [];
+  shots.forEach((shot) => {
+    shot.safeArea = subtitleBand(cues, shot, { portrait: aspect === "9:16" });
+  });
 
   // 配乐
   const music: TimelineMusic[] = [];
@@ -217,7 +339,8 @@ export function buildTimeline(doc: ProjectDoc, art: Artifacts, aspect: Aspect): 
 
   const pos = doc.settings.aiLabel.position;
   return {
-    fps: FPS,
+    outputSpecId: spec.id,
+    fps,
     width,
     height,
     aspect,
@@ -229,9 +352,10 @@ export function buildTimeline(doc: ProjectDoc, art: Artifacts, aspect: Aspect): 
     lines: laid.map((l) => ({ id: l.id, startMs: l.startMs, endMs: l.endMs, estimated: l.estimated, segmentIndex: l.segmentIndex })),
     shots,
     cues,
+    subtitleBlocks,
     music,
     sfx,
-    subtitle: { enabled: doc.settings.subtitle.enabled && doc.settings.subtitle.burnIn, highlight: doc.settings.subtitle.highlight },
+    subtitle,
     aiLabel: { enabled: doc.settings.aiLabel.enabled, position: pos === "auto" ? (aspect === "9:16" ? "top-left" : "top-right") : pos },
     issues,
   };
@@ -242,4 +366,29 @@ export function timelineHash(t: Timeline) {
   const { issues: _issues, ...rest } = t;
   void _issues;
   return quickHash(rest);
+}
+
+/** 内容哈希不包含动效和转场参数，改变动画时可复用已有内容渲染。 */
+export function contentHash(t: Timeline) {
+  const { issues: _issues, shots, theme: _theme, ...rest } = t;
+  void _issues;
+  const theme = { ..._theme, motion: undefined };
+  const stableShots = shots.map((shot) => Object.fromEntries(Object.entries(shot).filter(([key]) => !["animation", "overlapInFrames", "overlapOutFrames", "transitionIn", "motion"].includes(key))));
+  return quickHash({ ...rest, theme, shots: stableShots });
+}
+
+/** 仅由动效、转场和风格动效 token 组成的哈希。 */
+export function animationHash(t: Timeline) {
+  return quickHash({
+    shots: t.shots.map((shot) => ({ shotId: shot.shotId, motion: shot.motion, animation: shot.animation, overlapInFrames: shot.overlapInFrames, overlapOutFrames: shot.overlapOutFrames, transitionIn: shot.transitionIn })),
+    motion: t.theme.motion,
+  });
+}
+
+/** 镜头覆盖区间内字幕占据的比例，渲染层据此计算动画安全区。 */
+export function subtitleBand(cues: Cue[], shot: { startMs: number; endMs: number }, layout: { portrait: boolean }) {
+  const active = cues.filter((cue) => cue.endMs > shot.startMs && cue.startMs < shot.endMs);
+  if (!active.length) return { bottomRatio: 0, sideRatio: 0 };
+  const maxLines = Math.max(1, Math.min(3, active.reduce((max, cue) => Math.max(max, Math.ceil(cue.text.length / (layout.portrait ? 12 : 16))), 1)));
+  return { bottomRatio: layout.portrait ? 0.24 + Math.max(0, maxLines - 1) * 0.045 : 0.075 + Math.max(0, maxLines - 1) * 0.035, sideRatio: layout.portrait ? 0.07 : 0.04 };
 }

@@ -93,7 +93,7 @@ export function ProjectList() {
   }
 
   async function remove(p: ProjectSummary) {
-    if (!(await confirm({ title: `删除「${p.title || "未命名项目"}」？`, message: "项目和其中的文案、素材记录都会被删除。", confirmLabel: "删除", tone: "danger" }))) return;
+    if (!(await confirm({ title: `删除「${p.title || "未命名项目"}」？`, message: "项目会移入回收站，可在「存储管理」中彻底删除。", confirmLabel: "删除", tone: "danger", bullets: ["预计费用：不产生服务商费用。", "影响范围：项目从列表移除，素材与成片文件暂时保留。", "可恢复：回收站保留 30 天，之后自动彻底清理。"] }))) return;
     try {
       const response = await fetch(`/api/projects/${p.id}`, { method: "DELETE" });
       if (!response.ok) throw new Error("删除项目失败");

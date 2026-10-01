@@ -1,14 +1,11 @@
 import { handle, parseBody } from "@/lib/api";
 import { visualStyleInputSchema } from "@/lib/core/types";
-import { recommendVisualStyles } from "@/lib/visual-styles/builtin";
 import { createVisualStyle, listVisualStyles } from "@/lib/visual-styles/store";
 
-/** 视觉风格库；带 ?templateId= 时按解说风格推荐排序 */
-export async function GET(req: Request) {
+/** 用户自定义风格；系统 Aix 风格由 /api/style-library 提供。 */
+export async function GET() {
   return handle(async () => {
-    const templateId = new URL(req.url).searchParams.get("templateId");
-    const styles = await listVisualStyles();
-    return Response.json(templateId ? recommendVisualStyles(templateId, styles) : styles);
+    return Response.json(await listVisualStyles());
   });
 }
 

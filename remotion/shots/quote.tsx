@@ -2,12 +2,14 @@ import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } fr
 import type { TimelineShot } from "@/lib/core/timeline";
 import { FONT } from "../fonts";
 import { useLayout } from "../layout";
+import { enterOffset, easingFn, useMotion } from "../layers/anim";
 import { Motion } from "../layers/motion";
 import { pick, useTheme } from "../theme";
 
 /** 金句卡：大字排版，关键词高亮 */
 export function QuoteShot({ shot, durationInFrames }: { shot: TimelineShot; durationInFrames: number }) {
   const theme = useTheme();
+  const profile = useMotion();
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const { u, portrait, pad } = useLayout();
@@ -16,7 +18,8 @@ export function QuoteShot({ shot, durationInFrames }: { shot: TimelineShot; dura
   const len = text.length;
   const size = (portrait ? u * 9.5 : u * 7.6) * (len > 28 ? 0.7 : len > 18 ? 0.85 : 1);
   const enter = spring({ frame, fps, config: { damping: 20 } });
-  const marks = interpolate(frame, [0, 16], [0, 1], { extrapolateRight: "clamp" });
+  const marks = interpolate(frame, [0, 16], [0, 1], { extrapolateRight: "clamp", easing: easingFn(profile.easing) });
+  const offset = enterOffset(profile, enter);
   // 高亮关键词
   const parts: { t: string; hi: boolean }[] = [];
   let rest = text;
@@ -47,7 +50,7 @@ export function QuoteShot({ shot, durationInFrames }: { shot: TimelineShot; dura
             color: theme.text,
             textAlign: "center",
             opacity: enter,
-            transform: `scale(${0.96 + 0.04 * enter})`,
+            transform: `translate(${offset.x * u}px, ${offset.y * u}px) scale(${(0.96 + 0.04 * enter) * offset.scale})`,
             textWrap: "balance",
           }}
         >

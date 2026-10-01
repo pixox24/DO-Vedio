@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0111",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "碎面星爆",
+  "description": "奶油色侧脸以手绘轮廓固定在画面下方，头部向黑色虚空展开，红蓝球体与几何群把内在能量变成宇宙寓言。",
+  "category": "painting",
+  "tags": [
+    "侧脸",
+    "几何碎片",
+    "红蓝撞色",
+    "黑色虚空",
+    "颗粒"
+  ],
+  "aliases": [
+    "碎面星爆",
+    "shattered mind",
+    "cosmic profile"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以奶油侧脸、黑色虚空和红蓝几何群表现内在能量的超现实插画。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "墨线与不透明平涂结合，实体轮廓柔和而展开边缘锐利不规则。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "米白与深黑构成骨架，鲜红和亮蓝作为少量高饱和锚点。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "紧凑侧面特写向左上对角线展开，黑色负空间承接几何群。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "平静均匀的面部光与内部高对比色块并置。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "纸张颗粒、干刷边缘和少量泼洒状流体纹理。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "写实身体细节与惊悚效果"
+    },
+    {
+      "id": "N02",
+      "text": "柔和糖果色背景"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念肖像",
+    "专辑封面",
+    "心理叙事"
+  ],
+  "weak_for": [
+    "群像叙事",
+    "产品展示"
+  ],
+  "known_failures": [
+    "几何群过多会吞没面部轮廓，应保持一个清晰侧脸剪影和有限的红蓝焦点。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0111.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0111.json"
+  },
+  "replacement_id": null
+}

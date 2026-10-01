@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0133",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "像素散首",
+  "description": "人物头部向上分解成黑白方块和像素碎片，蓝色背景与几何硬边把记忆消散转成数字化身。",
+  "category": "graphic",
+  "tags": [
+    "像素碎片",
+    "方块解体",
+    "蓝白黑",
+    "数字消散",
+    "硬边几何"
+  ],
+  "aliases": [
+    "像素散首",
+    "pixel dissolve",
+    "fragmented memory"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以方块化头部、蓝白黑配色和向上飘散的像素表现数字化消散。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "硬边几何平涂，像素块大小有节奏而非随机噪点。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "冷蓝背景、白色留光和黑色衣物构成克制三色关系。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "实体人物向上分解，方块路径从密到疏，形成明确消散方向。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "均匀平光，靠色块边界和密度变化建立层次。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "干净数字表面，局部加入低强度屏幕颗粒。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "液体写实变形"
+    },
+    {
+      "id": "N02",
+      "text": "复杂摄影背景"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "数字艺术",
+    "科技封面",
+    "记忆主题"
+  ],
+  "weak_for": [
+    "古典肖像",
+    "自然写生"
+  ],
+  "known_failures": [
+    "像素碎片若遍布全身会失去解体重点，应把密度集中在头部上方。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0133.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0133.json"
+  },
+  "replacement_id": null
+}

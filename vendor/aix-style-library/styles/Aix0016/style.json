@@ -1,0 +1,106 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0016",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "暗黑童话巨物",
+  "description": "暗黑童话插画：低饱和灰冷底色中，庞大主体以压倒性体量包围渺小角色，平光弱影与颗粒肌理铺开压抑而柔软的梦境感。",
+  "category": "illustration",
+  "tags": [
+    "暗黑童话",
+    "巨物",
+    "低饱和",
+    "颗粒",
+    "超现实",
+    "压抑"
+  ],
+  "aliases": [
+    "巨物与小人",
+    "dark fairy tale",
+    "giant creature illustration"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以低饱和冷灰底色、巨大形体与渺小角色的极端对比表现暗黑童话氛围的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "composition",
+      "tier": "core",
+      "text": "极端尺度对比：巨大形体占据画面大部，渺小角色处于包围或内凹的焦点"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "低饱和冷灰蓝与深黑为主，暗红与铁锈红小面积点缀"
+    },
+    {
+      "id": "F03",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "平光处理，无强方向光与锐利投影，层次靠明度色块区分"
+    },
+    {
+      "id": "F04",
+      "axis": "medium",
+      "tier": "support",
+      "text": "数字平涂结合颗粒噪点，边缘带轻微手绘毛糙感"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "雾状灰白背景与粗糙笔触肌理，梦境般的朦胧感"
+    },
+    {
+      "id": "F06",
+      "axis": "line",
+      "tier": "accent",
+      "text": "细碎短线勾画毛发与手指细节，质朴不精细"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "明亮鲜艳配色"
+    },
+    {
+      "id": "N02",
+      "text": "光滑矢量边缘与写实光影"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字印章"
+    }
+  ],
+  "suitable_for": [
+    "叙事插画",
+    "封面",
+    "概念设定",
+    "情绪视觉"
+  ],
+  "weak_for": [
+    "明快商业场景",
+    "产品写实图"
+  ],
+  "known_failures": [
+    "明亮题材会被压低为阴郁调；小尺度主体上的细节易丢失。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0016.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.3.0/Aix0016.json"
+  },
+  "replacement_id": null
+}

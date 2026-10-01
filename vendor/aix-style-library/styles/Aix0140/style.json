@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0140",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "橙缝门影",
+  "description": "深蓝门口的少年被百叶窗般的橙色条纹光切过脸部，扁平矢量把童年秘密藏在门后。",
+  "category": "graphic",
+  "tags": [
+    "条纹光",
+    "深蓝橙色",
+    "门口",
+    "扁平矢量",
+    "秘密"
+  ],
+  "aliases": [
+    "橙缝门影",
+    "orange shutter light",
+    "door secret"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以深蓝门口、橙色条纹光和被遮面部表现门后的秘密与童年压抑。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "清晰矢量平涂，条纹光保持等距节奏，轮廓干净。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "深蓝冷底与橙色暖光形成单一冷暖互补。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "门框形成框中框，条纹光横向切过人物，制造遮蔽层。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "条纹光是唯一主光源，亮暗切割平整而不写实。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "平滑色面和轻微纸张颗粒。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "复杂室内陈设"
+    },
+    {
+      "id": "N02",
+      "text": "多色霓虹"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "成长主题",
+    "电影海报",
+    "悬疑封面"
+  ],
+  "weak_for": [
+    "群像庆典",
+    "自然风景"
+  ],
+  "known_failures": [
+    "条纹过密会把脸完全抹掉，应保留眼鼻或轮廓中的一处识别点。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0140.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0140.json"
+  },
+  "replacement_id": null
+}

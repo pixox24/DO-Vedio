@@ -4,7 +4,7 @@ import type { TtsResult } from "./keys";
 import { duckEnvelope, envelopeAt, mergeIntervals } from "./mix";
 import { normalizeShots, repairShots, SHOT_RULES, stampShots, blankShot } from "./shots";
 import { breakLine, cuesForLine, toSrt } from "./subtitles";
-import { buildTimeline, layoutLines, TIMING } from "./timeline";
+import { animationHash, buildTimeline, contentHash, layoutLines, subtitleBand, TIMING } from "./timeline";
 import { emptyDoc, type Line, type ProjectDoc, duckingSchema } from "./types";
 
 const line = (id: string, text: string, seg = 0, extra: Partial<Line> = {}): Line => ({ id, segmentIndex: seg, text, spans: [], keywords: [], locked: false, ...extra });
@@ -112,6 +112,39 @@ describe("时间轴", () => {
     const timeline = buildTimeline(doc, { ...art({}), media: (hash: string) => `/api/media/${hash}` }, "16:9");
     expect(timeline.shots[0]).toMatchObject({ videoSrc: `/api/media/${"v".repeat(64)}` });
     expect(timeline.shots[0].imageSrc).toBeUndefined();
+  });
+
+  it("按输出画幅优先读取素材变体，没有变体时回退旧素材并提示", () => {
+    const doc = docWith([line("v", "画幅变体")]);
+    doc.shots = [{ ...blankShot("shot", "v"), kind: "image", assetId: "legacy", assetVariants: {
+      "9:16": { assetId: "portrait", promptHash: "p", aspect: "9:16", width: 1080, height: 1920, source: "generated" },
+    } }];
+    const portrait = buildTimeline(doc, { ...art({}), media: (hash: string) => `/m/${hash}` }, "9:16");
+    expect(portrait.shots[0].imageSrc).toBe("/m/portrait");
+    const landscape = buildTimeline(doc, { ...art({}), media: (hash: string) => `/m/${hash}` }, "16:9");
+    expect(landscape.shots[0].imageSrc).toBe("/m/legacy");
+    expect(landscape.issues.some((issue) => issue.message.includes("共享素材"))).toBe(true);
+  });
+
+  it("转场只延长渲染区间，内容哈希与动画哈希分离", () => {
+    const doc = docWith(lines);
+    doc.shots = [
+      blankShot("a", "a"),
+      { ...blankShot("b", "b"), transitionIn: "fade", animation: { family: "editorial", intensity: 2, anchors: [], params: { amount: 1 } } },
+    ];
+    const t = buildTimeline(doc, art({ a: fakeTts("", 1000), b: fakeTts("", 1000), c: fakeTts("", 1000) }), "16:9");
+    expect(t.durationInFrames).toBe(Math.ceil((t.durationMs / 1000) * t.fps));
+    expect(t.shots[1].overlapInFrames).toBeGreaterThan(0);
+    expect(t.shots[0].overlapOutFrames).toBe(t.shots[1].overlapInFrames);
+    const changed = { ...t, shots: t.shots.map((shot) => ({ ...shot, transitionIn: "wipe" as const, animation: shot.animation && { ...shot.animation, intensity: 3 as const } })) };
+    expect(contentHash(changed)).toBe(contentHash(t));
+    expect(animationHash(changed)).not.toBe(animationHash(t));
+  });
+
+  it("字幕行数增加时安全区底部比例随之增加", () => {
+    const one = subtitleBand([{ startMs: 0, endMs: 1000, text: "一行", lineId: "a", highlights: [] }], { startMs: 0, endMs: 1000 }, { portrait: true });
+    const three = subtitleBand([{ startMs: 0, endMs: 1000, text: "这是一段很长的字幕文本，应该需要三行来显示。这是一段很长的字幕文本，应该需要三行来显示。", lineId: "a", highlights: [] }], { startMs: 0, endMs: 1000 }, { portrait: true });
+    expect(three.bottomRatio).toBeGreaterThan(one.bottomRatio);
   });
 });
 

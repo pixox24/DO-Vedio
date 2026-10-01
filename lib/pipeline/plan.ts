@@ -1,17 +1,18 @@
 import { annotateKey, renderKey } from "../core/keys";
 import { stampShots } from "../core/shots";
-import { timelineHash } from "../core/timeline";
+import { contentHash, timelineHash } from "../core/timeline";
 import type { Aspect, Job, ProjectDoc } from "../core/types";
+import { outputSpecForRequest } from "../core/output-spec";
 import { cacheHas, cacheMany, projectSpend } from "../server/cache";
 import { all, get, run } from "../server/db";
 import { enqueue, latestJobByKey } from "../server/jobs";
 import { effectiveLexicon } from "../server/lexicon";
-import { listTracks } from "../server/music";
+import { listUsableTracks } from "../server/music";
 import { getProject, mutateProject } from "../server/projects";
 import { lineTtsKeys, loadArtifacts, timelineFor } from "./artifacts";
 import { listTextModels } from "../providers/registry";
 import { estimateLlmCost } from "./pricing";
-import { ttsSteps } from "./tts-jobs";
+import { ttsJobKeyOf, ttsSteps } from "./tts-jobs";
 import type { Quality } from "./render";
 import { staleRanges } from "./stages/storyboard";
 import { castSourceHash } from "../core/cast";
@@ -133,11 +134,13 @@ export function planPipeline(projectId: string, doc: ProjectDoc, goal: Goal): Pl
   }
   if (!shotsReady && voiced) waiting.push("等待分镜");
 
-  // 5) 配乐
-  const tracks = listTracks();
-  const musicReady = !doc.settings.music.enabled || tracks.length === 0 || (doc.music.length > 0 && doc.music.every((c) => tracks.some((t) => t.id === c.trackId)));
-  if (voiced && !musicReady) {
-    steps.push({ stage: "music", key: `music:${projectId}:${hashStr(JSON.stringify([doc.lines.map((l) => l.id + (l.mood ?? "")), doc.music, tracks.map((t) => t.id)]))}`, target: "情绪选曲", input: { projectId }, cost: 0, priority: 5 });
+  // 5) 配乐（只使用已核实授权的曲目；没有合格曲目时明确阻塞，不静默跳过）
+  const usableTracks = listUsableTracks();
+  const musicUnavailable = doc.settings.music.enabled && usableTracks.length === 0;
+  const musicReady = !doc.settings.music.enabled || (!musicUnavailable && doc.music.length > 0 && doc.music.every((c) => usableTracks.some((t) => t.id === c.trackId)));
+  if (voiced && musicUnavailable) waiting.push("曲库中没有已核实授权的可用曲目：请先导入许可明确的音乐（npm run library:fetch）");
+  if (voiced && !musicReady && !musicUnavailable) {
+    steps.push({ stage: "music", key: `music:${projectId}:${hashStr(JSON.stringify([doc.lines.map((l) => l.id + (l.mood ?? "")), doc.music, usableTracks.map((t) => t.id)]))}`, target: "情绪选曲", input: { projectId }, cost: 0, priority: 5 });
     waiting.push("等待配乐");
   }
 
@@ -148,27 +151,36 @@ export function planPipeline(projectId: string, doc: ProjectDoc, goal: Goal): Pl
     // preview 目标也要生成一条 draft，完成后自动暂停；render 目标使用用户选择的画质。
     const renderQuality = goal.until === "preview" ? "draft" : goal.quality;
     for (const aspect of goal.aspects) {
-      const t = timelineFor(doc, projectId, aspect);
+      const spec = outputSpecForRequest(doc.settings, undefined, aspect);
+      const t = timelineFor(doc, projectId, spec.id);
       const th = timelineHash(t);
-      const done = get<{ id: string }>("SELECT id FROM renders WHERE project_id = ? AND timeline_hash = ? AND quality = ?", projectId, th, renderQuality);
+      const ch = contentHash(t);
+      const done = get<{ id: string }>("SELECT id FROM renders WHERE project_id = ? AND content_hash = ? AND quality = ?", projectId, ch, renderQuality);
       if (done) continue;
-      steps.push({ stage: "render", key: `${renderKey(th, renderQuality)}:${aspect}`, target: `${aspect} ${renderQuality === "final" ? "成片" : "样片"}`, input: { projectId, aspect, quality: renderQuality }, cost: 0, priority: 7 });
+      steps.push({ stage: "render", key: `${renderKey(th, renderQuality, spec)}:${spec.id}`, target: `${aspect} ${renderQuality === "final" ? "成片" : "样片"}`, input: { projectId, aspect, outputSpecId: spec.id, quality: renderQuality }, cost: 0, priority: 7 });
     }
   }
 
   const currentKeys = currentAnnotateKeys(doc, projectId);
-  currentKeys.push(...keys.map((item) => item.key));
+  // 必须用任务键（段落模式是块键），不能用成员句键：任务是以块为单位提交的，
+  // 用句键会导致 JobStrip 匹配不到任何任务——进度显示 0、没有取消入口，
+  // 且 running 判定漏掉配音（主按钮不禁用、「停止」不出现）。
+  // 同块的多句共享一个块键，需去重，否则进度分母按句数虚高。
+  currentKeys.push(...new Set(keys.map((item) => ttsJobKeyOf(item))));
   if (modelId) currentKeys.push(`cast:${projectId}:${castHash}`);
   if (voiced && modelId) {
     const sig = JSON.stringify(doc.lines.map((line) => line.id + line.text)) + JSON.stringify(doc.shots.map((shot) => shot.id + shot.sourceHash + shot.locked));
     currentKeys.push(`storyboard:${projectId}:${hashStr(sig)}`);
   }
-  if (voiced && doc.settings.music.enabled && tracks.length > 0) {
-    currentKeys.push(`music:${projectId}:${hashStr(JSON.stringify([doc.lines.map((line) => line.id + (line.mood ?? "")), doc.music, tracks.map((track) => track.id)]))}`);
+  if (voiced && doc.settings.music.enabled && usableTracks.length > 0) {
+    currentKeys.push(`music:${projectId}:${hashStr(JSON.stringify([doc.lines.map((line) => line.id + (line.mood ?? "")), doc.music, usableTracks.map((track) => track.id)]))}`);
   }
   if (preview) {
     const renderQuality = goal.until === "preview" ? "draft" : goal.quality;
-    for (const aspect of goal.aspects) currentKeys.push(`${renderKey(timelineHash(timelineFor(doc, projectId, aspect)), renderQuality)}:${aspect}`);
+    for (const aspect of goal.aspects) {
+      const spec = outputSpecForRequest(doc.settings, undefined, aspect);
+      currentKeys.push(`${renderKey(contentHash(timelineFor(doc, projectId, spec.id)), renderQuality, spec)}:${spec.id}`);
+    }
   }
   return { steps, currentKeys, waiting, ready: { preview, render: preview && goal.until === "render" }, costYuan: steps.reduce((s, x) => s + x.cost, 0) };
 }

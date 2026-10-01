@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0079",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "彩瀑桥上",
+  "description": "桥上小小骑行者穿过高饱和的垂直色彩流，明显厚涂笔触把红黄绿的光幕画成一场宏大的抽象自然奇观。",
+  "category": "painting",
+  "tags": [
+    "垂直色流",
+    "红黄绿",
+    "桥上剪影",
+    "厚涂",
+    "宏大"
+  ],
+  "aliases": [
+    "彩瀑桥上",
+    "vertical color falls",
+    "光幕骑行"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以高饱和垂直色彩流、深色桥面剪影和明显厚涂笔触表现人与奇观关系的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "垂直厚涂笔触，色带边缘保留手绘流动感"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "红黄绿高饱和色流与深色前景形成强对比"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "水平桥面切过垂直光幕，形成十字结构"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "背景色流自发光，前景保持剪影化"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "粗细交替的刷痕和轻微颗粒"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "灰暗无焦点的背景"
+    },
+    {
+      "id": "N02",
+      "text": "精细写实摄影"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "音乐视觉",
+    "奇幻海报",
+    "概念封面"
+  ],
+  "weak_for": [
+    "信息图表",
+    "极简图标"
+  ],
+  "known_failures": [
+    "色带颜色过多时会失去单一瀑布方向，应保留明显的垂直流势。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0079.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0079.json"
+  },
+  "replacement_id": null
+}

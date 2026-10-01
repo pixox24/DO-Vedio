@@ -2,6 +2,7 @@ import { z } from "zod";
 import { fail, handle, parseBody } from "@/lib/api";
 import { projectDocSchema } from "@/lib/core/types";
 import { deleteProject, getProject, RevisionConflict, saveProject } from "@/lib/server/projects";
+import { purgeProjects } from "@/lib/server/gc";
 
 export async function GET(_req: Request, ctx: RouteContext<"/api/projects/[id]">) {
   return handle(async () => {
@@ -52,6 +53,14 @@ export async function PATCH(req: Request, ctx: RouteContext<"/api/projects/[id]"
   });
 }
 
-export async function DELETE(_req: Request, ctx: RouteContext<"/api/projects/[id]">) {
-  return handle(async () => (deleteProject((await ctx.params).id) ? Response.json({ ok: true }) : fail("项目不存在", 404)));
+/** 默认进回收站；?purge=1 表示从回收站彻底删除（素材文件由存储回收统一处理） */
+export async function DELETE(req: Request, ctx: RouteContext<"/api/projects/[id]">) {
+  return handle(async () => {
+    const { id } = await ctx.params;
+    if (new URL(req.url).searchParams.get("purge") === "1") {
+      const result = purgeProjects([id]);
+      return result.projects > 0 ? Response.json({ ok: true, ...result }) : fail("回收站中没有该项目", 404);
+    }
+    return deleteProject(id) ? Response.json({ ok: true }) : fail("项目不存在", 404);
+  });
 }

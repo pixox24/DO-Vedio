@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0024",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "美漫动感瞬间",
+  "description": "美式漫画式的高光时刻：厚涂笔触与硬边块面结合，深蓝底色衬托黑白高对比的动势，对角线凝固力量与速度。",
+  "category": "illustration",
+  "tags": [
+    "美漫",
+    "动势",
+    "厚涂",
+    "高对比",
+    "蓝调"
+  ],
+  "aliases": [
+    "美漫动势",
+    "comic motion",
+    "运动瞬间"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以深蓝底色与黑白高对比动势表现美漫力量感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "美漫式数字厚涂，硬边块面塑造体积与动势"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "深蓝底色配黑白高对比主体，黄白能量色点缀"
+    },
+    {
+      "id": "F03",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "戏剧性强光，高光集中在受光面"
+    },
+    {
+      "id": "F04",
+      "axis": "composition",
+      "tier": "support",
+      "text": "对角构图，强调速度与运动张力"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "干净利落的数字质感"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "柔光细腻刻画"
+    },
+    {
+      "id": "N02",
+      "text": "粉彩糖果色"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "运动海报",
+    "漫画封面",
+    "游戏视觉"
+  ],
+  "weak_for": [
+    "安静日常题材"
+  ],
+  "known_failures": [
+    "动态过大时肢体结构易变形，需在提示中明确姿态。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0024.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0024.json"
+  },
+  "replacement_id": null
+}

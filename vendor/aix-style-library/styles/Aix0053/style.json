@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0053",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "浅绿日常侧影",
+  "description": "浅绿瓷砖背景上的日常侧影：干净线稿与赛璐璐硬边阴影，把一个发呆的瞬间画得像漫画里被按下的暂停键。",
+  "category": "illustration",
+  "tags": [
+    "浅绿",
+    "日常",
+    "赛璐璐",
+    "侧影",
+    "漫画"
+  ],
+  "aliases": [
+    "日常侧影",
+    "daily slice",
+    "浅绿漫画"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以浅绿背景与赛璐璐硬边上色表现日常侧影感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "清晰线稿结合赛璐璐硬边上色"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "浅绿主调配自然肤色的干净平涂"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "侧面居中的日常视角"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "室内柔和光与硬边阴影"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "干净数字平涂，轻微质感"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "浓艳滤镜"
+    },
+    {
+      "id": "N02",
+      "text": "厚重肌理"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "日常漫画",
+    "故事分镜",
+    "社媒配图"
+  ],
+  "weak_for": [
+    "史诗场景"
+  ],
+  "known_failures": [
+    "背景纹理单调时需靠陈设补充信息。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0053.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0053.json"
+  },
+  "replacement_id": null
+}

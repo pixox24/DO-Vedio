@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0057",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "红黑机械分割",
+  "description": "被一分为二的面孔：鲜红与深黑各占半边，机械匣遮住左眼，漫画纸张纹理与分裂构图带着复古印刷的不安。",
+  "category": "illustration",
+  "tags": [
+    "分割",
+    "机械",
+    "红黑",
+    "漫画",
+    "纸张纹理"
+  ],
+  "aliases": [
+    "对半面孔",
+    "split face",
+    "红黑肖像"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以红黑对半分割与机械元素表现分裂肖像感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "数字漫画线稿结合纸张纹理"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "鲜红与深黑的对半分割"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "特写构图，画面中线分割人物"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "左右分立的戏剧性光影"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "粗糙纸张纹理与颗粒"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "柔和粉彩"
+    },
+    {
+      "id": "N02",
+      "text": "写实照片"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念肖像",
+    "封面",
+    "海报"
+  ],
+  "weak_for": [
+    "温馨题材"
+  ],
+  "known_failures": [
+    "机械细节过密时易乱，保持主结构清晰。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0057.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0057.json"
+  },
+  "replacement_id": null
+}

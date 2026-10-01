@@ -5,6 +5,8 @@ import { assetFile, getAsset, kindOfMime, putBuffer, sniff } from "../server/med
 import { PermanentError } from "./stage";
 import { longRequest, networkError } from "../providers/http";
 import { cacheGet, cachePut } from "../server/cache";
+import { outputSpecs, type OutputSpec } from "../core/types";
+import { type GenerationFrame } from "../core/output-spec";
 
 /** 生图 / 生视频的公共流程：调用适配器 → 下载 → 校验文件类型 → 入素材库。镜头生成和风格样张共用。 */
 
@@ -12,6 +14,7 @@ export type MediaRequest = {
   kind: "image" | "video";
   modelId: string;
   prompt: string;
+  frame?: GenerationFrame;
   /** 参考图的素材 ID（角色定妆、上传的参考等），按优先级排列 */
   references?: string[];
   seed?: number;
@@ -21,6 +24,12 @@ export type MediaRequest = {
   /** 写进素材元数据 */
   meta: Record<string, unknown>;
 };
+
+export const defaultGenerationFrame: GenerationFrame = { ...outputSpecs["landscape-1080p"] };
+
+export function frameForOutput(spec: OutputSpec): GenerationFrame {
+  return { aspect: spec.aspect, width: spec.width, height: spec.height, fps: spec.fps };
+}
 
 /** 模型中心里自定义的 OpenAI 兼容生图模型（有参考图时走 /images/edits） */
 export const isCustomImageModel = (kind: MediaRequest["kind"], modelId: string) => kind === "image" && modelId.startsWith("custom-");
@@ -41,18 +50,19 @@ export async function assetDataUri(hash: string | undefined) {
 export type MediaResult = { assets: string[]; /** 参考图没有生效的原因（写进生成记录） */ referenceFallback?: string };
 
 export async function generateMediaAssets(req: MediaRequest, signal: AbortSignal): Promise<MediaResult> {
+  const frame = req.frame ?? defaultGenerationFrame;
   const custom = isCustomImageModel(req.kind, req.modelId);
   const refs = req.references ?? [];
   let referenceFallback: string | undefined;
   let outputs: ({ bytes: Uint8Array } | { url: string })[];
   if (custom) {
-    const result = await generateCustomImage(req.modelId, req.prompt, signal, await Promise.all(refs.map(loadAsset)));
+    const result = await generateCustomImage(req.modelId, req.prompt, signal, await Promise.all(refs.map(loadAsset)), frame);
     referenceFallback = result.referenceFallback;
     outputs = [result];
   } else {
     const referenceImages = (await Promise.all(refs.map(assetDataUri))).filter((x): x is string => !!x);
     const result = await (req.kind === "image" ? replicateImageAdapter() : replicateVideoAdapter()).generate(
-      { prompt: req.prompt, referenceImages, seed: req.seed, firstFrame: req.firstFrame, lastFrame: req.lastFrame, controlImage: req.controlImage },
+      { prompt: req.prompt, aspectRatio: frame.aspect, width: frame.width, height: frame.height, fps: frame.fps, referenceImages, seed: req.seed, firstFrame: req.firstFrame, lastFrame: req.lastFrame, controlImage: req.controlImage },
       signal,
     );
     outputs = result.outputUrls.slice(0, 4).map((url) => ({ url }));
@@ -70,7 +80,7 @@ export async function generateMediaAssets(req: MediaRequest, signal: AbortSignal
     if (bytes.byteLength > 200 * 1024 * 1024) throw new PermanentError("生成素材超过 200MB 限制");
     const detected = sniff(bytes.slice(0, 16));
     if (!detected || kindOfMime(detected.mime) !== req.kind) throw new PermanentError("生成接口返回的文件类型不正确");
-    const asset = await putBuffer(bytes, { ext: detected.ext, mime: detected.mime, meta: { source: custom ? req.modelId : "replicate", ...req.meta } });
+    const asset = await putBuffer(bytes, { ext: detected.ext, mime: detected.mime, meta: { source: custom ? req.modelId : "replicate", frame, ...req.meta } });
     assets.push(asset.hash);
   }
   if (!assets.length) throw new Error("生成结果为空");

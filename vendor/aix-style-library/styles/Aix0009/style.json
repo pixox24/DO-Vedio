@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0009",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "墨线装饰插画",
+  "description": "精细墨线插画，装饰性排线与留白呼吸感，黑白灰为主、一处低饱和色点缀。",
+  "category": "illustration",
+  "tags": ["墨线", "线稿", "装饰", "黑白", "排线"],
+  "aliases": ["装饰线稿", "decorative ink line art", "黑白线描"],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以精细墨线、装饰排线与留白表现的代表图。"
+  },
+  "features": [
+    {"id": "F01", "axis": "medium", "tier": "core", "text": "黑白墨线插画，线条精细克制"},
+    {"id": "F02", "axis": "palette", "tier": "core", "text": "黑白灰为主，全画仅一处低饱和点缀色"},
+    {"id": "F03", "axis": "line", "tier": "support", "text": "装饰性排线、弧线与重复线纹丰富暗部层次"},
+    {"id": "F04", "axis": "composition", "tier": "support", "text": "大面积留白，主体偏置，画面疏朗有呼吸感"},
+    {"id": "F05", "axis": "texture", "tier": "accent", "text": "轻微纸纹与墨色浓淡的自然变化"}
+  ],
+  "avoid": [
+    {"id": "N01", "text": "高饱和多色与荧光色"},
+    {"id": "N02", "text": "3D光影与厚重色块堆叠"}
+  ],
+  "suitable_for": ["场景插画", "出版物插画", "概念图"],
+  "weak_for": ["彩色产品图"],
+  "known_failures": ["细节依赖线条密度，缩略图尺寸下可能显得偏灰。"],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0009.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-19",
+    "evidence_ref": "results/0.2.0/Aix0009.json"
+  },
+  "replacement_id": null
+}

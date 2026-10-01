@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0006",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "黏土定格",
+  "description": "定格动画黏土质感，圆润造型与柔和指痕，影棚柔光下如手工捏制的微缩世界。",
+  "category": "3d",
+  "tags": ["黏土", "定格动画", "3D", "手工", "哑光"],
+  "aliases": ["黏土动画", "claymation", "clay stop-motion"],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以黏土质感的圆润造型、指痕与柔光棚拍表现的代表图。"
+  },
+  "features": [
+    {"id": "F01", "axis": "medium", "tier": "core", "text": "3D 黏土定格质感，造型圆润、形体简化"},
+    {"id": "F02", "axis": "palette", "tier": "core", "text": "低饱和马卡龙色系，材质哑光"},
+    {"id": "F03", "axis": "lighting", "tier": "support", "text": "影棚柔光箱照明，阴影柔和干净"},
+    {"id": "F04", "axis": "texture", "tier": "support", "text": "表面轻微指痕与手工捏制痕迹"},
+    {"id": "F05", "axis": "composition", "tier": "accent", "text": "微缩布景，浅景深，主体醒目"}
+  ],
+  "avoid": [
+    {"id": "N01", "text": "写实皮肤与毛发细节"},
+    {"id": "N02", "text": "金属镜面与玻璃反光"}
+  ],
+  "suitable_for": ["角色", "产品展示", "微缩场景"],
+  "weak_for": ["写实建筑与机械"],
+  "known_failures": ["复杂机械结构会被黏土化简化，不适合要求精确细节的需求。"],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0006.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-19",
+    "evidence_ref": "results/0.2.0/Aix0006.json"
+  },
+  "replacement_id": null
+}

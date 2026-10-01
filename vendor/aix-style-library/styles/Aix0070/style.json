@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0070",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "灰紫星空立方",
+  "description": "悬浮立方体构成的思绪分层：灰白侧脸上方，三个装着星空与人脸的立方体静静堆叠，冷峻得像一道谜题。",
+  "category": "illustration",
+  "tags": [
+    "立方体",
+    "星空",
+    "分层",
+    "灰紫",
+    "冷峻"
+  ],
+  "aliases": [
+    "星空立方",
+    "cube layers",
+    "思绪立方"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以灰白背景与悬浮星空立方体表现思绪分层感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "数字绘画，笔触细腻"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "灰白背景配星空黑立方体与冷白人脸"
+    },
+    {
+      "id": "F03",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "柔和侧光，质感冷峻"
+    },
+    {
+      "id": "F04",
+      "axis": "composition",
+      "tier": "core",
+      "text": "垂直堆叠构图，几何体悬浮"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "细腻肌理，轻微颗粒"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "高饱和色"
+    },
+    {
+      "id": "N02",
+      "text": "粗犷笔触"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念插画",
+    "封面",
+    "神秘题材"
+  ],
+  "weak_for": [
+    "轻快日常"
+  ],
+  "known_failures": [
+    "立方体内容需清晰可辨，避免糊成噪点。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0070.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0070.json"
+  },
+  "replacement_id": null
+}

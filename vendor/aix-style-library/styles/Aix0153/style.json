@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0153",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "俯视红讯",
+  "description": "高角度俯视的青色地面上，路灯和人物被一枚红色信号点锁定，扁平透视把等待与规则变成城市图形。",
+  "category": "graphic",
+  "tags": [
+    "高角度",
+    "红色信号",
+    "青色地面",
+    "路灯",
+    "城市规则"
+  ],
+  "aliases": [
+    "俯视红讯",
+    "red signal top view",
+    "waiting light"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以高角度俯视、青色地面、红色信号灯和孤独人影表现等待与规则。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "扁平插画与简化透视结合，路灯和人物边缘清晰。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "青色环境与红色信号形成单一互补焦点，黑色用于人物。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "高角度视线把人物压缩成小尺度，信号灯位于明确的几何节点。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "均匀平光，避免真实夜景炫光。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "干净色块和轻微纸面颗粒。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "真实交通标志文字"
+    },
+    {
+      "id": "N02",
+      "text": "复杂车流"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "城市海报",
+    "社会寓言",
+    "编辑视觉"
+  ],
+  "weak_for": [
+    "自然风景",
+    "温馨家庭照"
+  ],
+  "known_failures": [
+    "俯视角度不够会退化成普通街景，应保持明显的地面几何和小人物比例。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0153.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0153.json"
+  },
+  "replacement_id": null
+}

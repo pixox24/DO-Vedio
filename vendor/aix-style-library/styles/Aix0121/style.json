@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0121",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "黄光三角",
+  "description": "黑色剪影人物与两只猫被巨大黄色三角光束笼罩，极简矢量把孤独艺术瞬间变成明亮几何符号。",
+  "category": "graphic",
+  "tags": [
+    "黄色三角",
+    "剪影",
+    "乐声",
+    "极简矢量",
+    "孤独光束"
+  ],
+  "aliases": [
+    "黄光三角",
+    "yellow beam",
+    "silhouette concert"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以黑色剪影、巨大黄色三角光束和极简留白表现孤独中的艺术与希望。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "硬边矢量平涂，轮廓简洁，避免写实毛发和复杂背景。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "深黑与亮黄形成近乎二色的极端对比。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "小尺度主体位于光束底部，三角形形成从上向下的压迫与庇护。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "单一大面积光形，无体积光细节和多光源。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "纯净色面，可加入极轻的印刷颗粒保持平面感。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "丰富渐变光效"
+    },
+    {
+      "id": "N02",
+      "text": "写实舞台设备"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "音乐海报",
+    "公益概念",
+    "极简封面"
+  ],
+  "weak_for": [
+    "写实家庭照",
+    "复杂说明图"
+  ],
+  "known_failures": [
+    "三角光束角度改变会削弱识别度，应保持巨型几何光形和小主体比例。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0121.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0121.json"
+  },
+  "replacement_id": null
+}

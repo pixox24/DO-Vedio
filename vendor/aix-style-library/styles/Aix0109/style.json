@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0109",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "黑口凝视",
+  "description": "黑白灰高对比中，蜷缩人物被巨大的嘴形或黑洞弧线包围，无数眼睛和牙齿把焦虑组织成清晰的心理恐怖构图。",
+  "category": "graphic",
+  "tags": [
+    "心理恐怖",
+    "巨口",
+    "密集眼睛",
+    "黑白灰",
+    "包围构图"
+  ],
+  "aliases": [
+    "黑口凝视",
+    "watching maw",
+    "黑洞包围"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以黑白灰高对比、巨口弧线和密集眼睛包围微小人物表现心理压迫的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "现代暗黑插画线条，平涂与清晰轮廓结合"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "黑灰背景、白色牙齿与眼睛形成高对比"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "巨大圆弧包围中心人物，形成封闭心理空间"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "平面高对比，亮部集中在眼睛和边缘"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "干净线条配少量暗部颗粒"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "写实血腥和身体损伤"
+    },
+    {
+      "id": "N02",
+      "text": "明亮可爱配色"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "暗黑封面",
+    "心理主题",
+    "概念海报"
+  ],
+  "weak_for": [
+    "轻松日常",
+    "儿童绘本"
+  ],
+  "known_failures": [
+    "眼睛和牙齿过密会吞没中心人物，必须保留可读的包围轮廓与负空间。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0109.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0109.json"
+  },
+  "replacement_id": null
+}

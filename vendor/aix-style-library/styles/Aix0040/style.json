@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0040",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "红绿俯视群像",
+  "description": "俯视人群中的孤独坐标：红绿对比的厚涂笔触铺满画面，密集人海的中心留出一块安静的空白。",
+  "category": "illustration",
+  "tags": [
+    "俯视",
+    "群像",
+    "红绿",
+    "厚涂",
+    "孤独"
+  ],
+  "aliases": [
+    "人群俯视",
+    "crowd from above",
+    "孤独坐标"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以红绿厚涂笔触与俯视群像表现孤独感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "数字手绘厚涂，笔触明显而松弛"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "森林绿底配砖红棕褐的点状人群"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "俯视群像构图，中心孤立一个主体"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "均匀漫射光，无明显投影"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "颗粒噪点与笔触肌理"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "硬边矢量"
+    },
+    {
+      "id": "N02",
+      "text": "强光影"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "叙事插画",
+    "编辑插画",
+    "封面"
+  ],
+  "weak_for": [
+    "极简风格"
+  ],
+  "known_failures": [
+    "人群过密时中心主体易淹没，需留白。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0040.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0040.json"
+  },
+  "replacement_id": null
+}

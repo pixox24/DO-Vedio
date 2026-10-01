@@ -4,6 +4,10 @@ export type ReplicateMediaKind = "image" | "video";
 
 export type ReplicateRequest = {
   prompt: string;
+  aspectRatio?: "16:9" | "9:16";
+  width?: number;
+  height?: number;
+  fps?: number;
   referenceImages?: string[];
   seed?: number;
   firstFrame?: string;
@@ -33,8 +37,8 @@ type Prediction = {
 
 const env = (name: string) => process.env[name]?.trim() || undefined;
 const capabilities: Record<ReplicateMediaKind, readonly ProviderCapability[]> = {
-  image: ["reference-image", "character-consistency", "scene-consistency", "seed"],
-  video: ["reference-image", "character-consistency", "scene-consistency", "seed", "first-last-frame"],
+  image: ["reference-image", "character-consistency", "scene-consistency", "seed", "aspect-ratio", "custom-size"],
+  video: ["reference-image", "character-consistency", "scene-consistency", "seed", "first-last-frame", "aspect-ratio", "custom-size"],
 };
 
 function outputUrls(output: Prediction["output"]) {
@@ -78,6 +82,10 @@ export class ReplicateMediaAdapter {
     if (!this.token) throw new ReplicateError("未配置 REPLICATE_API_TOKEN", 401, "unconfigured");
     if (!this.version) throw new ReplicateError(`未配置 ${this.mediaKind === "image" ? "REPLICATE_IMAGE_MODEL" : "REPLICATE_VIDEO_MODEL"}`, 400, "unconfigured");
     const bodyInput: Record<string, unknown> = { prompt: input.prompt };
+    if (input.aspectRatio) bodyInput.aspect_ratio = input.aspectRatio;
+    if (input.width) bodyInput.width = input.width;
+    if (input.height) bodyInput.height = input.height;
+    if (input.fps) bodyInput.fps = input.fps;
     if (input.referenceImages?.length) bodyInput.reference_image = input.referenceImages[0];
     if (input.referenceImages && input.referenceImages.length > 1) bodyInput.reference_images = input.referenceImages;
     if (input.seed !== undefined) bodyInput.seed = input.seed;

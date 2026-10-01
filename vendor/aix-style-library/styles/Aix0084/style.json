@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0084",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "青绿旧科幻",
+  "description": "青绿色统一色调的复古未来室内，旧式设备和窗外城市被清晰线稿框进画中画，冷静、疏离又带一点怀旧。",
+  "category": "illustration",
+  "tags": [
+    "青绿色",
+    "复古未来",
+    "旧设备",
+    "窗框构图",
+    "线稿"
+  ],
+  "aliases": [
+    "青绿旧科幻",
+    "teal retro future",
+    "旧科技窗景"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以青绿统一色调、旧科技设备和窗框画中画表现复古未来主义的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "清晰线稿配平面数字上色，动画背景感"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "青绿与深青主导，少量黄白灯光作为点缀"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "窗框或设备框形成画中画，内外空间并置"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "窗外霓虹与屏幕光提供统一冷光"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "平滑色块和少量旧设备磨损线条"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "过度赛博霓虹"
+    },
+    {
+      "id": "N02",
+      "text": "写实摄影细节"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "科幻分镜",
+    "封面",
+    "概念室内"
+  ],
+  "weak_for": [
+    "自然风景",
+    "高动态动作场景"
+  ],
+  "known_failures": [
+    "窗框和设备边缘过多时会让空间变得拥挤，应保留单一视觉窗口。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0084.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0084.json"
+  },
+  "replacement_id": null
+}

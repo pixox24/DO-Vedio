@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0022",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "暖木深夜",
+  "description": "90 年代动画美术质感的深夜居家场景：暖木色基调里透出一抹冷蓝屏幕光，手绘厚涂笔触塑造慵懒而静谧的日常温度。",
+  "category": "illustration",
+  "tags": [
+    "深夜",
+    "暖木色",
+    "厚涂",
+    "日常",
+    "治愈"
+  ],
+  "aliases": [
+    "暖光深夜",
+    "cozy late night",
+    "90s动画质感"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以暖木色基调与冷蓝屏幕光表现深夜居家氛围的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "数字手绘厚涂，笔触柔和细腻，动画美术质感"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "暖木色基调搭配冷蓝屏幕光，冷暖对比克制"
+    },
+    {
+      "id": "F03",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "室内暖光与屏幕冷光交织的夜间照明"
+    },
+    {
+      "id": "F04",
+      "axis": "composition",
+      "tier": "support",
+      "text": "俯视或斜俯视角，生活杂物环绕的满构图"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "笔触肌理明显，细节处保留手绘感"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "强对比霓虹"
+    },
+    {
+      "id": "N02",
+      "text": "干净矢量平涂"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "日常插画",
+    "氛围图",
+    "故事分镜"
+  ],
+  "weak_for": [
+    "史诗宏大场景"
+  ],
+  "known_failures": [
+    "杂物过多时焦点易散，主要光源要明确。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0022.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0022.json"
+  },
+  "replacement_id": null
+}

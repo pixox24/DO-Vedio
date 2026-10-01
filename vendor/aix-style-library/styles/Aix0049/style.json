@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0049",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "橙调负空间",
+  "description": "负空间的双重影像：橙色渐变的暮色里，悬崖的轮廓同时是一张巨大侧脸，剪影与留白互相成就的极简巧思。",
+  "category": "graphic",
+  "tags": [
+    "负空间",
+    "剪影",
+    "橙调",
+    "双重影像",
+    "极简"
+  ],
+  "aliases": [
+    "双重轮廓",
+    "negative space",
+    "橙调剪影"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以橙色渐变与剪影轮廓构成双重影像巧思的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "palette",
+      "tier": "core",
+      "text": "橙黄渐变底色配纯黑剪影与米白受光面"
+    },
+    {
+      "id": "F02",
+      "axis": "composition",
+      "tier": "core",
+      "text": "负空间双重影像，轮廓兼作另一形象"
+    },
+    {
+      "id": "F03",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "强烈侧光与清晰投影"
+    },
+    {
+      "id": "F04",
+      "axis": "medium",
+      "tier": "support",
+      "text": "无轮廓硬边块面，矢量概括"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "颗粒噪点与纸张纹理点缀"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "多色堆叠"
+    },
+    {
+      "id": "N02",
+      "text": "写实细节"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "海报",
+    "封面",
+    "品牌视觉"
+  ],
+  "weak_for": [
+    "繁复场景"
+  ],
+  "known_failures": [
+    "双关轮廓需精确，主体模糊时巧思会失效。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0049.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0049.json"
+  },
+  "replacement_id": null
+}

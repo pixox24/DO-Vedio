@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0043",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "粉紫潮流特写",
+  "description": "Y2K 式的潮流特写：粗黑轮廓线与高饱和粉紫撞色，亮黄亮蓝点缀，低角度仰视把自信与活力拉满。",
+  "category": "illustration",
+  "tags": [
+    "Y2K",
+    "潮流",
+    "粉紫",
+    "撞色",
+    "特写"
+  ],
+  "aliases": [
+    "潮流特写",
+    "y2k pop",
+    "高饱和肖像"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以粗黑轮廓线与粉紫撞色表现 Y2K 潮流感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "粗黑轮廓线结合赛璐璐硬边上色，美漫与日漫融合"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "粉紫主调配亮黄亮蓝的高饱和撞色"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "低角度仰视特写，主体占据画面"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "硬边光影与皮肤光泽感"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "干净数字带轻微网点印刷感"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "低饱和灰调"
+    },
+    {
+      "id": "N02",
+      "text": "写实照片"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "潮流海报",
+    "杂志内页",
+    "社媒配图"
+  ],
+  "weak_for": [
+    "安静题材"
+  ],
+  "known_failures": [
+    "高饱和撞色叠加时需控制面积比例。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0043.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0043.json"
+  },
+  "replacement_id": null
+}

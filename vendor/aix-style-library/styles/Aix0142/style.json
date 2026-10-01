@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0142",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "黄门相逢",
+  "description": "两个人影站在深蓝紫色空间的发光黄门前，植物剪影围住入口，逆光框中框把告别和秘密会面变成静默电影。",
+  "category": "illustration",
+  "tags": [
+    "发光门",
+    "双人剪影",
+    "框中框",
+    "蓝紫黄",
+    "告别"
+  ],
+  "aliases": [
+    "黄门相逢",
+    "yellow doorway",
+    "silent meeting"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以深蓝紫环境、发光黄色门和双人剪影表现告别或秘密会面。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "简化叙事插画与清晰剪影结合，植物只做前景节奏。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "蓝紫暗部与暖黄门光形成明确冷暖焦点。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "门框套门框，人物位于光口中央并以剪影保留未知感。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "门内单一暖光，环境保持低照度平面层次。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "轻颗粒、植物纸剪影和干净色块。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "可读对话文字"
+    },
+    {
+      "id": "N02",
+      "text": "复杂室内透视"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "叙事封面",
+    "电影感插画",
+    "关系主题"
+  ],
+  "weak_for": [
+    "产品展示",
+    "宏大自然全景"
+  ],
+  "known_failures": [
+    "门光过亮会丢掉人物姿态，应让两个人影保持可区分的动作关系。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0142.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0142.json"
+  },
+  "replacement_id": null
+}

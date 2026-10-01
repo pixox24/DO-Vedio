@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0115",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "金绿穿目",
+  "description": "侧脸被金绿黑色流体横向穿过，流动丝带切断静止视线，形成克制而锋利的编辑海报语言。",
+  "category": "graphic",
+  "tags": [
+    "横向流体",
+    "金绿",
+    "侧脸",
+    "硬边",
+    "编辑海报"
+  ],
+  "aliases": [
+    "金绿穿目",
+    "gold green ribbon",
+    "cut gaze"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以横向金绿流体穿过侧脸、深绿背景和硬边色块表现被切断的视线。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "流畅曲线与硬边平涂并置，流体边缘简洁有控制。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "深绿与黑构成冷暗底色，金黄和酸绿只作为横向高光。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "横向带状结构切过垂直侧脸，形成明确的方向冲突。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "平面光为主，流体内部仅有少量明度变化。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "丝带表面平滑，背景带细微印刷颗粒以避免塑料感。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "多层写实液体"
+    },
+    {
+      "id": "N02",
+      "text": "暖色杂乱背景"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "时尚概念",
+    "音乐封面",
+    "品牌视觉"
+  ],
+  "weak_for": [
+    "复杂群像",
+    "写实风景"
+  ],
+  "known_failures": [
+    "流体过厚会遮掉脸部识别度，应保留鼻梁和下颌的关键轮廓。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0115.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0115.json"
+  },
+  "replacement_id": null
+}

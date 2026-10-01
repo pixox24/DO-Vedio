@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0157",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "蓝夜归途",
+  "description": "深蓝公路以一点透视通向远处淡蓝车灯，冷峻数字绘画把深夜驾驶变成一条孤独而有希望的回程线。",
+  "category": "painting",
+  "tags": [
+    "一点透视",
+    "深蓝公路",
+    "远方车灯",
+    "夜行",
+    "归途"
+  ],
+  "aliases": [
+    "蓝夜归途",
+    "blue night road",
+    "solitary return"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以深蓝夜路、一点透视和远方淡蓝灯光表现深夜驾驶的孤独归途。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "氛围数字绘画与简化道路几何结合，远景保持清晰方向。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "深蓝和蓝黑占主导，白蓝车灯作为少量远方焦点。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "道路边线收束到单一消失点，形成持续向前的纵深。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "低照度冷光，远灯微亮但不制造赛博霓虹。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "细腻颗粒、湿润路面暗反光和轻微雾气。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "多色城市霓虹"
+    },
+    {
+      "id": "N02",
+      "text": "交通文字标牌"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "旅行封面",
+    "音乐视觉",
+    "电影叙事"
+  ],
+  "weak_for": [
+    "明亮日常",
+    "静物产品图"
+  ],
+  "known_failures": [
+    "消失点不统一会破坏归途感，应让道路、路标和灯光共同指向远方。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0157.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0157.json"
+  },
+  "replacement_id": null
+}

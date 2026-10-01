@@ -26,12 +26,12 @@ it("第三方图片模型使用 OpenAI 图片接口并接收 base64 图片", asy
   const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
   const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: [{ b64_json: bytes.toString("base64") }] }), { status: 200 }));
   vi.stubGlobal("fetch", fetchMock);
-  const result = await generateCustomImage(`custom-${providerId}::image-model`, "一张城市图片");
+  const result = await generateCustomImage(`custom-${providerId}::image-model`, "一张城市图片", undefined, [], { aspect: "9:16", width: 1080, height: 1920 });
   expect(result.bytes).toEqual(bytes);
   expect(fetchMock).toHaveBeenCalledWith("https://images.example.com/v1/images/generations", expect.objectContaining({
     method: "POST",
     headers: expect.objectContaining({ Authorization: "Bearer secret" }),
-    body: JSON.stringify({ model: "image-model", prompt: "一张城市图片", n: 1 }),
+    body: JSON.stringify({ model: "image-model", prompt: "一张城市图片", n: 1, size: "1024x1536" }),
   }));
 });
 

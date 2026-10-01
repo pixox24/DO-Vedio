@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0095",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "星尘祈手",
+  "description": "黑色空间里一只由星尘构成的手向上伸出，强烈顶光穿过指缝，粒子、光束和手势共同制造神圣连接感。",
+  "category": "3d",
+  "tags": [
+    "星尘",
+    "手势",
+    "黑背景",
+    "神圣光束",
+    "粒子"
+  ],
+  "aliases": [
+    "星尘祈手",
+    "stardust hand",
+    "宇宙手势"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以黑色背景、星尘化手部和穿过指缝的强光表现神圣宇宙连接感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "数字合成或三维粒子渲染，主体边缘由颗粒组成"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "纯黑背景与白蓝星尘，边缘带少量红色反光"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "垂直向上手势占据中心，光束呈放射状"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "强烈顶光或逆光，形成清晰体积光柱"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "沙粒、星点和雾化光晕叠加"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "平面无光影插画"
+    },
+    {
+      "id": "N02",
+      "text": "明亮复杂背景"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "科幻封面",
+    "精神主题",
+    "音乐视觉"
+  ],
+  "weak_for": [
+    "日常生活插画",
+    "食品产品图"
+  ],
+  "known_failures": [
+    "粒子过密会使手势失去结构，必须保留清楚的手指轮廓和负空间。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0095.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0095.json"
+  },
+  "replacement_id": null
+}

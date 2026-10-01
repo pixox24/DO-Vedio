@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { STREAM_ERROR_MARK, type ModelInfo, type StyleTemplate } from "./types";
 import type { VisualStyle } from "./core/types";
+import type { AixCompact, AixDetail, AixMeta } from "./aix/schema";
+import { staticAixCatalog } from "./aix/catalog-client";
 
 async function errorOf(res: Response) {
   const data = await res.json().catch(() => null);
@@ -78,6 +80,21 @@ export function useVisualStyles(templateId?: string) {
     reload();
   }, [reload]);
   return { styles, reload };
+}
+
+export function useAixStyles() {
+  const [items, setItems] = useState<AixCompact[]>(staticAixCatalog.items);
+  const [meta, setMeta] = useState<AixMeta | null>(staticAixCatalog.meta);
+  const reload = useCallback(() => fetch("/api/style-library", { cache: "force-cache" }).then((r) => r.json()).then((x: { items?: AixCompact[]; meta?: AixMeta }) => { setItems(x.items ?? []); setMeta(x.meta ?? null); }).catch(() => fetch("/aix/catalog.json", { cache: "force-cache" }).then((r) => r.json()).then((x: { items?: AixCompact[]; meta?: AixMeta }) => { setItems(x.items ?? []); setMeta(x.meta ?? null); })), []);
+  useEffect(() => { reload(); }, [reload]);
+  return { items, meta, reload };
+}
+
+export async function fetchAixDetail(id: string, signal?: AbortSignal) {
+  const res = await fetch(`/api/style-library/${encodeURIComponent(id)}`, { signal, cache: "force-cache" });
+  if (!res.ok) throw await errorOf(res);
+  const data = await res.json() as { detail: AixDetail; libraryVersion: string };
+  return { ...data.detail, libraryVersion: data.libraryVersion };
 }
 
 /** 模型中心里已配置并启用的生图模型；id 形如 providerId::modelId */
@@ -366,6 +383,42 @@ export function useProjectEvents(id: string, onRevision?: (revision: number) => 
 }
 
 export const jobAction = (id: string, action: "cancel" | "retry") => postJson(`/api/jobs/${id}`, { action });
+
+export type VoiceChangeState = { status: "pending" | "applied"; voice: import("./core/types").VoiceSettings; total: number; ready: number; missing: number; failed: number; revertible: boolean; batchId?: string };
+
+/**
+ * 配音切换状态。由制作页独占持有，避免顶栏状态区和设置面板各轮询一次。
+ * 只在切换进行中（pending）才轮询，完成后停下。
+ */
+export function useVoiceChange(id: string, onApplied?: () => void) {
+  const [change, setChange] = useState<VoiceChangeState | null>(null);
+  const applied = useRef(false);
+  const cb = useRef(onApplied);
+  useEffect(() => { cb.current = onApplied; });
+
+  const refresh = useCallback(async () => {
+    const res = await fetch(`/api/projects/${id}/voice-change`, { cache: "no-store" });
+    if (!res.ok) return;
+    const data = (await res.json()) as { change: VoiceChangeState | null };
+    setChange(data.change);
+    if (data.change?.status === "applied" && !applied.current) {
+      applied.current = true;
+      cb.current?.();
+    }
+    if (data.change?.status === "pending") applied.current = false;
+  }, [id]);
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => { void refresh(); }, [refresh]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (change?.status !== "pending") return;
+    const timer = window.setInterval(() => { void refresh(); }, 2000);
+    return () => window.clearInterval(timer);
+  }, [change?.status, refresh]);
+
+  return { change, setChange, refresh };
+}
 
 /** 梗库里已经过气的梗（含变体），给去 AI 味检测用；拿不到时为空 */
 export function useStaleMemes() {

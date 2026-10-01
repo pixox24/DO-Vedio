@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0033",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "深紫舞台特写",
+  "description": "舞台灯光下的音乐时刻：深紫与亮紫铺底，聚光灯式的硬边高光打在设备特写上，橙白点缀带动律动。",
+  "category": "illustration",
+  "tags": [
+    "舞台",
+    "音乐",
+    "深紫",
+    "聚光",
+    "特写"
+  ],
+  "aliases": [
+    "舞台紫光",
+    "stage purple",
+    "音乐特写"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以深紫底色与聚光灯硬边高光表现舞台音乐特写感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "palette",
+      "tier": "core",
+      "text": "深靛紫与亮紫主调，白与亮橙点缀"
+    },
+    {
+      "id": "F02",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "舞台聚光灯效果，高对比硬边光斑"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "support",
+      "text": "对角线的设备特写，局部放大"
+    },
+    {
+      "id": "F04",
+      "axis": "medium",
+      "tier": "support",
+      "text": "扁平化数字插画，线条圆润粗犷"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "干净数字质感"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "日光平光"
+    },
+    {
+      "id": "N02",
+      "text": "写实摄影"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "音乐主题",
+    "海报",
+    "封面"
+  ],
+  "weak_for": [
+    "自然风景"
+  ],
+  "known_failures": [
+    "设备细节过多时易出现结构错乱，需明确清单。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0033.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0033.json"
+  },
+  "replacement_id": null
+}

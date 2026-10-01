@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0076",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "巨手托屋",
+  "description": "灰绿水面上，一只被橙光照亮的巨手托起倾斜房屋，厚涂概念艺术用巨物与微小人物制造童话般的不安。",
+  "category": "painting",
+  "tags": [
+    "巨手",
+    "托屋",
+    "灰绿",
+    "橙光",
+    "尺度反差"
+  ],
+  "aliases": [
+    "巨手托屋",
+    "giant hand house",
+    "冷暖巨物"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以灰绿阴郁环境、橙光巨物和微小人类尺度反差表现童话不安感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "粗细结合的数字厚涂，概念艺术笔触明显"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "灰绿冷调环境与橙黄暖光形成单一焦点"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "巨物居中、微小人物置于下方的尺度对照"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "中心暖光照亮主体，四周沉入阴郁暗部"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "水面反光、旧屋墙面与粗糙笔触并存"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "平面无深度色块"
+    },
+    {
+      "id": "N02",
+      "text": "可爱明亮童话"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念艺术",
+    "奇幻封面",
+    "叙事场景"
+  ],
+  "weak_for": [
+    "极简品牌图标",
+    "温馨日常"
+  ],
+  "known_failures": [
+    "巨物与环境比例失控时，微小人物会失去尺度参照，需保留清楚的地平线。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0076.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0076.json"
+  },
+  "replacement_id": null
+}

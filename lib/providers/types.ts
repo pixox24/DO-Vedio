@@ -30,7 +30,11 @@ export type ProviderCapability =
   | "forced-alignment"
   | "lip-sync"
   /** 文本模型可联网搜索（如通义千问 enable_search） */
-  | "web-search";
+  | "web-search"
+  /** 生图服务商可直接接受目标画幅 */
+  | "aspect-ratio"
+  /** 生图服务商可接受明确宽高 */
+  | "custom-size";
 
 export type ProviderProfile = {
   providerId: string;

@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0074",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "蓝米思想树",
+  "description": "米色背景上的人物由蓝色有机枝脉向上生长，圆润线条与双色平涂把思绪、根系和精神空间连成一棵静默的树。",
+  "category": "illustration",
+  "tags": [
+    "思想树",
+    "蓝米双色",
+    "有机线条",
+    "禅意",
+    "生长"
+  ],
+  "aliases": [
+    "蓝米思想树",
+    "blue thought tree",
+    "有机枝脉"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以米色留白、深蓝有机线条和向上生长的中心结构表现禅意精神空间的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "流畅线条插画结合平面填色，边缘圆润"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "米色底与深蓝主体，白色留空作为呼吸区域"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "中心轴向上发散，底部收束、顶部展开"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "均匀平光，不依赖戏剧性阴影"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "干净纸面质感，少量线条粗细变化"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "金属写实材质"
+    },
+    {
+      "id": "N02",
+      "text": "高饱和多色光效"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "精神主题",
+    "概念插画",
+    "文化视觉"
+  ],
+  "weak_for": [
+    "动作场面",
+    "复杂城市全景"
+  ],
+  "known_failures": [
+    "枝脉过密时中心主体会被遮蔽，需保留清晰的外轮廓和呼吸空间。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0074.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0074.json"
+  },
+  "replacement_id": null
+}

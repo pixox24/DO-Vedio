@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0160",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "黑白赤城",
+  "description": "高楼和行人被黑白硬边切成城市剪影，红色天空成为唯一情绪色，黑色电影的犯罪压迫凝成极简海报。",
+  "category": "graphic",
+  "tags": [
+    "黑白红",
+    "高楼剪影",
+    "黑色电影",
+    "城市压迫",
+    "极简"
+  ],
+  "aliases": [
+    "黑白赤城",
+    "red noir city",
+    "sin city poster"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以黑白高楼、红色天空和行人剪影表现黑色电影式都市压迫与犯罪氛围。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "硬边矢量与漫画阴影结合，建筑和人物以强剪影概括。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "黑白为骨架，红色只承担天空或关键焦点。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "垂直高楼压迫画面，行人以小尺度位于底部形成孤独比例。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "平面强光与黑色块面，不使用复杂霓虹或写实反射。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "轻微印刷颗粒、粗线边缘和旧海报质感。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "复制现成电影标志"
+    },
+    {
+      "id": "N02",
+      "text": "多色霓虹"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "黑色电影封面",
+    "犯罪寓言",
+    "城市海报"
+  ],
+  "weak_for": [
+    "明亮生活插画",
+    "柔和婚礼图"
+  ],
+  "known_failures": [
+    "红色面积过大就会失去黑白骨架，应让黑白压住大部分画面并保留小人比例。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0160.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0160.json"
+  },
+  "replacement_id": null
+}

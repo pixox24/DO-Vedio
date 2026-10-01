@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0023",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "冷蓝暖光独坐",
+  "description": "侧面视角的静谧独处时刻：灰蓝色调被一束暖黄侧光切开，颗粒噪点平涂让孤独带上温柔的复古印刷气息。",
+  "category": "illustration",
+  "tags": [
+    "冷暖对比",
+    "侧光",
+    "颗粒",
+    "孤独",
+    "静谧"
+  ],
+  "aliases": [
+    "冷蓝暖光",
+    "solitude light",
+    "独处氛围"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以灰蓝冷调与暖黄侧光对比表现独处静谧氛围的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "palette",
+      "tier": "core",
+      "text": "灰蓝冷调主色与暖黄光束的强冷暖对比"
+    },
+    {
+      "id": "F02",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "单侧暖光照明，明暗交界把画面切成两块"
+    },
+    {
+      "id": "F03",
+      "axis": "medium",
+      "tier": "core",
+      "text": "数字平涂结合颗粒噪点，硬边色块造型"
+    },
+    {
+      "id": "F04",
+      "axis": "composition",
+      "tier": "support",
+      "text": "侧面视角，以光线切割画面的对角构图"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "细腻颗粒噪点，轻微做旧"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "多光源复杂照明"
+    },
+    {
+      "id": "N02",
+      "text": "写实厚涂"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "氛围插画",
+    "音乐封面",
+    "海报"
+  ],
+  "weak_for": [
+    "热闹群像"
+  ],
+  "known_failures": [
+    "暖光面积过大时冷调氛围会散。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0023.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0023.json"
+  },
+  "replacement_id": null
+}

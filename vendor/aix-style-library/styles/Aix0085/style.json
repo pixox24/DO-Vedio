@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0085",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "冷灰叠面",
+  "description": "低饱和冷灰肖像中，多层面孔彼此叠压并轻微扭曲，细腻线条和柔和漫射光把身份异化处理得克制而不喧闹。",
+  "category": "illustration",
+  "tags": [
+    "叠层面孔",
+    "冷灰",
+    "身份异化",
+    "柔光",
+    "低饱和"
+  ],
+  "aliases": [
+    "冷灰叠面",
+    "layered faces",
+    "异化肖像"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以低饱和冷灰、重复叠层轮廓和柔和漫射光表现身份异化的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "细腻数字线稿与平滑渐层，形体边缘连续"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "灰蓝、苍白与中性灰组成低饱和冷色体系"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "垂直肖像集中于上半部，重复轮廓形成层叠焦点"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "柔和漫射光，避免强烈硬阴影"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "皮肤与织物的细腻数字质感，轻微雾化"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "高饱和商业色"
+    },
+    {
+      "id": "N02",
+      "text": "粗糙版画颗粒"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念肖像",
+    "心理主题",
+    "封面"
+  ],
+  "weak_for": [
+    "热闹群像",
+    "明亮儿童插画"
+  ],
+  "known_failures": [
+    "轮廓叠加层数过多时会成为无意义重影，应保留一个稳定的主轮廓。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0085.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0085.json"
+  },
+  "replacement_id": null
+}

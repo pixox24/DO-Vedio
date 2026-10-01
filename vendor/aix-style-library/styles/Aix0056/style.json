@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0056",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "暗调花朵遮面",
+  "description": "花朵遮住面孔的暗调人像：冷蓝灰的质感里，黑色身影手捧一束橙红花朵，颗粒与柔焦让画面像一帧旧胶片。",
+  "category": "photographic",
+  "tags": [
+    "暗调",
+    "遮面",
+    "花朵",
+    "胶片感",
+    "剪影"
+  ],
+  "aliases": [
+    "花影人像",
+    "flowers portrait",
+    "暗调摄影"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以冷蓝灰背景与橙红花朵对比表现暗调遮面人像的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "摄影质感结合数字合成，边缘柔和"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "冷蓝灰背景与橙红花朵的对比"
+    },
+    {
+      "id": "F03",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "背光剪影，花朵成为唯一亮色"
+    },
+    {
+      "id": "F04",
+      "axis": "composition",
+      "tier": "core",
+      "text": "居中构图，主体手持物遮住面部"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "强颗粒感与柔焦"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "硬边矢量"
+    },
+    {
+      "id": "N02",
+      "text": "高饱和多色"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "情绪视觉",
+    "封面",
+    "叙事摄影"
+  ],
+  "weak_for": [
+    "轻快日常"
+  ],
+  "known_failures": [
+    "遮面物与主体轮廓易混，需控制明度差。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0056.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0056.json"
+  },
+  "replacement_id": null
+}

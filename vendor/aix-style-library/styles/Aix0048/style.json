@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0048",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "蓝红烟雾巨影",
+  "description": "吐出的烟雾化作巨大化身：宝蓝底色上一团猩红的烟雾长成骇人的轮廓，粗犷线稿与强对比光影充满迷幻张力。",
+  "category": "illustration",
+  "tags": [
+    "烟雾",
+    "巨影",
+    "宝蓝",
+    "猩红",
+    "美漫"
+  ],
+  "aliases": [
+    "烟雾化身",
+    "smoke figure",
+    "蓝红迷幻"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以宝蓝底色与猩红烟雾轮廓表现迷幻张力的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "美漫式粗犷线稿，笔触带颗粒感"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "宝蓝底与猩红烟雾的高对比双色"
+    },
+    {
+      "id": "F03",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "戏剧性光影，烟团自带晕光"
+    },
+    {
+      "id": "F04",
+      "axis": "composition",
+      "tier": "support",
+      "text": "对角构图，烟雾向上蔓延"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "颗粒平涂与笔触肌理"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "柔和粉彩"
+    },
+    {
+      "id": "N02",
+      "text": "写实照片"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念插画",
+    "封面",
+    "音像视觉"
+  ],
+  "weak_for": [
+    "可爱题材"
+  ],
+  "known_failures": [
+    "烟雾形态过散时轮廓易失，需明确大轮廓。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0048.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0048.json"
+  },
+  "replacement_id": null
+}

@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0097",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "光轨虚面",
+  "description": "暗色人物被红蓝白长曝光光轨包围，面部隐在设备和运动模糊中，速度、数据与虚拟现实融成一张动态肖像。",
+  "category": "graphic",
+  "tags": [
+    "长曝光",
+    "光轨",
+    "红蓝白",
+    "虚拟现实",
+    "动态模糊"
+  ],
+  "aliases": [
+    "光轨虚面",
+    "motion light trails",
+    "长曝光肖像"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以深暗背景、红蓝白动态光轨和被遮挡的人物轮廓表现虚拟速度感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "数字合成与长曝光光轨结合，边缘带运动模糊"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "黑暗背景中红蓝白光轨形成高对比节奏"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "人物半身位于中心，光轨沿水平或对角穿行"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "光轨成为主要光源，主体被局部轮廓光勾勒"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "柔化拖影、颗粒和数字噪声"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "静态无光影平涂"
+    },
+    {
+      "id": "N02",
+      "text": "明亮白底生活照"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "音乐视觉",
+    "科技封面",
+    "动作海报"
+  ],
+  "weak_for": [
+    "古典静物",
+    "温馨室内"
+  ],
+  "known_failures": [
+    "光轨太多会覆盖主体，需保留至少一段完整的人物轮廓或设备边缘。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0097.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0097.json"
+  },
+  "replacement_id": null
+}

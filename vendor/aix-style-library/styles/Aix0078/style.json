@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0078",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "墨线三面",
+  "description": "米色纸面上用粗黑墨线勾出散开的枝发和衣袍，三块红白几何面具成为平整色块，粗粝东方水墨与波普符号相撞。",
+  "category": "graphic",
+  "tags": [
+    "水墨",
+    "红白面具",
+    "粗笔触",
+    "米色纸",
+    "东方波普"
+  ],
+  "aliases": [
+    "墨线面具",
+    "ink mask triptych",
+    "水墨波普"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以米色纸面、粗黑水墨线和红白几何色块表现东方写意与波普冲突的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "粗粝水墨笔刷结合平整几何填色"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "米色纸底、深黑线条与红白色块三色关系"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "中心半身结构配横向重复符号，打破对称"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "平面光，不渲染写实体积"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "飞溅墨点、干笔擦痕和纸张纤维"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "光滑3D材质"
+    },
+    {
+      "id": "N02",
+      "text": "渐变霓虹与照片感"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "文化海报",
+    "概念肖像",
+    "封面"
+  ],
+  "weak_for": [
+    "写实产品图",
+    "柔美婚礼题材"
+  ],
+  "known_failures": [
+    "粗笔触和几何面具层叠过密时，主体轮廓会被墨迹吞掉。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0078.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0078.json"
+  },
+  "replacement_id": null
+}

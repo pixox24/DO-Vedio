@@ -1,0 +1,106 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0020",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "表里分割叙事",
+  "description": "上下分割的双世界叙事插画：上半灰调宁静、下半暗底赤红翻涌，喷枪粉彩般的颗粒质感托住哥特式的隐喻与张力。",
+  "category": "illustration",
+  "tags": [
+    "分割构图",
+    "双世界",
+    "珊瑚红",
+    "颗粒",
+    "哥特",
+    "叙事"
+  ],
+  "aliases": [
+    "上下分割叙事",
+    "dual world split",
+    "gothic narrative illustration"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以灰调上层世界与暗底赤红下层世界水平分割对比表现哥特叙事氛围的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "composition",
+      "tier": "core",
+      "text": "水平分割构图：画面上部与下部呈现对比鲜明的两个世界"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "上部低饱和灰白冷调，下部深黑底上高饱和珊瑚红与亮红"
+    },
+    {
+      "id": "F03",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "上部柔和漫射光，下部自发光式红光由下向上渗透"
+    },
+    {
+      "id": "F04",
+      "axis": "medium",
+      "tier": "support",
+      "text": "喷枪与粉彩式数字绘画，硬边剪影与柔和过渡并存"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "通体颗粒噪点，粗糙纸面质感"
+    },
+    {
+      "id": "F06",
+      "axis": "line",
+      "tier": "accent",
+      "text": "不规则的抖动轮廓线，手绘感明显"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "明亮均一的色调"
+    },
+    {
+      "id": "N02",
+      "text": "光滑无纹理的渲染与写实照片质感"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字印章"
+    }
+  ],
+  "suitable_for": [
+    "叙事插画",
+    "海报",
+    "书籍封面",
+    "概念艺术"
+  ],
+  "weak_for": [
+    "单色调极简",
+    "商业产品图"
+  ],
+  "known_failures": [
+    "上下两部分主题需明确，否则对比失效；红光区域过亮会失去深渊感。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0020.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.3.0/Aix0020.json"
+  },
+  "replacement_id": null
+}

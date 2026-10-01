@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0135",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "多眼暗影",
+  "description": "角落里的小人物被巨大多眼阴影覆盖，紫蓝空间与黄色眼点把童年恐惧、监视和无力感压成扁平寓言。",
+  "category": "illustration",
+  "tags": [
+    "多眼阴影",
+    "紫蓝",
+    "黄眼",
+    "巨物压迫",
+    "扁平寓言"
+  ],
+  "aliases": [
+    "多眼暗影",
+    "many-eyed shadow",
+    "watching monster"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以紫蓝暗空间、巨大多眼阴影和微小人物表现被监视的内心恐惧。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "扁平数字插画，阴影轮廓大而简洁，眼点保持图形化。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "紫蓝地面与黑色巨影为主，黄色眼点作为有限焦点。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "小人物置于角落，巨影占据背景并形成包围弧线。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "低照度平光，黄色眼点只做图形亮点，不做写实发光。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "干净色块、轻微纸张噪点和少量边缘粗糙。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "可爱怪物表情"
+    },
+    {
+      "id": "N02",
+      "text": "眼睛数量过度写实"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "心理海报",
+    "奇幻封面",
+    "儿童阴影寓言"
+  ],
+  "weak_for": [
+    "明快产品广告",
+    "写实建筑"
+  ],
+  "known_failures": [
+    "眼点过多会变成装饰纹理，应保留少量不同大小的凝视点和清楚的小人比例。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0135.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0135.json"
+  },
+  "replacement_id": null
+}

@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0086",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "橙黑眼流",
+  "description": "橙红底色上，一条黑色流体穿过几何台阶并嵌入重复白眼，纯平色块把凝视与压迫转成大胆的超现实图形。",
+  "category": "graphic",
+  "tags": [
+    "橙黑",
+    "流体",
+    "重复眼睛",
+    "几何台阶",
+    "平面海报"
+  ],
+  "aliases": [
+    "橙黑眼流",
+    "orange black eye flow",
+    "眼睛流体"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以橙红大底、黑色S形流体和重复白色圆眼表现高对比超现实图形的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "硬边矢量平涂，流体形状简化为连续图形"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "高饱和橙红与纯黑对撞，白色眼形作节奏点"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "黑色流体贯穿垂直画面，几何台阶提供尺度"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "无真实光影，以色块重叠建立层次"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "纯净平面，可保留少量印刷边缘"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "写实烟雾和复杂材质"
+    },
+    {
+      "id": "N02",
+      "text": "柔和低对比配色"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念海报",
+    "封面",
+    "品牌实验视觉"
+  ],
+  "weak_for": [
+    "写实风景",
+    "温馨日常"
+  ],
+  "known_failures": [
+    "流体曲线过细或眼形过多时，主体关系会不可读，应保留粗大的主流线。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0086.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0086.json"
+  },
+  "replacement_id": null
+}

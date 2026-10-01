@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0144",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "雨墨侦行",
+  "description": "撑伞人物穿过黑白雨幕，粗糙墨线和木刻排线把雨夜侦行压成一张没有对白的黑色电影海报。",
+  "category": "graphic",
+  "tags": [
+    "黑白雨夜",
+    "撑伞",
+    "木刻排线",
+    "侦探",
+    "高对比"
+  ],
+  "aliases": [
+    "雨墨侦行",
+    "ink noir rain",
+    "silent detective"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以黑白高对比、撑伞人物和粗糙排线表现雨夜黑色电影的孤独侦行。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "墨水线条、木刻排线和硬朗剪影结合，边缘可有手工毛刺。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "纯黑与米白二色为主，灰阶只用于排线层次。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "伞面、人物和雨线形成斜向动势，背景保持简化。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "硬朗平光与局部白色雨面，不模拟真实湿润反射。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "密集排线、纸张纤维和墨点喷溅。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "彩色霓虹"
+    },
+    {
+      "id": "N02",
+      "text": "摄影级雨滴"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "黑色电影",
+    "悬疑封面",
+    "侦探叙事"
+  ],
+  "weak_for": [
+    "明亮童话",
+    "彩色产品广告"
+  ],
+  "known_failures": [
+    "排线过密会让人物融入背景，应保留伞沿和身体剪影的连续白边。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0144.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0144.json"
+  },
+  "replacement_id": null
+}

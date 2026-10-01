@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0039",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "灰调镜前自拍",
+  "description": "低饱和灰调下的镜前瞬间：赛璐璐平涂结合轻微噪点纸张质感，硬边光影与镜面反射把日常自拍变成安静的漫画分镜。",
+  "category": "illustration",
+  "tags": [
+    "灰调",
+    "镜面",
+    "赛璐璐",
+    "低饱和",
+    "日常"
+  ],
+  "aliases": [
+    "镜前瞬间",
+    "mirror selfie",
+    "低饱和漫画"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以低饱和灰调与镜面反射表现安静日常分镜感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "赛璐璐平涂结合轻微噪点，纸张印刷质感"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "低饱和灰调底色，肤色红晕少量点缀"
+    },
+    {
+      "id": "F03",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "柔和硬边混合光影，面部微亮"
+    },
+    {
+      "id": "F04",
+      "axis": "composition",
+      "tier": "core",
+      "text": "镜面框中框构图，反射与实体并置"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "轻微噪点与印刷肌理"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "高饱和霓虹"
+    },
+    {
+      "id": "N02",
+      "text": "写实厚涂"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "日常插画",
+    "漫画分镜",
+    "社媒配图"
+  ],
+  "weak_for": [
+    "宏大场景"
+  ],
+  "known_failures": [
+    "镜面反射内容过多时易乱，保持反射简洁。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0039.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0039.json"
+  },
+  "replacement_id": null
+}

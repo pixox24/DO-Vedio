@@ -1,0 +1,106 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0019",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "粉黑环形剪影",
+  "description": "扁平剪影图形：珊瑚粉底色上纯黑剪影围成环列，白色发光点如眸，手臂放射展开，仪式感与不安在极简中并置。",
+  "category": "graphic",
+  "tags": [
+    "剪影",
+    "环形",
+    "扁平",
+    "仪式感",
+    "高对比",
+    "高冷"
+  ],
+  "aliases": [
+    "环形剪影图形",
+    "ritual silhouette",
+    "ring composition"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以珊瑚粉底色上纯黑环形剪影与白色发光点表现仪式感平面图形的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "palette",
+      "tier": "core",
+      "text": "珊瑚粉底色配纯黑剪影与纯白高光点，三色极简"
+    },
+    {
+      "id": "F02",
+      "axis": "composition",
+      "tier": "core",
+      "text": "环形与放射构图，剪影沿圆形轨迹排列并向心聚集"
+    },
+    {
+      "id": "F03",
+      "axis": "medium",
+      "tier": "core",
+      "text": "扁平矢量平涂，无光影无渐变，形体高度简化"
+    },
+    {
+      "id": "F04",
+      "axis": "line",
+      "tier": "support",
+      "text": "流畅简练的外轮廓，除关键发光点外无内部细节"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "干净无纹理的数字质感"
+    },
+    {
+      "id": "F06",
+      "axis": "composition",
+      "tier": "accent",
+      "text": "中心大面积留白构成向心焦点"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "写实光影与噪点颗粒"
+    },
+    {
+      "id": "N02",
+      "text": "复杂色彩与渐变"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字印章"
+    }
+  ],
+  "suitable_for": [
+    "海报",
+    "专辑封面",
+    "图形艺术",
+    "文化视觉"
+  ],
+  "weak_for": [
+    "写实题材",
+    "温馨日常场景"
+  ],
+  "known_failures": [
+    "单色块面不适合需要丰富层次或材质的需求；人物过密时剪影辨识度下降。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0019.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.3.0/Aix0019.json"
+  },
+  "replacement_id": null
+}

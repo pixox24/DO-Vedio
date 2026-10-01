@@ -56,7 +56,7 @@ export function CastPanel({ id, store, jobs }: { id: string; store: Store; jobs:
   const unstyled = present.filter((c) => c.presentation === "full" && !c.sheet.portraitAssetId && !c.locked);
 
   async function analyze(force: boolean) {
-    if (force && !(await confirm({ title: "重新识别角色？", message: "会调用一次大模型重新阅读全文。锁定的角色、你改过的字段和已经定妆的图片都会保留。", confirmLabel: "重新识别" }))) return;
+    if (force && !(await confirm({ title: "重新识别角色？", message: "会调用一次大模型重新阅读全文。锁定的角色、你改过的字段和已经定妆的图片都会保留。", confirmLabel: "重新识别", bullets: ["预计费用：会调用一次文本模型，费用以服务商账单为准。", "影响范围：重新分析全文；锁定字段和已定妆图片保留。", "可恢复：新结果写回前可停止任务，已有角色字段不会被锁定内容覆盖。"] }))) return;
     setBusy(true);
     setError("");
     try {
@@ -156,7 +156,7 @@ function CharacterItem({ projectId, card, doc, store, jobs, open, onToggle }: { 
   const shots = doc.shots.filter((s) => s.characterIds.includes(card.id)).length;
 
   async function remove() {
-    if (!(await confirm({ title: `删除角色「${card.name}」？`, message: shots ? `有 ${shots} 个镜头引用了这个角色，删除后这些镜头不再带它的外貌描述。` : "删除后无法恢复。", confirmLabel: "删除", tone: "danger" }))) return;
+    if (!(await confirm({ title: `删除角色「${card.name}」？`, message: shots ? `有 ${shots} 个镜头引用了这个角色，删除后这些镜头不再带它的外貌描述。` : "删除后无法恢复。", confirmLabel: "删除", tone: "danger", bullets: ["预计费用：不产生服务商费用。", `影响范围：角色卡会删除${shots ? `，${shots} 个镜头不再引用它` : ""}。`, "可恢复：删除后不能直接恢复角色卡。"] }))) return;
     store.setDoc((d) => ({ ...d, characters: d.characters.filter((c) => c.id !== card.id), shots: d.shots.map((s) => ({ ...s, characterIds: s.characterIds.filter((x) => x !== card.id) })) }));
   }
 
@@ -369,7 +369,7 @@ function SheetStudio({ projectId, card, store, jobs, update, stale }: { projectI
   async function generate(kind: "portrait" | "turnaround" | "expressions" | "look", lookId?: string) {
     const n = kind === "portrait" ? portraitCount : kind === "turnaround" ? 3 : kind === "expressions" ? 4 : 1;
     const label = { portrait: "立绘候选", turnaround: "三视图", expressions: "表情组", look: "造型定妆照" }[kind];
-    if (!(await confirm({ title: `生成${label}？`, message: `将生成 ${n} 张图片，费用由图片服务商收取。${kind === "portrait" ? "生成后请挑一张作为这个角色的标准形象。" : "会以选定的立绘为参考。"}`, confirmLabel: "开始生成" }))) return;
+    if (!(await confirm({ title: `生成${label}？`, message: `将生成 ${n} 张图片，费用由图片服务商收取。${kind === "portrait" ? "生成后请挑一张作为这个角色的标准形象。" : "会以选定的立绘为参考。"}`, confirmLabel: "开始生成", bullets: [`预计费用：图片单价暂无法准确估算，以服务商账单为准（${n} 张）。`, `影响范围：只生成当前角色的${label}，现有定妆结果保留。`, "可恢复：任务可以取消或重试；服务商已接单的请求仍可能计费。"] }))) return;
     setError("");
     try {
       await store.flush();
@@ -454,11 +454,11 @@ function SheetStudio({ projectId, card, store, jobs, update, stale }: { projectI
 
       {portrait && (
         <>
-          <SheetRow label="三视图" ids={card.sheet.turnaroundAssetIds} pending={pendingFor("turnaround")} disabled={!model || running || card.locked} onGenerate={() => generate("turnaround")} thumbs={thumbs} />
-          <SheetRow label="表情组" ids={card.sheet.expressionAssetIds} pending={pendingFor("expressions")} disabled={!model || running || card.locked} onGenerate={() => generate("expressions")} thumbs={thumbs} />
+          <SheetRow label="三视图" ids={card.sheet.turnaroundAssetIds} pending={pendingFor("turnaround")} count={3} disabled={!model || running || card.locked} onGenerate={() => generate("turnaround")} thumbs={thumbs} />
+          <SheetRow label="表情组" ids={card.sheet.expressionAssetIds} pending={pendingFor("expressions")} count={4} disabled={!model || running || card.locked} onGenerate={() => generate("expressions")} thumbs={thumbs} />
           {card.looks.length > 1 &&
             card.looks.map((look) => (
-              <SheetRow key={look.id} label={`造型 · ${look.name}`} ids={card.sheet.lookAssetIds[look.id] ? [card.sheet.lookAssetIds[look.id]] : []} pending={pendingFor("look", look.id)} disabled={!model || running || card.locked || !look.wardrobe} onGenerate={() => generate("look", look.id)} thumbs={thumbs} />
+              <SheetRow key={look.id} label={`造型 · ${look.name}`} ids={card.sheet.lookAssetIds[look.id] ? [card.sheet.lookAssetIds[look.id]] : []} pending={pendingFor("look", look.id)} count={1} disabled={!model || running || card.locked || !look.wardrobe} onGenerate={() => generate("look", look.id)} thumbs={thumbs} />
             ))}
         </>
       )}
@@ -507,14 +507,14 @@ function SheetStudio({ projectId, card, store, jobs, update, stale }: { projectI
   );
 }
 
-function SheetRow({ label, ids, pending, disabled, onGenerate, thumbs }: { label: string; ids: string[]; pending: number; disabled: boolean; onGenerate: () => void; thumbs: (ids: string[], onPick?: undefined, selected?: undefined, pending?: number) => React.ReactNode }) {
+function SheetRow({ label, ids, pending, count, disabled, onGenerate, thumbs }: { label: string; ids: string[]; pending: number; count: number; disabled: boolean; onGenerate: () => void; thumbs: (ids: string[], onPick?: undefined, selected?: undefined, pending?: number) => React.ReactNode }) {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <span className="text-[11px] text-white/45">{label}</span>
         <button className="btn btn-ghost btn-sm" disabled={disabled} onClick={onGenerate}>
           <Icon name="sparkle" className="size-3.5" />
-          {ids.length ? "重新生成" : "生成"}
+          {ids.length ? `重新生成 · ${count} 张` : `生成 · ${count} 张`}
         </button>
       </div>
       {(ids.length > 0 || pending > 0) && thumbs(ids, undefined, undefined, pending)}

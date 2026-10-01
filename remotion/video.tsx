@@ -10,26 +10,39 @@ import { PlaceholderShot } from "./shots/placeholder";
 import { QuoteShot } from "./shots/quote";
 import { TitleShot } from "./shots/title";
 import { VideoShot } from "./shots/video";
+import { ChartShot, StockShot, UnsupportedModeShot } from "./shots/special";
 import { ThemeContext } from "./theme";
+import { TransitionLayer } from "./layers/transitions";
+import { renderAnimation } from "./animation/registry";
 
 ensureFonts();
 
 export type VideoProps = { timeline: Timeline };
 
 export function ShotView({ shot, durationInFrames, theme }: { shot: TimelineShot; durationInFrames: number; theme?: VideoTheme }) {
-  const view = (() => {
+  if (shot.mode === "real" && !shot.imageSrc && !shot.videoSrc) return <UnsupportedModeShot shot={shot} durationInFrames={durationInFrames} />;
+  const familyView = shot.animation?.family && shot.animation.family !== "none" && shot.mode !== "real" && shot.kind !== "image" && shot.kind !== "video" && shot.kind !== "upload" && shot.kind !== "stock" && shot.kind !== "chart"
+    ? renderAnimation(shot, durationInFrames)
+    : null;
+  const view = familyView ?? (() => {
     switch (shot.kind) {
       case "title":
         return <TitleShot shot={shot} durationInFrames={durationInFrames} />;
       case "quote":
         return <QuoteShot shot={shot} durationInFrames={durationInFrames} />;
+      case "placeholder":
+        return <PlaceholderShot shot={shot} durationInFrames={durationInFrames} />;
       case "upload":
       case "image":
         return <ImageShot shot={shot} durationInFrames={durationInFrames} />;
       case "video":
         return <VideoShot shot={shot} durationInFrames={durationInFrames} />;
+      case "stock":
+        return <StockShot shot={shot} durationInFrames={durationInFrames} />;
+      case "chart":
+        return <ChartShot shot={shot} durationInFrames={durationInFrames} />;
       default:
-        return <PlaceholderShot shot={shot} durationInFrames={durationInFrames} />;
+        return <UnsupportedModeShot shot={shot} durationInFrames={durationInFrames} />;
     }
   })();
   return theme ? <ThemeContext.Provider value={theme}>{view}</ThemeContext.Provider> : view;
@@ -42,16 +55,20 @@ export function Video({ timeline: t }: VideoProps) {
   return (
     <ThemeContext.Provider value={t.theme}>
     <AbsoluteFill style={{ background: "#000" }}>
-      {t.shots.map((s) => {
+      {t.shots.map((s, k) => {
         const from = fr(s.startMs);
-        const dur = Math.max(1, fr(s.endMs) - from);
+        const baseDur = Math.max(1, fr(s.endMs) - from);
+        const dur = baseDur + (s.overlapOutFrames ?? 0);
+        const next = t.shots[k + 1];
         return (
           <Sequence key={s.shotId} from={from} durationInFrames={dur} name={`镜头 ${s.kind}`}>
-            <ShotView shot={s} durationInFrames={dur} />
+            <TransitionLayer durationInFrames={dur} transitionIn={s.transitionIn} transitionOut={next?.transitionIn} overlapInFrames={s.overlapInFrames} overlapOutFrames={s.overlapOutFrames}>
+              <ShotView shot={s} durationInFrames={dur} />
+            </TransitionLayer>
           </Sequence>
         );
       })}
-      {t.subtitle.enabled && <Subtitles cues={t.cues} highlight={t.subtitle.highlight} />}
+      {t.subtitle.enabled && t.subtitle.burnIn && <Subtitles blocks={t.subtitleBlocks} config={t.subtitle} />}
       {t.aiLabel.enabled && <AiLabel position={t.aiLabel.position} />}
       <AudioLayer t={t} />
     </AbsoluteFill>

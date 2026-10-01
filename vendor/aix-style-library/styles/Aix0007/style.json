@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0007",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "低多边形渲染",
+  "description": "低多边形三维渲染，几何切面构成形体，明暗在切面间分层，环境色纯净通透。",
+  "category": "3d",
+  "tags": ["低多边形", "3D渲染", "几何", "极简", "切面"],
+  "aliases": ["low-poly", "低模风", "low poly render"],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以几何切面、纯净环境色与平行光表现的代表图。"
+  },
+  "features": [
+    {"id": "F01", "axis": "medium", "tier": "core", "text": "低多边形 3D 渲染，形体由明显几何切面构成"},
+    {"id": "F02", "axis": "palette", "tier": "core", "text": "纯净渐变天空与环境色，切面间以明度分层"},
+    {"id": "F03", "axis": "lighting", "tier": "support", "text": "平行光照明，干净的面与面明暗对比"},
+    {"id": "F04", "axis": "composition", "tier": "support", "text": "极简环境，主体居中或三分位，视线开阔"},
+    {"id": "F05", "axis": "texture", "tier": "accent", "text": "轻微雾效与柔和远景层次"}
+  ],
+  "avoid": [
+    {"id": "N01", "text": "高精度写实纹理与照片质感"},
+    {"id": "N02", "text": "手绘笔触与厚重噪点"}
+  ],
+  "suitable_for": ["风景概念", "图标插画", "产品概念"],
+  "weak_for": ["精细人像细节"],
+  "known_failures": ["曲面与细节会被切面几何简化，不适合写实还原需求。"],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0007.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-19",
+    "evidence_ref": "results/0.2.0/Aix0007.json"
+  },
+  "replacement_id": null
+}

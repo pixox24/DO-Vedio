@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0067",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "青绿红调噤声",
+  "description": "噤声的手势与红块遮面：青绿背景里，黑衣人的脸被一块红色矩形封住，手指抵唇，噪点颗粒像旧海报般不安。",
+  "category": "illustration",
+  "tags": [
+    "噤声",
+    "遮面",
+    "青绿",
+    "红块",
+    "噪点"
+  ],
+  "aliases": [
+    "噤声之面",
+    "silence please",
+    "红块遮脸"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以青绿背景与红色遮面块表现噤声神秘感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "复古海报式平涂结合强噪点"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "青绿背景配黑色主体与鲜红遮挡块"
+    },
+    {
+      "id": "F03",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "侧光厚影，高对比"
+    },
+    {
+      "id": "F04",
+      "axis": "composition",
+      "tier": "core",
+      "text": "中心半身像特写"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "粗糙颗粒如旧印刷品"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "光滑渐变"
+    },
+    {
+      "id": "N02",
+      "text": "甜系配色"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念海报",
+    "封面",
+    "神秘题材"
+  ],
+  "weak_for": [
+    "明快题材"
+  ],
+  "known_failures": [
+    "红色遮挡块位置需精准对齐面部。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0067.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0067.json"
+  },
+  "replacement_id": null
+}

@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0061",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "蓝白飞鸟升空",
+  "description": "思绪化鸟的静谧释放：天蓝底色中，仰头的人上身渐渐消散为白色飞鸟与流线，轻盈而向上的解离感。",
+  "category": "illustration",
+  "tags": [
+    "飞鸟",
+    "升空",
+    "蓝白",
+    "解离",
+    "轻盈"
+  ],
+  "aliases": [
+    "飞鸟升空",
+    "birds dissolve",
+    "蓝白流线"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以天蓝底色与白色飞鸟流线表现升空解离感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "数字笔触结合矢量流线，轻重对比"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "天蓝背景配深蓝衣物与纯白飞鸟"
+    },
+    {
+      "id": "F03",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "均匀柔和光，鸟群自带高光"
+    },
+    {
+      "id": "F04",
+      "axis": "composition",
+      "tier": "core",
+      "text": "中心向上发散的升腾构图"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "平滑净润，细节处留笔触"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "暗黑压抑"
+    },
+    {
+      "id": "N02",
+      "text": "粗颗粒"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念插画",
+    "封面",
+    "音乐视觉"
+  ],
+  "weak_for": [
+    "写实题材"
+  ],
+  "known_failures": [
+    "飞鸟密度失衡时会失去消散感。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0061.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0061.json"
+  },
+  "replacement_id": null
+}

@@ -72,4 +72,26 @@ describe("配音设置分批应用", () => {
     expect(getProject(project.id)?.doc.settings.voice.volume).toBe(60);
     expect(all("SELECT id FROM jobs WHERE project_id = ?", project.id)).toHaveLength(0);
   });
+
+  it("撤回时旧音频缺失也会成功，并按批次补录", async () => {
+    const { getProject } = await import("@/lib/server/projects");
+    const { cachePut } = await import("@/lib/server/cache");
+    const { all, run } = await import("@/lib/server/db");
+    const { applyVoiceChange, finalizeVoiceChange, getVoiceChange, revertVoiceChange } = await import("@/lib/server/voice-change");
+    const project = await projectWithLines(true);
+    const oldKeys = lineTtsKeys(project.doc, project.id);
+    const next = { ...project.doc.settings.voice, voiceId: "revert-missing" };
+    applyVoiceChange(project.id, next);
+    const target = lineTtsKeys({ ...project.doc, settings: { ...project.doc.settings, voice: next } }, project.id);
+    target.forEach((item) => cachePut(item.key, "tts", audio));
+    expect(finalizeVoiceChange(project.id)).toBe(true);
+    run("DELETE FROM cache WHERE key = ?", oldKeys[0].key);
+
+    expect(() => revertVoiceChange(project.id)).not.toThrow();
+    expect(getProject(project.id)?.doc.settings.voice.voiceId).toBe(project.doc.settings.voice.voiceId);
+    const pending = getVoiceChange(project.id);
+    expect(pending).toMatchObject({ status: "pending", missing: 1, batchId: expect.any(String) });
+    const queued = all<{ input: string; status: string }>("SELECT input, status FROM jobs WHERE project_id = ? AND key LIKE ?", project.id, `voice-change:${project.id}:%`);
+    expect(queued.some((job) => job.status === "queued" && JSON.parse(job.input).batchId === pending?.batchId)).toBe(true);
+  });
 });

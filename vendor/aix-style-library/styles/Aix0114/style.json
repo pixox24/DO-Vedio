@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0114",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "红月遮面",
+  "description": "捂脸人物沉入深蓝黑暗，发丝烟雾中只留一枚红色弯月般的窥视符号，颗粒暗调制造不可见的恐惧。",
+  "category": "painting",
+  "tags": [
+    "红色弯月",
+    "暗调",
+    "捂脸",
+    "窥视",
+    "颗粒"
+  ],
+  "aliases": [
+    "红月遮面",
+    "red crescent eye",
+    "hidden gaze"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以深蓝暗室、捂脸姿态和红色弯月焦点表现不可见恐惧的暗黑肖像。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "暗色数字厚涂结合粗颗粒，人物边缘清晰、烟雾边缘松散。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "深蓝黑占主导，仅用一枚高饱和红色焦点打破暗面。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "面部遮挡与中央小焦点形成压缩式垂直构图。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "低照度漫射光，红色符号像唯一微光但不产生写实霓虹。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "胶片噪点、烟雾擦痕与深色画布颗粒。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "明亮商业灯光"
+    },
+    {
+      "id": "N02",
+      "text": "可读标语和装饰字"
+    },
+    {
+      "id": "N03",
+      "text": "血腥伤口"
+    }
+  ],
+  "suitable_for": [
+    "悬疑封面",
+    "心理海报",
+    "暗黑叙事"
+  ],
+  "weak_for": [
+    "婚礼摄影",
+    "轻松儿童题材"
+  ],
+  "known_failures": [
+    "红色焦点过大就会变成普通月亮，应让黑暗和遮挡保持主导。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0114.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0114.json"
+  },
+  "replacement_id": null
+}

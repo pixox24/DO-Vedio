@@ -5,7 +5,7 @@ import { compilePrompt, type CompiledPrompt } from "../../core/prompt-compiler";
 import type { CharacterCard, ProjectDoc, ShotSize } from "../../core/types";
 import { beginGenerationRun, failGenerationRun, finishGenerationRun, noteGenerationRun } from "../../providers/runs";
 import { getProject, mutateProject } from "../../server/projects";
-import { generateBatch, generateMediaAssets, mediaProviderId } from "../media-gen";
+import { defaultGenerationFrame, generateBatch, generateMediaAssets, mediaProviderId } from "../media-gen";
 import { defineStage, PermanentError } from "../stage";
 
 /**
@@ -98,9 +98,9 @@ export const characterSheetStage = defineStage<CharacterSheetInput, { assets: st
         writeBack();
       },
       run: async (prompt, k) => {
-        const run = beginGenerationRun({ projectId: input.projectId, jobId: ctx.job.id, providerId: mediaProviderId("image", input.modelId), modelId: input.modelId, kind: "image", inputHash: `${key}:${k}`, params: { stage: "character-sheet", characterId: card.id, sheet: input.kind, name: prompt.name, prompt: prompt.full, referenceAssetIds: references } });
+        const run = beginGenerationRun({ projectId: input.projectId, jobId: ctx.job.id, providerId: mediaProviderId("image", input.modelId), modelId: input.modelId, kind: "image", inputHash: `${key}:${k}`, params: { stage: "character-sheet", characterId: card.id, sheet: input.kind, name: prompt.name, prompt: prompt.full, referenceAssetIds: references, frame: defaultGenerationFrame } });
         try {
-          const result = await generateMediaAssets({ kind: "image", modelId: input.modelId, prompt: prompt.full, references, meta: { projectId: input.projectId, characterId: card.id, sheet: input.kind, name: prompt.name } }, ctx.signal);
+          const result = await generateMediaAssets({ kind: "image", modelId: input.modelId, prompt: prompt.full, frame: defaultGenerationFrame, references, meta: { projectId: input.projectId, characterId: card.id, sheet: input.kind, name: prompt.name } }, ctx.signal);
           if (result.referenceFallback) noteGenerationRun(run.id, { referenceFallback: result.referenceFallback });
           finishGenerationRun(run.id, { status: "succeeded", latencyMs: Date.now() - run.startedAt, outputAssets: [result.assets[0]] });
           return result.assets[0];

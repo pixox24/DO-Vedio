@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0128",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "百面阶梯",
+  "description": "人物站在楼梯中央，漂浮的人脸像社会回声包围四周，蓝黑白漫画线条把孤独个体推入无数凝视。",
+  "category": "illustration",
+  "tags": [
+    "漂浮人脸",
+    "楼梯",
+    "社会凝视",
+    "蓝黑白",
+    "漫画线条"
+  ],
+  "aliases": [
+    "百面阶梯",
+    "staircase of faces",
+    "crowd gaze"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以蓝黑白楼梯、重复漂浮面孔和孤立人物表现社会压力与个体迷失。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "清晰漫画线条结合平涂块面，重复面孔只需概括表情结构。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "冷蓝背景、黑衣和白脸形成有限三色关系。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "楼梯提供纵深，重复面孔围成包围式节奏，主体保持单一焦点。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "均匀冷光，不用戏剧性写实阴影破坏漫画平面。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "纸面颗粒、线稿抖动和少量套印偏移。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "每张脸都写实细描"
+    },
+    {
+      "id": "N02",
+      "text": "欢快糖果色"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "社会寓言",
+    "心理封面",
+    "漫画概念"
+  ],
+  "weak_for": [
+    "产品静物",
+    "自然风景摄影"
+  ],
+  "known_failures": [
+    "重复脸过多会变成杂乱纹理，应设置清晰层级和一条可读楼梯路径。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0128.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0128.json"
+  },
+  "replacement_id": null
+}

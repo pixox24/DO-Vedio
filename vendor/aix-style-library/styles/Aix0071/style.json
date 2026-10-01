@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0071",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "冷蓝折阶孤行",
+  "description": "冷蓝灰的超现实阶梯向上折返，粗颗粒厚涂与枯枝剪影把孤独压缩成一条陡峭的视觉路径。",
+  "category": "painting",
+  "tags": [
+    "折返阶梯",
+    "冷蓝",
+    "颗粒厚涂",
+    "孤独",
+    "超现实"
+  ],
+  "aliases": [
+    "冷蓝阶梯",
+    "blue zigzag stairs",
+    "孤行阶梯"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以冷蓝灰折返阶梯、粗颗粒笔触和孤独垂直路径表现超现实迷途感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "粗颗粒数字厚涂，边缘保留不规则笔触"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "深蓝灰与紫蓝冷色为主，局部冷光提亮"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "折返几何路径形成强烈的纵向引导线"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "低照度漫射光，亮部集中在路径边缘"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "岩石般粗糙颗粒与轻微星尘斑点"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "光滑商业插画"
+    },
+    {
+      "id": "N02",
+      "text": "明亮糖果色与复杂暖光"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念插画",
+    "封面",
+    "音乐视觉"
+  ],
+  "weak_for": [
+    "轻快日常",
+    "写实建筑图"
+  ],
+  "known_failures": [
+    "阶梯层级过多时透视会断裂，需保持单一折返方向。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0071.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0071.json"
+  },
+  "replacement_id": null
+}

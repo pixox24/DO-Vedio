@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0127",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "墨升彩涡",
+  "description": "黑色墨滴从人物头顶升向彩色漩涡，蓝绿背景衬托红黄蓝终点，把沉重混乱拉成一条有方向的精神通道。",
+  "category": "graphic",
+  "tags": [
+    "黑色墨升",
+    "彩色漩涡",
+    "蓝绿",
+    "垂直通道",
+    "精神转化"
+  ],
+  "aliases": [
+    "墨升彩涡",
+    "ink to color",
+    "ascending vortex"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以黑色上升墨形、顶部彩色漩涡和蓝绿底色表现混乱通向秩序。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "平面数字插画，墨形硬边与彩涡圆形层次形成媒介对照。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "蓝绿冷底配红黄蓝小范围彩色终点，黑色贯穿两者。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "从下向上收束的垂直路径，把暗部引到顶部旋涡。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "平面光，彩色终点承担焦点而不做真实发光。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "墨滴边缘略粗糙，色块保持干净并带轻微颗粒。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "无限彩虹渐变"
+    },
+    {
+      "id": "N02",
+      "text": "写实烟雾摄影"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "转化主题",
+    "音乐视觉",
+    "概念海报"
+  ],
+  "weak_for": [
+    "日常写实",
+    "信息图表"
+  ],
+  "known_failures": [
+    "黑色上升物若被背景吞没会失去路径，应保证轮廓和顶部终点有明度差。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0127.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0127.json"
+  },
+  "replacement_id": null
+}

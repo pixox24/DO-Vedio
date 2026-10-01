@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0136",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "万手思潮",
+  "description": "人物侧影被无数半透明手臂从头部向左上放射，黄蓝渐变和颗粒印刷把外在冷静与思绪泛滥同时具象化。",
+  "category": "illustration",
+  "tags": [
+    "放射手臂",
+    "黄蓝互补",
+    "心理压力",
+    "半透明",
+    "颗粒印刷"
+  ],
+  "aliases": [
+    "万手思潮",
+    "hands of thought",
+    "radiant anxiety"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以侧影人物、放射状半透明手臂和黄蓝渐变表现思绪泛滥与内在压力。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "硬边人物与软边幽灵手臂并置，保持现代社论插画的概括度。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "亮黄至蓝紫的渐变与深蓝人物形成强互补关系。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "主体位于下方，手臂沿对角线向左上扩散，形成放射动势。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "背景使用平滑渐变，手臂以半透明叠层表达非实体感。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "旧印刷颗粒、衣物粗糙面和柔化手臂边缘。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "写实断肢效果"
+    },
+    {
+      "id": "N02",
+      "text": "均匀彩虹背景"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "心理海报",
+    "社论插画",
+    "创意封面"
+  ],
+  "weak_for": [
+    "温馨生活照",
+    "复杂产品说明"
+  ],
+  "known_failures": [
+    "手臂数量过多会失去节奏，应保持几条主方向和明确的主体轮廓。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0136.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0136.json"
+  },
+  "replacement_id": null
+}

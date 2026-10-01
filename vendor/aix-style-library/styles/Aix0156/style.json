@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0156",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "双色渡界",
+  "description": "撑伞剪影行走在蓝与橙的双色边界上，颗粒平涂把跨越两个世界的孤独压缩成一条清晰的色彩断层。",
+  "category": "graphic",
+  "tags": [
+    "双色分割",
+    "撑伞剪影",
+    "蓝橙",
+    "边界",
+    "颗粒平涂"
+  ],
+  "aliases": [
+    "双色渡界",
+    "split color walker",
+    "border umbrella"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以蓝橙双色分割背景、撑伞剪影和清晰边界表现跨越两个世界。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "极简平涂配轻微纹理，伞和人物保持完整黑色轮廓。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "左侧冷蓝与右侧暖橙形成明确的二分色场。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "垂直或斜向分界线切开画面，行走者横跨边界成为唯一动势。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "两侧光照保持平面一致，不加入写实光影过渡。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "细颗粒、纸张噪点和轻微套印错位。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "渐变混色背景"
+    },
+    {
+      "id": "N02",
+      "text": "复杂道路细节"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "迁徙主题",
+    "封面设计",
+    "音乐视觉"
+  ],
+  "weak_for": [
+    "群像故事",
+    "写实产品图"
+  ],
+  "known_failures": [
+    "分界线若被背景装饰打断会削弱跨界寓意，应保持双色区域完整。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0156.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0156.json"
+  },
+  "replacement_id": null
+}

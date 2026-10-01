@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0116",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "烟发浮思",
+  "description": "淡蓝背景中的侧脸向上长出黑色烟发，柔和渐变将忧郁思绪扩展成无重力的星云形态。",
+  "category": "painting",
+  "tags": [
+    "烟雾头发",
+    "淡蓝",
+    "侧脸",
+    "柔和渐变",
+    "忧郁"
+  ],
+  "aliases": [
+    "烟发浮思",
+    "nebula hair",
+    "blue reverie"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以淡蓝留白、侧脸和向上飘散的黑色烟发表现思绪无边的诗性插画。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "柔边数字绘画与细线轮廓结合，烟发呈流体而非写实头发。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "淡蓝、灰白和黑色构成低饱和单色关系。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "侧脸置于下方，烟发沿垂直方向升腾并形成轻盈负空间。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "均匀冷光，烟雾边缘用渐变而非强烈高光。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "细腻雾化、少量颗粒和纸面留白。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "高饱和霓虹"
+    },
+    {
+      "id": "N02",
+      "text": "硬朗机械质感"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "诗意封面",
+    "心理插画",
+    "冥想视觉"
+  ],
+  "weak_for": [
+    "热闹动作场面",
+    "产品广告"
+  ],
+  "known_failures": [
+    "烟发过于厚重会像普通头发，应保持透明层次和向上消散的尾部。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0116.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0116.json"
+  },
+  "replacement_id": null
+}

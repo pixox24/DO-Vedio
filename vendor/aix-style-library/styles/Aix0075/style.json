@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0075",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "酒红蝶化绷带",
+  "description": "酒红暗底上，白色布带和黑蝶从中心人物周围向上散开，柔和厚涂与哥特式象征构成束缚到蜕变的叙事。",
+  "category": "painting",
+  "tags": [
+    "酒红",
+    "绷带",
+    "黑蝶",
+    "哥特",
+    "蜕变"
+  ],
+  "aliases": [
+    "蝶化绷带",
+    "burgundy butterfly",
+    "哥特蜕变"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以酒红暗背景、黑白主体和向上散开的布带黑蝶表现哥特式蜕变感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "细腻数字厚涂，布料与羽翅边缘柔和"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "深酒红背景配黑白主体，局部灰蓝提亮"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "中心下沉、上方发散的垂直升腾构图"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "柔和侧光塑造布料褶皱，背景保持暗"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "布料纤维、蝶翅细节与轻微胶片颗粒"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "明亮糖果色"
+    },
+    {
+      "id": "N02",
+      "text": "硬边几何平涂"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "暗黑浪漫",
+    "封面",
+    "叙事插画"
+  ],
+  "weak_for": [
+    "轻快儿童题材",
+    "纯产品展示"
+  ],
+  "known_failures": [
+    "布带与蝶群交叠过多时会形成无意义的白团，需保留主要流向。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0075.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0075.json"
+  },
+  "replacement_id": null
+}

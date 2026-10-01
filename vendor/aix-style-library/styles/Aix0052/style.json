@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0052",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "深蓝夜半手机",
+  "description": "夜半的桌面剧场：深蓝暗调里一只手伸向发光的手机，植物盆栽静静陪着一场无人知晓的失眠。",
+  "category": "illustration",
+  "tags": [
+    "深夜",
+    "手机",
+    "深蓝",
+    "特写",
+    "失眠"
+  ],
+  "aliases": [
+    "夜半手机",
+    "midnight phone",
+    "深蓝夜"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以深蓝暗调与手机局部光表现夜半失眠感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "数字平涂结合硬边线稿"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "深蓝调底配粉色光照与黑灰设备"
+    },
+    {
+      "id": "F03",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "手机屏幕的局部光照亮手部"
+    },
+    {
+      "id": "F04",
+      "axis": "composition",
+      "tier": "core",
+      "text": "特写对角构图，桌面元素铺陈"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "轻微数字噪点"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "多光源"
+    },
+    {
+      "id": "N02",
+      "text": "喧嚣场景"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "氛围插画",
+    "社媒配图",
+    "故事分镜"
+  ],
+  "weak_for": [
+    "明亮题材"
+  ],
+  "known_failures": [
+    "屏幕内容需简化，避免乱码。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0052.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0052.json"
+  },
+  "replacement_id": null
+}

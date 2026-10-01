@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0118",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "碎球自解",
+  "description": "双手交叉遮面，黑球与几何碎片替代头部，灰白空间和喷绘颗粒把防御姿态转成自我解体。",
+  "category": "painting",
+  "tags": [
+    "黑色球体",
+    "几何碎片",
+    "遮面",
+    "喷绘颗粒",
+    "自我解构"
+  ],
+  "aliases": [
+    "碎球自解",
+    "black sphere head",
+    "self dissolve"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以遮面姿态、黑色球体和几何碎片表现自我解构的灰黑概念插画。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "粗颗粒喷绘与硬边几何结合，保持手部结构清晰。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "灰白背景、黑色主体和少量中灰形成低彩度冲突。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "交叉手势构成前景屏障，球体位于视觉中心并向外碎裂。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "平光环境中以黑白明度强调球体重量。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "喷墨颗粒、粗糙边缘与少量纸张噪点。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "过度写实解剖"
+    },
+    {
+      "id": "N02",
+      "text": "明亮糖果色"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "心理海报",
+    "概念肖像",
+    "实验封面"
+  ],
+  "weak_for": [
+    "温馨生活插画",
+    "高端产品图"
+  ],
+  "known_failures": [
+    "碎片太细会变成噪声，应保留大块几何断片和一个完整黑球核心。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0118.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0118.json"
+  },
+  "replacement_id": null
+}

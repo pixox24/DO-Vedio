@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0134",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "水下梦首",
+  "description": "人物身体留在水面之上，头部沉入波纹与蓝色梦境，平滑水彩线条把沉浸和窒息写成静谧超现实。",
+  "category": "painting",
+  "tags": [
+    "水下头部",
+    "水波",
+    "蓝色梦境",
+    "水彩",
+    "沉浸"
+  ],
+  "aliases": [
+    "水下梦首",
+    "underwater dream",
+    "submerged thought"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以水下头部、水波线条和蓝白色调表现沉浸、梦境与轻微窒息感。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "水彩感数字绘画，流线柔软，人物与水面边界清楚。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "蓝色和白色为主，加入极少灰青建立水下深度。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "水平水面切过人物头部，波纹向四周扩散形成静态节奏。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "柔和顶光穿过水面，不使用强烈水下电影光。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "半透明水纹、细颗粒和纸面晕染。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "浑浊恐怖水底"
+    },
+    {
+      "id": "N02",
+      "text": "装饰性可读文字"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "梦境封面",
+    "诗意插画",
+    "心理主题"
+  ],
+  "weak_for": [
+    "硬朗机械图",
+    "热闹群像"
+  ],
+  "known_failures": [
+    "水面边界模糊会让主体消失，应保留清楚的水平切线和头部位置。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0134.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0134.json"
+  },
+  "replacement_id": null
+}

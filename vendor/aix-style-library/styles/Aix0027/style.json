@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0027",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "糖果色夸张透视",
+  "description": "波普式的荒诞透视：糖果色硬边块面与夸张的低角度透视，把日常场景变成荒诞而幽默的超现实画面。",
+  "category": "illustration",
+  "tags": [
+    "糖果色",
+    "透视",
+    "波普",
+    "荒诞",
+    "高饱和"
+  ],
+  "aliases": [
+    "夸张透视",
+    "candy pop",
+    "低角度透视"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以糖果色硬边块面与夸张低角度透视表现荒诞日常感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "palette",
+      "tier": "core",
+      "text": "高饱和糖果色块（粉、绿、黄、蓝）的撞色"
+    },
+    {
+      "id": "F02",
+      "axis": "composition",
+      "tier": "core",
+      "text": "低角度极端透视，前景物体巨大化"
+    },
+    {
+      "id": "F03",
+      "axis": "medium",
+      "tier": "core",
+      "text": "硬边矢量平涂，造型简洁夸张"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "硬边投影模拟强烈日光"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "干净数字质感"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "写实光影"
+    },
+    {
+      "id": "N02",
+      "text": "低饱和灰调"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "潮流海报",
+    "社媒配图",
+    "品牌插画"
+  ],
+  "weak_for": [
+    "严肃叙事"
+  ],
+  "known_failures": [
+    "透视过度时空间关系易乱，需保持单一消失点。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0027.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0027.json"
+  },
+  "replacement_id": null
+}

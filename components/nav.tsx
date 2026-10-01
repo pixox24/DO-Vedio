@@ -9,6 +9,7 @@ const links = [
   { href: "/memes", label: "梗库" },
   { href: "/styles", label: "画面风格" },
   { href: "/settings/providers", label: "模型中心" },
+  { href: "/settings/storage", label: "存储" },
   { href: "/changelog", label: "项目更新" },
 ];
 

@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0158",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "赤烟晚坐",
+  "description": "深青背景中的老人坐在椅上，红色烟雾向上盘旋，柔和光影把回忆、衰老和时间画成一条缓慢的升腾线。",
+  "category": "painting",
+  "tags": [
+    "红色烟雾",
+    "深青",
+    "老人剪影",
+    "回忆",
+    "氛围光"
+  ],
+  "aliases": [
+    "赤烟晚坐",
+    "red smoke reverie",
+    "late life glow"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以深青暗背景、老人静坐和上升红烟表现回忆、沉思与时间流逝。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "柔和数字厚涂与简化人物结合，烟雾流动但不写实燃烧。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "深青环境与红色烟雾形成冷暖单焦点关系。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "坐姿低重心与烟雾向上升腾形成时间方向。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "柔和侧光勾出手和烟雾，背景保持安静暗部。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "烟雾柔边、轻颗粒和旧画布质感。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "真实香烟品牌"
+    },
+    {
+      "id": "N02",
+      "text": "疾病或伤口描写"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "人生主题",
+    "诗意封面",
+    "叙事插画"
+  ],
+  "weak_for": [
+    "快节奏动作",
+    "儿童广告"
+  ],
+  "known_failures": [
+    "烟雾遮住人物会削弱沉思动作，应保留椅子、手部和上升烟线的关系。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0158.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0158.json"
+  },
+  "replacement_id": null
+}

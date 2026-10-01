@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0137",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "记忆光束",
+  "description": "人物站在青色垂直光束中，照片卡片般的碎片悬浮四周，深黑蓝空间把回忆变成一场无声审讯。",
+  "category": "graphic",
+  "tags": [
+    "垂直光束",
+    "记忆碎片",
+    "青色",
+    "悬浮卡片",
+    "悬疑"
+  ],
+  "aliases": [
+    "记忆光束",
+    "memory beam",
+    "floating evidence"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以青色垂直光束、悬浮记忆碎片和黑蓝空间表现回忆与审讯感。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "概念海报式硬边图形，漂浮物简化为无文字的照片形块。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "黑蓝暗底配青色光柱和白灰碎片，色彩克制。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "人物位于光束中心，碎片围绕形成纵向证据场。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "单一体积光束配柔和光晕，避免多色霓虹。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "轻颗粒、半透明边缘和少量纸片阴影。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "可读照片文字"
+    },
+    {
+      "id": "N02",
+      "text": "杂乱拼贴排版"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "悬疑封面",
+    "记忆主题",
+    "概念海报"
+  ],
+  "weak_for": [
+    "欢快广告",
+    "写实群像"
+  ],
+  "known_failures": [
+    "悬浮碎片过大或过多会遮住人物，应保留中心光柱的连续空间。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0137.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0137.json"
+  },
+  "replacement_id": null
+}

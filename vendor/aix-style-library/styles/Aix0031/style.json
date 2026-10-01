@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0031",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "暖橙市井街景",
+  "description": "市井生活的暖橙时刻：硬边手绘色块堆叠出密集街区，高饱和冷暖对比与概括性平光让拥挤也有温度。",
+  "category": "illustration",
+  "tags": [
+    "市井",
+    "街景",
+    "暖橙",
+    "硬边",
+    "透视"
+  ],
+  "aliases": [
+    "市井街景",
+    "warm street scene",
+    "层叠街区"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以暖橙色块与浅蓝天空对比、层叠街区透视表现市井温度的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "数字手绘硬边色块，概括性平光"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "暖橙黄色调与浅蓝天空的冷暖对比"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "support",
+      "text": "透视街景，密集建筑由近及远层层堆叠"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "概括性硬边光影，投影清晰"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "干净色块，轻微笔触"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "写实照片"
+    },
+    {
+      "id": "N02",
+      "text": "暗黑压抑"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "城市题材",
+    "编辑插画",
+    "海报"
+  ],
+  "weak_for": [
+    "恐怖暗黑"
+  ],
+  "known_failures": [
+    "细节过密时画面会碎，建议分层概括。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0031.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0031.json"
+  },
+  "replacement_id": null
+}

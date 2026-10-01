@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0021",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "雨夜倒影巨物",
+  "description": "雨夜街头的上下倒影构图：硬边平涂色块配合粗颗粒噪点，靛蓝青灰的冷调中点缀橙黄暖色，水面映出比现实更巨大的影子。",
+  "category": "illustration",
+  "tags": [
+    "倒影",
+    "雨夜",
+    "巨物",
+    "颗粒噪点",
+    "冷蓝"
+  ],
+  "aliases": [
+    "雨夜倒影",
+    "rainy reflection",
+    "倒影构图"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以雨夜积水倒影与巨大影子表现冷蓝颗粒质感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "硬边平涂色块结合粗颗粒噪点，复古印刷质感"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "靛蓝与青灰冷调主色，橙黄少量暖色点缀"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "上下分割的倒影构图，水面上下形成现实与巨影的对照"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "纯平光，无立体光影，明暗靠色块与颗粒区分"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "水波与倒影被简化为纹理，做旧颗粒覆盖全画"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "渐变柔光与写实渲染"
+    },
+    {
+      "id": "N02",
+      "text": "鲜艳多色与干净无噪点"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "海报",
+    "封面",
+    "氛围插画"
+  ],
+  "weak_for": [
+    "明亮轻快题材"
+  ],
+  "known_failures": [
+    "细节过多时颗粒噪点会显脏，建议控制画面元素数量。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0021.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0021.json"
+  },
+  "replacement_id": null
+}

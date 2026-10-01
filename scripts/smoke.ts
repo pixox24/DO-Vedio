@@ -3,7 +3,7 @@ import { promises as fs } from "fs";
 import { cachePut } from "../lib/server/cache";
 import { lineSpeech, ttsKey } from "../lib/core/keys";
 import { blankShot } from "../lib/core/shots";
-import { buildTimeline, timelineHash } from "../lib/core/timeline";
+import { animationHash, buildTimeline, contentHash, timelineHash } from "../lib/core/timeline";
 import { emptyDoc } from "../lib/core/types";
 import { createProject, mutateProject } from "../lib/server/projects";
 import { ffmpeg } from "../lib/server/ffmpeg";
@@ -39,7 +39,7 @@ async function main() {
   cachePut(cacheKey, "tts", tts);
   const doc = { ...synced, shots: [blankShot("smoke-shot", line.id)] };
   const timeline = buildTimeline(doc, { tts: new Map([[line.id, tts]]), tracks: new Map(), media: (hash) => `/api/media/${hash}` }, "16:9");
-  const out = await renderTimeline({ projectId: project.id, timeline, timelineHash: timelineHash(timeline), quality: "draft", signal: new AbortController().signal, current: () => true, progress: (p, message) => console.log(`${Math.round(p * 100)}% ${message}`) });
+  const out = await renderTimeline({ projectId: project.id, timeline, timelineHash: timelineHash(timeline), contentHash: contentHash(timeline), animationHash: animationHash(timeline), quality: "draft", signal: new AbortController().signal, current: () => true, progress: (p, message) => console.log(`${Math.round(p * 100)}% ${message}`) });
   console.log(`Smoke render OK: ${out.videoHash}`);
   } finally {
     const renderAssets = all<{ video_hash: string; srt_hash: string | null }>("SELECT video_hash, srt_hash FROM renders WHERE project_id = ?", project.id);

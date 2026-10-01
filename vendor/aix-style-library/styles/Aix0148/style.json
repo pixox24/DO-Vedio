@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0148",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "屋顶守望",
+  "description": "屋顶人物俯瞰深蓝城市，暖黄窗灯像零散信号，扁平夜景把守望和都市疏离放在同一片留白里。",
+  "category": "illustration",
+  "tags": [
+    "城市夜景",
+    "屋顶",
+    "暖窗灯",
+    "深蓝",
+    "守望"
+  ],
+  "aliases": [
+    "屋顶守望",
+    "rooftop city watch",
+    "blue city lights"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以深蓝夜空、屋顶人物和零散暖黄窗灯表现守望与城市疏离。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "扁平叙事插画，建筑简化成层叠剪影和几何窗格。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "深蓝与蓝黑为环境，暖黄窗灯作为少量节奏点。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "屋顶横线承托人物，远景城市向下展开并保留大面积天空。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "夜间平光，窗灯只做小色块，不模拟真实城市光污染。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "轻微颗粒、干净色面和少量窗格纹理。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "写实城市摄影"
+    },
+    {
+      "id": "N02",
+      "text": "密集车辆细节"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "城市封面",
+    "旅行叙事",
+    "音乐视觉"
+  ],
+  "weak_for": [
+    "复杂室内产品图",
+    "热烈庆典"
+  ],
+  "known_failures": [
+    "窗灯过多会削弱孤独，应控制亮点数量并保留人物与天空的比例。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0148.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0148.json"
+  },
+  "replacement_id": null
+}

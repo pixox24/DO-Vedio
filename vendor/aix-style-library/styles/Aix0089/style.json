@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0089",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "蓝黑光影格",
+  "description": "蓝黑光影实验被收进网格小格：剪影、逆光和发光纹理彼此并置，像一组冷静的神秘视觉样本。",
+  "category": "graphic",
+  "tags": [
+    "蓝黑",
+    "光影实验",
+    "网格",
+    "剪影",
+    "发光纹理"
+  ],
+  "aliases": [
+    "蓝黑光影格",
+    "blue shadow grid",
+    "光影样本"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以蓝黑冷色、网格分镜和极端剪影光效表现神秘光影实验的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "概念设计式平面分格，剪影与纹理实验并置"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "深蓝、纯黑和冷白构成单色冷调体系"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "网格分格，每格独立却共享光影语言"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "逆光、窄光和局部发光形成多种对照"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "雾、颗粒和抽象表面纹理轻量叠加"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "暖色糖果配色"
+    },
+    {
+      "id": "N02",
+      "text": "写实连续风景"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "视觉研究",
+    "封面",
+    "概念板"
+  ],
+  "weak_for": [
+    "单一写实肖像",
+    "信息图"
+  ],
+  "known_failures": [
+    "分格之间若没有统一的蓝黑光影逻辑，会像随机图片拼贴。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0089.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0089.json"
+  },
+  "replacement_id": null
+}

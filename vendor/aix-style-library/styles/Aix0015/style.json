@@ -1,0 +1,106 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0015",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "暗黑颗粒版画",
+  "description": "黑白颗粒版画海报：厚重噪点覆盖全幅，高对比明暗把主体推成孤亮剪影，垂直纵深构图从黑暗中牵出不安与坚定。",
+  "category": "graphic",
+  "tags": [
+    "黑白",
+    "颗粒",
+    "版画",
+    "海报",
+    "暗黑",
+    "高对比"
+  ],
+  "aliases": [
+    "颗粒版画海报",
+    "grainy print poster",
+    "monochrome grain"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以高对比黑白剪影与通体颗粒噪点表现版画印刷质感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "单色版画与丝网印刷质感，平涂色块通体覆盖粗颗粒噪点"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "纯黑白灰，无彩色，极高明暗对比"
+    },
+    {
+      "id": "F03",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "强对比戏剧光，明亮主体从深黑背景中跃出"
+    },
+    {
+      "id": "F04",
+      "axis": "composition",
+      "tier": "support",
+      "text": "纵深构图，垂直元素成排引导视线向深处延伸"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "做旧印刷颗粒与粗糙边缘，手工感明显"
+    },
+    {
+      "id": "F06",
+      "axis": "line",
+      "tier": "accent",
+      "text": "细微排线补充肌理，不依赖描边"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "彩色与光滑数字渐变"
+    },
+    {
+      "id": "N02",
+      "text": "明快轻松的色调与氛围"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字标题"
+    }
+  ],
+  "suitable_for": [
+    "海报",
+    "书籍封面",
+    "音乐视觉",
+    "文化主题"
+  ],
+  "weak_for": [
+    "明亮商业插图",
+    "细腻彩色题材"
+  ],
+  "known_failures": [
+    "亮色题材会被压缩为黑白高反差语言；画面文字需另行指定，默认易生乱码。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0015.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.3.0/Aix0015.json"
+  },
+  "replacement_id": null
+}

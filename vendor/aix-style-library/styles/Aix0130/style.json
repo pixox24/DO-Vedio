@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0130",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "裂天静坐",
+  "description": "盘腿人物头顶被一道裂缝和闪电刺穿天空，米色留白与蓝黑平涂把禅定的稳定和觉醒的暴烈放在同一条轴上。",
+  "category": "graphic",
+  "tags": [
+    "天空裂缝",
+    "静坐",
+    "米色留白",
+    "闪电",
+    "极简"
+  ],
+  "aliases": [
+    "裂天静坐",
+    "split sky meditation",
+    "quiet rupture"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以盘腿姿态、天空裂缝和米色留白表现静定与突然觉醒的极简海报。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "极简矢量线条与平面填色，裂缝边缘锐利而人物姿态稳定。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "米色背景、深蓝黑人物和少量冷蓝裂光形成克制配色。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "中心垂直轴从静坐身体延伸到天空裂口，留白承担呼吸。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "几乎无光影，仅以裂缝的明暗和线条表达冲击。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "平滑纸面与少量细颗粒，不加入写实云层。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "复杂风景细节"
+    },
+    {
+      "id": "N02",
+      "text": "强烈爆炸特效"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "冥想海报",
+    "精神主题",
+    "编辑封面"
+  ],
+  "weak_for": [
+    "群像叙事",
+    "写实室内"
+  ],
+  "known_failures": [
+    "裂缝过宽会把画面切断，应保持细长方向和人物中心轴的连续。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0130.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0130.json"
+  },
+  "replacement_id": null
+}

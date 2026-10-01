@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0046",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "紫蓝月夜相依",
+  "description": "月夜下的相依剪影：紫蓝夜色中一轮巨大的暖黄月亮，边缘光勾勒轮廓，日系赛璐璐的柔光把浪漫推向高潮。",
+  "category": "illustration",
+  "tags": [
+    "月夜",
+    "剪影",
+    "紫蓝",
+    "赛璐璐",
+    "浪漫"
+  ],
+  "aliases": [
+    "月下相拥",
+    "moonlit night",
+    "紫蓝月"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以紫蓝夜色与巨大暖黄月亮衬托剪影轮廓的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "日系赛璐璐数字插画，硬边轮廓与平滑质感"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "紫蓝夜色与暖黄月光的经典对比"
+    },
+    {
+      "id": "F03",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "边缘轮廓光，背光剪影为主"
+    },
+    {
+      "id": "F04",
+      "axis": "composition",
+      "tier": "core",
+      "text": "竖幅中心构图，巨大圆形背景元素"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "干净平滑数字质感"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "写实照片"
+    },
+    {
+      "id": "N02",
+      "text": "杂乱背景"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "情感场景",
+    "封面",
+    "音乐视觉"
+  ],
+  "weak_for": [
+    "冷淡题材"
+  ],
+  "known_failures": [
+    "月亮过亮时夜色层次会塌。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0046.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0046.json"
+  },
+  "replacement_id": null
+}

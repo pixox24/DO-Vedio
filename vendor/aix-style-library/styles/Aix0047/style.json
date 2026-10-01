@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0047",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "数字故障头部",
+  "description": "数字时代的故障肖像：3D 渲染的冷调场景里，头部异化为一块弹出错误提示的屏幕，孤独与迷失感扑面而来。",
+  "category": "3d",
+  "tags": [
+    "3D渲染",
+    "故障",
+    "屏幕",
+    "冷调",
+    "孤独"
+  ],
+  "aliases": [
+    "故障肖像",
+    "glitch portrait",
+    "屏幕头"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以 3D 渲染冷调场景与屏幕化头部表现数字迷失感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "3D 渲染质感，写实光照与材质"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "深青灰冷调，屏幕散发冷白光"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "中心对称构图，主体渺小居中"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "顶部光与屏幕自发光形成冷暖层次"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "混凝土与金属的写实质感"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "卡通平涂"
+    },
+    {
+      "id": "N02",
+      "text": "高饱和色彩"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念视觉",
+    "封面",
+    "海报"
+  ],
+  "weak_for": [
+    "日常温馨题材"
+  ],
+  "known_failures": [
+    "屏幕内元素需克制，避免变成乱码。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0047.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0047.json"
+  },
+  "replacement_id": null
+}

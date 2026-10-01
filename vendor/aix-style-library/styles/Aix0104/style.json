@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0104",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "淡紫侧影",
+  "description": "淡紫蓝留白中，一个西装女性侧影以纯黑轮廓站立，极少的唇部亮点和干净边缘让人物气质成为全部叙事。",
+  "category": "graphic",
+  "tags": [
+    "淡紫",
+    "女性侧影",
+    "极简",
+    "黑色轮廓",
+    "留白"
+  ],
+  "aliases": [
+    "淡紫侧影",
+    "lavender silhouette",
+    "极简人物海报"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以淡紫留白、锐利黑色侧影和单一微亮色点表现高冷极简人物海报的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "纯净矢量剪影，形体由完整轮廓概括"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "淡紫蓝背景配纯黑主体，仅一处暖色小点"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "侧面全身置于留白中，轮廓成为唯一视觉信息"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "无明显光影，依靠轮廓和留白传达气质"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "平滑无纹理的现代海报表面"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "复杂背景与多人物"
+    },
+    {
+      "id": "N02",
+      "text": "丰富体积光影"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "人物海报",
+    "时尚封面",
+    "极简品牌视觉"
+  ],
+  "weak_for": [
+    "宏大风景",
+    "群像叙事"
+  ],
+  "known_failures": [
+    "轮廓服装过于普通时缺少识别点，需用姿态、发型或手持物建立节奏。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0104.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0104.json"
+  },
+  "replacement_id": null
+}

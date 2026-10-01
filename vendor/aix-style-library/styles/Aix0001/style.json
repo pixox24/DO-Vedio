@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0001",
+  "version": "1.1.0",
+  "status": "active",
+  "name": "雾青胶片人像",
+  "description": "摄影式胶片表现，低饱和雾青底色配暖色局部对比，柔和侧逆光与细腻颗粒。",
+  "category": "photographic",
+  "tags": ["胶片感", "低饱和", "雾青", "柔光", "人像"],
+  "aliases": ["雾青胶片", "misty cyan film"],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以低饱和雾青为底、暖色局部光与胶片颗粒表现的代表图。"
+  },
+  "features": [
+    {"id": "F01", "axis": "medium", "tier": "core", "text": "摄影式胶片画面，真实材质与自然形体"},
+    {"id": "F02", "axis": "palette", "tier": "core", "text": "低饱和雾青底色与暖色局部对比"},
+    {"id": "F03", "axis": "lighting", "tier": "support", "text": "柔和侧逆光与克制的暗部层次"},
+    {"id": "F04", "axis": "texture", "tier": "support", "text": "细腻胶片颗粒与轻微光学柔化"},
+    {"id": "F05", "axis": "composition", "tier": "accent", "text": "大面积负空间与浅景深"}
+  ],
+  "avoid": [
+    {"id": "N01", "text": "过度荧光饱和与塑料磨皮质感"},
+    {"id": "N02", "text": "硬边数字描边与高对比色块"}
+  ],
+  "suitable_for": ["人物", "静物", "城市街景"],
+  "weak_for": ["严格单色线稿"],
+  "known_failures": ["强青色可能改变用户明确指定的服装颜色，需排除色偏组件。"],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0001.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-19",
+    "evidence_ref": "results/0.2.0/Aix0001.json"
+  },
+  "replacement_id": null
+}

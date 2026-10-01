@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0032",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "蓝白巨物透视",
+  "description": "双色极限的巨物感：米白背景上深蓝剪影，对角线与夸张比例制造压迫感，纯平光无渐变的矢量海报语言。",
+  "category": "illustration",
+  "tags": [
+    "双色",
+    "巨物",
+    "透视",
+    "矢量",
+    "极简"
+  ],
+  "aliases": [
+    "蓝白巨物",
+    "two-tone giant",
+    "双色海报"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以米白背景与深蓝剪影的夸张大比例表现双色极简海报感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "palette",
+      "tier": "core",
+      "text": "米白背景与深蓝剪影的双色极简"
+    },
+    {
+      "id": "F02",
+      "axis": "composition",
+      "tier": "core",
+      "text": "对角线与夸张比例，营造巨物压迫感"
+    },
+    {
+      "id": "F03",
+      "axis": "medium",
+      "tier": "core",
+      "text": "矢量平涂，无轮廓硬边块面"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "纯平光，地面浅蓝投影暗示光源"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "干净数字，无纹理"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "多色渐变"
+    },
+    {
+      "id": "N02",
+      "text": "写实材质"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "海报",
+    "品牌视觉",
+    "封面"
+  ],
+  "weak_for": [
+    "柔和题材"
+  ],
+  "known_failures": [
+    "双色限制下复杂主体易糊成块，需简化形体。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0032.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0032.json"
+  },
+  "replacement_id": null
+}

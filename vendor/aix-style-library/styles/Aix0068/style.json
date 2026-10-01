@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0068",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "黑红核心崩裂",
+  "description": "黑洞与心脏的崩裂时刻：墨黑人形被猩红的光环穿过，胸口的红光与翻涌的白色烟雾宣告毁灭般的炽烈。",
+  "category": "illustration",
+  "tags": [
+    "崩裂",
+    "心脏",
+    "黑红",
+    "喷溅",
+    "炽烈"
+  ],
+  "aliases": [
+    "核心崩裂",
+    "core rupture",
+    "黑红爆发"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以墨黑、猩红与乳白喷溅表现核心崩裂感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "水墨与喷溅质感结合，边缘破碎"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "墨黑、猩红与乳白三色高对比"
+    },
+    {
+      "id": "F03",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "胸口与光环自发光"
+    },
+    {
+      "id": "F04",
+      "axis": "composition",
+      "tier": "core",
+      "text": "中心垂直爆发的动势"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "液体流动与破碎颗粒"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "柔和粉彩"
+    },
+    {
+      "id": "N02",
+      "text": "写实细节"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念插画",
+    "封面",
+    "音像视觉"
+  ],
+  "weak_for": [
+    "温馨题材"
+  ],
+  "known_failures": [
+    "喷溅细节过密时主体轮廓需保留。",
+    "含损伤性表述的画面描述（如“胸口裂开”）可能触发上游内容防护而无法生成；改用等效非损伤表述即可通过（本批实测 1 例，见批次记录 moderation-adjustments.json）。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0068.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0068.json"
+  },
+  "replacement_id": null
+}

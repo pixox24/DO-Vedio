@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0110",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "灰烟失面",
+  "description": "低饱和灰蓝厚涂人物的头部化成蓬松黑烟，手部停在颈侧，明显笔触与柔和戏剧光把忧郁和自我消散凝成肖像。",
+  "category": "painting",
+  "tags": [
+    "灰烟",
+    "失面",
+    "厚涂",
+    "灰蓝",
+    "暗黑浪漫"
+  ],
+  "aliases": [
+    "灰烟失面",
+    "smoke without face",
+    "暗黑厚涂肖像"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以低饱和灰蓝、蓬松黑烟头部和明显厚涂笔触表现忧郁异化肖像的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "暗调数字厚涂，笔触明显且保留手绘方向"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "灰蓝黑白低饱和体系，局部肤色极克制"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "居中半身肖像，手势与烟雾构成上下联系"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "柔和但有戏剧性的侧上方光线"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "蓬松烟雾、衣物褶皱和厚涂刷痕"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "光滑商业3D"
+    },
+    {
+      "id": "N02",
+      "text": "鲜艳明亮背景"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "暗黑肖像",
+    "概念封面",
+    "情绪插画"
+  ],
+  "weak_for": [
+    "轻快广告",
+    "极简图标"
+  ],
+  "known_failures": [
+    "烟雾如果完全遮住肩颈关系会像随机黑团，需保持头部到身体的连续姿态。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0110.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0110.json"
+  },
+  "replacement_id": null
+}

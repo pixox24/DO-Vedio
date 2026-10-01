@@ -1,0 +1,106 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0013",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "扁平都市街景",
+  "description": "现代都市扁平插画：冷蓝建筑群与暖橙红点缀形成互补撞色，硬边方向光影与几何切面，仰视透视拉开城市的高耸层次。",
+  "category": "illustration",
+  "tags": [
+    "都市",
+    "扁平",
+    "矢量",
+    "冷暖对比",
+    "街景",
+    "现代"
+  ],
+  "aliases": [
+    "城市扁平插画",
+    "urban flat cityscape",
+    "vector city illustration"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以冷蓝建筑群、暖橙红点缀与仰视透视表现现代都市扁平插画气质的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "数字扁平矢量风格，物体被概括为几何切面，边缘利落"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "冷蓝主调（天蓝／宝蓝／深靛）配暖橙红强调色，冷暖互补"
+    },
+    {
+      "id": "F03",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "硬边方向性光影，阴影无渐变、边缘锐利"
+    },
+    {
+      "id": "F04",
+      "axis": "composition",
+      "tier": "support",
+      "text": "低角度仰视透视，街道线条向上汇聚，建筑高耸"
+    },
+    {
+      "id": "F05",
+      "axis": "line",
+      "tier": "support",
+      "text": "细节以几何符号概括：窗格、招牌、路牌均简化为色块"
+    },
+    {
+      "id": "F06",
+      "axis": "texture",
+      "tier": "accent",
+      "text": "干净哑光的数字质感，无颗粒肌理"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "柔和渐变与写实渲染"
+    },
+    {
+      "id": "N02",
+      "text": "复杂脏乱纹理与笔触堆叠"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字招牌"
+    }
+  ],
+  "suitable_for": [
+    "城市主题海报",
+    "编辑插画",
+    "界面插图",
+    "导视插画"
+  ],
+  "weak_for": [
+    "古典题材",
+    "柔和梦幻场景"
+  ],
+  "known_failures": [
+    "夜景光效与空气感不适合（无渐变语言）；繁密细节会被色块概括。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0013.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.3.0/Aix0013.json"
+  },
+  "replacement_id": null
+}

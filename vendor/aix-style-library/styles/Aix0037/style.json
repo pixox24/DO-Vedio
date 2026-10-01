@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0037",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "星空门户仰望",
+  "description": "仰望星空门户：美漫式清晰线稿与渐变天空结合，土黄大地之上，深蓝的三角门户敞开一道星际裂隙。",
+  "category": "illustration",
+  "tags": [
+    "星空",
+    "门户",
+    "美漫线稿",
+    "仰视",
+    "科幻"
+  ],
+  "aliases": [
+    "星际门户",
+    "stargate",
+    "星空裂缝"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以美漫线稿与深蓝三角门户表现仰望星际裂隙感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "美漫式清晰线稿，局部排线阴影"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "天蓝与深邃星空蓝为主，大地土黄作底"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "仰视透视，巨大的几何门户悬于上空"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "自然日光与门户的微光对比"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "干净数字与排线肌理交织"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "写实照片"
+    },
+    {
+      "id": "N02",
+      "text": "暗黑压抑"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "科幻插画",
+    "封面",
+    "海报"
+  ],
+  "weak_for": [
+    "日常题材"
+  ],
+  "known_failures": [
+    "门户几何结构复杂时易失真，保持简洁。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0037.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0037.json"
+  },
+  "replacement_id": null
+}

@@ -219,6 +219,7 @@ function WorkbenchInner({ id, store }: { id: string; store: Loaded }) {
       message: "当前文案会被新的生成结果覆盖，现有手动修改也会丢失。",
       confirmLabel: "重新生成",
       tone: "danger",
+      bullets: ["预计费用：会调用文本模型，费用以服务商账单为准。", "影响范围：当前全文和手动修改会被新结果覆盖。", "可恢复：生成前已有版本会保留在版本记录中。"],
     });
   }
 
@@ -229,6 +230,7 @@ function WorkbenchInner({ id, store }: { id: string; store: Loaded }) {
       message: "当前文案会被清空，只保留新的大纲。",
       confirmLabel: "重新生成大纲",
       tone: "danger",
+      bullets: ["预计费用：会调用文本模型，费用以服务商账单为准。", "影响范围：当前文案会清空，只保留新的大纲。", "可恢复：生成前已有版本会保留在版本记录中。"],
     });
   }
 

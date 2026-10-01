@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0126",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "赤室孤灯",
+  "description": "深红房间里的人伏在桌前创作，暖黄台灯切开压抑暗部，粗犷手绘笔触把专注变成一场深夜自救。",
+  "category": "painting",
+  "tags": [
+    "深红房间",
+    "孤灯",
+    "创作",
+    "暖黄",
+    "表现主义"
+  ],
+  "aliases": [
+    "赤室孤灯",
+    "red room lamp",
+    "late night maker"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以深红室内、单盏暖黄台灯和桌前创作姿态表现深夜专注与压抑。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "粗犷手绘数字厚涂，人物和家具用概括笔触，不追求摄影写实。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "深红背景、黑褐暗部和暖黄色光源形成强烈局部对比。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "台灯光圈集中在桌面，四周暗部包围单一动作中心。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "单一暖光源切出手和纸面，避免多色光污染。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "粗刷痕、厚薄交错和轻微颗粒保留手工感。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "洁白商业室内"
+    },
+    {
+      "id": "N02",
+      "text": "多光源炫技"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "创作者主题",
+    "编辑封面",
+    "夜间叙事"
+  ],
+  "weak_for": [
+    "户外全景",
+    "纯产品白底图"
+  ],
+  "known_failures": [
+    "红色过强会淹没创作动作，应保留桌面、手势和台灯三者关系。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0126.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0126.json"
+  },
+  "replacement_id": null
+}

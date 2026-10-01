@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0055",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "荧光绿夏夜",
+  "description": "夏夜的室内一角：深蓝夜景里荧光绿的侧光扫过发呆的人，乱房间里风扇还在转，赛璐璐平涂把闷热与颓感一起定格。",
+  "category": "illustration",
+  "tags": [
+    "夏夜",
+    "荧光绿",
+    "赛璐璐",
+    "室内",
+    "氛围"
+  ],
+  "aliases": [
+    "绿光夏夜",
+    "green summer night",
+    "闷热夏夜"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以深蓝夜景与荧光绿侧光表现夏夜室内氛围的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "赛璐璐平涂结合清晰线稿"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "深蓝夜景配荧光绿侧光与紫色点缀"
+    },
+    {
+      "id": "F03",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "强侧光营造压抑而迷离的室内氛围"
+    },
+    {
+      "id": "F04",
+      "axis": "composition",
+      "tier": "support",
+      "text": "全景视角，杂乱房间细节环绕"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "平滑色块，干净数字质感"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "暖色日光"
+    },
+    {
+      "id": "N02",
+      "text": "整洁极简"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "氛围插画",
+    "社媒配图",
+    "音乐视觉"
+  ],
+  "weak_for": [
+    "明亮整洁场景"
+  ],
+  "known_failures": [
+    "杂乱细节过多时主体易失焦。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0055.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0055.json"
+  },
+  "replacement_id": null
+}

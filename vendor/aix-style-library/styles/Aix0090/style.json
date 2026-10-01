@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0090",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "黑场冷几何",
+  "description": "纯黑空间里，冷蓝灰几何体被一束精准聚光切出轮廓，像高科技博物馆的静物研究，克制而神秘。",
+  "category": "3d",
+  "tags": [
+    "黑场",
+    "冷几何",
+    "聚光",
+    "博物馆",
+    "极简3D"
+  ],
+  "aliases": [
+    "黑场几何",
+    "cold geometry spotlight",
+    "黑色展陈"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以纯黑背景、冷蓝灰几何体和单一精准聚光表现极简展陈感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "极简三维渲染或数字造型，几何边缘精准"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "纯黑背景与冷蓝灰主体，饱和色被严格压低"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "小型几何体置于大面积黑场，留白成为结构"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "单一上方或侧方聚光，阴影轮廓清晰"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "光滑陶瓷、金属或石材般的冷质感"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "暖色复杂场景"
+    },
+    {
+      "id": "N02",
+      "text": "粗糙手绘笔触"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "品牌概念",
+    "科技封面",
+    "展览视觉"
+  ],
+  "weak_for": [
+    "自然风景",
+    "热闹群像"
+  ],
+  "known_failures": [
+    "几何体太小或聚光过散时，黑场会变成空白，应保留明确主体轮廓。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0090.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0090.json"
+  },
+  "replacement_id": null
+}

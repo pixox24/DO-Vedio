@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0138",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "绿线窥窗",
+  "description": "窗边人物被一道亮绿色对角线切开，漫画硬边与黑色空间将窥视和孤独压缩成一格安静分镜。",
+  "category": "graphic",
+  "tags": [
+    "绿色斜光",
+    "窗边",
+    "漫画分镜",
+    "黑色空间",
+    "窥视"
+  ],
+  "aliases": [
+    "绿线窥窗",
+    "green diagonal light",
+    "window watcher"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以亮绿色对角光束、窗边孤独人物和黑色空间表现窥视感。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "漫画式硬边线条与平涂色块，构图像一格被截取的电影分镜。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "黑色背景、亮绿光线和少量红褐服色形成三点配色。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "对角光束切开矩形窗景，人物被放在光与暗的边界。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "单一斜向光源，亮部锐利，不加入复杂摄影光晕。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "细线稿、轻颗粒和局部纸张纹理。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "大量对白文字"
+    },
+    {
+      "id": "N02",
+      "text": "柔焦浪漫摄影"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "漫画封面",
+    "都市叙事",
+    "悬疑海报"
+  ],
+  "weak_for": [
+    "自然全景",
+    "多主体群像"
+  ],
+  "known_failures": [
+    "对角线不够强会失去分镜张力，应让绿色光带成为唯一明确方向。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0138.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0138.json"
+  },
+  "replacement_id": null
+}

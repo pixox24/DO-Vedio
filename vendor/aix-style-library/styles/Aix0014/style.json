@@ -1,0 +1,105 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0014",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "黑白超现实几何",
+  "description": "黑白灰超现实概念插画：手绘排线笔触与冷硬几何块面两种语言并置，硬朗光线切分形体，秩序与失重的张力在构图中对峙。",
+  "category": "illustration",
+  "tags": [
+    "黑白",
+    "超现实",
+    "几何",
+    "概念",
+    "排线",
+    "失重"
+  ],
+  "aliases": [
+    "灰阶超现实几何",
+    "grayscale surreal",
+    "conceptual geometry"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以黑白灰排线形象与几何块面并置、硬朗光影切分表现超现实概念氛围的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "混合媒介：手绘排线与速写笔触塑造的形象，与扁平几何块面并置"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "纯粹黑白灰，无彩色，高对比明度分层"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "垂直分层构图，混沌块体与规整网格形成秩序与失序对比"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "硬朗块面光影，以明暗两面色块切分体积，投影清晰"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "笔触粗粝与表面平滑形成质感反差"
+    },
+    {
+      "id": "F06",
+      "axis": "line",
+      "tier": "accent",
+      "text": "速写式动态线贯穿画面，增加未完成的草图感"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "彩色与柔和渐变"
+    },
+    {
+      "id": "N02",
+      "text": "写实照片质感与细腻刻画"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字印章"
+    }
+  ],
+  "suitable_for": [
+    "概念海报",
+    "编辑插画",
+    "书籍封面"
+  ],
+  "weak_for": [
+    "温馨日常",
+    "彩色品牌视觉"
+  ],
+  "known_failures": [
+    "精细人像需求不适合（人物呈速写概括）；彩色诉求无法满足。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0014.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.3.0/Aix0014.json"
+  },
+  "replacement_id": null
+}

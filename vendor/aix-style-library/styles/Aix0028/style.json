@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0028",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "荧光绿霓虹夜行",
+  "description": "霓虹夜色里的独行：黑色夜景中荧光绿与紫罗兰的光带铺向远方，雾气与地面反光拉出强纵深。",
+  "category": "illustration",
+  "tags": [
+    "霓虹",
+    "夜行",
+    "荧光绿",
+    "纵深",
+    "雾光"
+  ],
+  "aliases": [
+    "荧光绿夜街",
+    "neon night walk",
+    "霓虹雾光"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以黑底荧光绿与紫色光带铺陈纵深夜景的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "palette",
+      "tier": "core",
+      "text": "黑底配荧光绿与紫罗兰霓虹光"
+    },
+    {
+      "id": "F02",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "路灯投射的长光束与雾气晕染"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "一点透视的纵深街道，视线被引向远方"
+    },
+    {
+      "id": "F04",
+      "axis": "medium",
+      "tier": "support",
+      "text": "数字绘画，光效柔化与硬边剪影结合"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "地面湿滑反光与雾气质感"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "日光暖调"
+    },
+    {
+      "id": "N02",
+      "text": "写实街拍"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "夜景海报",
+    "音乐视觉",
+    "科幻题材"
+  ],
+  "weak_for": [
+    "明亮白天场景"
+  ],
+  "known_failures": [
+    "光带过多时画面易糊，需控制光源数量。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0028.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0028.json"
+  },
+  "replacement_id": null
+}

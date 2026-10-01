@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0092",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "深蓝巨手",
+  "description": "深蓝单色空间中，流畅的巨大半透明手与小型人物和白色工具互动，圆润曲线和高光材质带来寓言式科技感。",
+  "category": "3d",
+  "tags": [
+    "深蓝",
+    "巨手",
+    "半透明",
+    "流畅曲线",
+    "互动"
+  ],
+  "aliases": [
+    "深蓝巨手",
+    "blue giant hand",
+    "蓝调尺度寓言"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以深蓝单色环境、半透明巨手、白色工具和小人尺度反差表现科技寓言感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "平滑数字渲染，圆润曲线和半透明材质"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "深蓝单色体系配纯白工具或高光"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "巨大曲线形体与小型实体形成对角互动"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "柔和渐层高光，透明边缘与实体轮廓清楚"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "塑料或陶瓷般平滑表面，少量光泽"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "粗糙版画和强颗粒"
+    },
+    {
+      "id": "N02",
+      "text": "多色复杂霓虹"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "科技概念",
+    "品牌视觉",
+    "游戏封面"
+  ],
+  "weak_for": [
+    "复古生活场景",
+    "自然纪实"
+  ],
+  "known_failures": [
+    "半透明手部结构易变形，需限制姿态为清楚的托举、指向或握持。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0092.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0092.json"
+  },
+  "replacement_id": null
+}

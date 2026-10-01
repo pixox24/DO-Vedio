@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0083",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "红蓝全息巨像",
+  "description": "红蓝交错的废墟场景中，半透明全息巨像高耸于低矮残骸之上，精细环境与自发光数字材质形成反乌托邦奇观。",
+  "category": "3d",
+  "tags": [
+    "全息巨像",
+    "红蓝撞色",
+    "废墟",
+    "科幻",
+    "自发光"
+  ],
+  "aliases": [
+    "红蓝全息",
+    "holographic colossus",
+    "废墟巨像"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以红蓝高饱和光源、半透明巨大投影与粗粝废墟环境表现反乌托邦科幻感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "科幻概念渲染，半透明材质与环境细节并置"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "冷蓝投影光与红色环境光的强烈互补对撞"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "低角度仰视，巨像压过前景碎片"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "全息主体自发光并染亮周围空气"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "金属、混凝土和数字扫描质感并存"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "田园柔光与复古手绘"
+    },
+    {
+      "id": "N02",
+      "text": "平面无层次色块"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "科幻概念",
+    "游戏场景",
+    "电影海报"
+  ],
+  "weak_for": [
+    "极简生活插画",
+    "儿童绘本"
+  ],
+  "known_failures": [
+    "全息主体细节过碎时会像噪点，应保证轮廓和投影层级清晰。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0083.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0083.json"
+  },
+  "replacement_id": null
+}

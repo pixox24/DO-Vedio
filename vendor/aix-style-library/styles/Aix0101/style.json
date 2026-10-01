@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0101",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "电蓝双影门",
+  "description": "电光蓝背景中，一白一深蓝的两个身影背对背站在发光门框前，平滑几何与长投影把二元关系做得极简而庄严。",
+  "category": "graphic",
+  "tags": [
+    "电光蓝",
+    "双影",
+    "发光门框",
+    "二元",
+    "极简几何"
+  ],
+  "aliases": [
+    "电蓝双影",
+    "electric blue doorway",
+    "二元门框"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以电光蓝单色背景、黑白双人物和发光矩形门框表现二元对立感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "平滑矢量或极简三维造型，人物概括为几何体"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "高饱和电蓝背景对比白色与深蓝主体"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "对称门框、背对背双主体和长投影构成稳定结构"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "门框柔光与脚下长投影提供空间感"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "光滑塑料或石膏般的干净表面"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "复杂纹理和写实环境"
+    },
+    {
+      "id": "N02",
+      "text": "多色霓虹装饰"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念海报",
+    "品牌视觉",
+    "封面"
+  ],
+  "weak_for": [
+    "复杂群像",
+    "自然写实"
+  ],
+  "known_failures": [
+    "对称关系稍有失控就会削弱双影主题，需保持门框和人物的几何平衡。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0101.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0101.json"
+  },
+  "replacement_id": null
+}

@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0145",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "霓虹雨候",
+  "description": "青蓝雨夜街道被一块红色霓虹切亮，吧台人物和湿地反射构成现代都市等待的冷暖电影画面。",
+  "category": "painting",
+  "tags": [
+    "青蓝雨夜",
+    "红霓虹",
+    "湿地反射",
+    "吧台",
+    "都市孤独"
+  ],
+  "aliases": [
+    "霓虹雨候",
+    "neon rain noir",
+    "bar wait"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以青蓝雨夜、红色霓虹和湿地反射表现都市孤独与深夜等待。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "数字绘画结合简化硬边，保留湿地反光但不走摄影写实。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "冷青蓝环境与单一暖红霓虹形成互补焦点。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "街道透视把视线引向红色吧台或窗口，人物置于等待位置。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "红色招牌提供唯一暖光，冷色雨幕包围主体。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "湿润反射、细雨颗粒和柔和刷痕。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "过多招牌文字"
+    },
+    {
+      "id": "N02",
+      "text": "均匀彩色霓虹"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "都市封面",
+    "音乐视觉",
+    "电影叙事"
+  ],
+  "weak_for": [
+    "田园风景",
+    "白底产品图"
+  ],
+  "known_failures": [
+    "霓虹若出现清晰伪文字会破坏证据，应使用抽象色块或不可读符号。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0145.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0145.json"
+  },
+  "replacement_id": null
+}

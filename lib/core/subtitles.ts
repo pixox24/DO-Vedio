@@ -86,14 +86,51 @@ export function cuesForLine(
     return { startMs: s, endMs: e, text: t, lineId, highlights: highlightsIn(t, keywords) };
   });
   for (let k = 0; k < cues.length; k++) {
-    if (k + 1 < cues.length) cues[k].endMs = cues[k + 1].startMs;
-    if (cues[k].endMs - cues[k].startMs < minMs) cues[k].endMs = cues[k].startMs + minMs;
-    if (k + 1 < cues.length && cues[k].endMs > cues[k + 1].startMs) cues[k + 1].startMs = cues[k].endMs;
+    const start = Number.isFinite(cues[k].startMs) ? Math.max(0, cues[k].startMs) : 0;
+    const rawEnd = Number.isFinite(cues[k].endMs) ? cues[k].endMs : start;
+    const nextStart = k + 1 < cues.length && Number.isFinite(cues[k + 1].startMs) ? cues[k + 1].startMs : undefined;
+    // 同句内首尾相接；不推迟后一条 cue 的原始开始时间
+    let end = nextStart !== undefined ? nextStart : rawEnd;
+    // 最短时长只作为建议：撑时长也不越过同句下一条的真实开始
+    if (end - start < minMs) end = nextStart !== undefined ? Math.min(start + minMs, nextStart) : start + minMs;
+    if (!(end > start)) end = start + 1;
+    cues[k].startMs = start;
+    cues[k].endMs = end;
   }
   return cues;
 }
 
-function highlightsIn(t: string, keywords: string[]): [number, number][] {
+const finite = (value: number) => (Number.isFinite(value) ? value : 0);
+
+/**
+ * 归一化 cue 时间：稳定排序、修正非法值，并按全局时间轴收口。
+ * endLimitMs 是媒体总时长等全局上限；最短时长只是建议，跨句时允许缩短 cue。
+ * 不推迟后句开始；极端同刻 cue 只把后一条顺延 1ms，保证相邻 cue 不重叠。
+ */
+export function normalizeCues(cues: Cue[], endLimitMs: number): Cue[] {
+  const limit = Number.isFinite(endLimitMs) ? Math.max(0, endLimitMs) : 0;
+  const sorted = cues
+    .map((cue, index) => ({ cue, index }))
+    .sort((a, b) => finite(a.cue.startMs) - finite(b.cue.startMs) || a.index - b.index)
+    .map(({ cue }) => ({ ...cue, startMs: Math.max(0, finite(cue.startMs)), endMs: finite(cue.endMs) }));
+  const out: Cue[] = [];
+  let prevEnd = -1;
+  for (let k = 0; k < sorted.length; k++) {
+    const startMs = Math.max(sorted[k].startMs, prevEnd);
+    const nextStart = k + 1 < sorted.length ? Math.max(sorted[k + 1].startMs, startMs) : limit;
+    const ceil = Math.min(nextStart, limit);
+    let endMs = Math.min(sorted[k].endMs, ceil);
+    if (endMs <= startMs) {
+      endMs = ceil;
+      if (endMs <= startMs) endMs = startMs + 1; // 合法最小值：允许 1ms cue
+    }
+    out.push({ ...sorted[k], startMs, endMs });
+    prevEnd = endMs;
+  }
+  return out;
+}
+
+export function highlightsIn(t: string, keywords: string[]): [number, number][] {
   const out: [number, number][] = [];
   for (const k of keywords) {
     const i = t.indexOf(k);
@@ -109,5 +146,9 @@ export function srtTime(ms: number) {
 }
 
 export function toSrt(cues: Cue[]) {
-  return cues.map((c, k) => `${k + 1}\n${srtTime(c.startMs)} --> ${srtTime(c.endMs)}\n${c.text}\n`).join("\n");
+  // 以最后一条 cue 的结束时间为上限，稳定排序并消除重叠，序号始终 1..n
+  const limit = cues.reduce((max, cue) => (Number.isFinite(cue.endMs) ? Math.max(max, cue.endMs) : max), 0);
+  return normalizeCues(cues, limit)
+    .map((c, k) => `${k + 1}\n${srtTime(c.startMs)} --> ${srtTime(c.endMs)}\n${c.text}\n`)
+    .join("\n");
 }

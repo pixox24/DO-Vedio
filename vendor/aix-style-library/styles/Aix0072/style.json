@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0072",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "紫涡藏面",
+  "description": "黑白极简人物被垂直切开，面部藏进紫色漩涡与星点，锐利色块把身份隐匿做成一张冷峻海报。",
+  "category": "graphic",
+  "tags": [
+    "黑白分割",
+    "紫色漩涡",
+    "身份隐匿",
+    "极简海报",
+    "星点"
+  ],
+  "aliases": [
+    "紫涡藏面",
+    "violet hidden face",
+    "黑白紫海报"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以黑白垂直分割、局部紫色漩涡和锐利平面色块表现身份隐匿感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "锐利数字矢量平涂，几何边缘干净"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "黑白二色为骨架，单一紫色作为高饱和锚点"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "垂直分割与局部圆形漩涡形成正负形对照"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "无复杂光影，以黑白明度和紫色块面分层"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "黑色区域带细密星尘颗粒，其他区域保持平整"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "丰富渐变与写实皮肤"
+    },
+    {
+      "id": "N02",
+      "text": "多色装饰与拥挤背景"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念海报",
+    "封面",
+    "品牌视觉"
+  ],
+  "weak_for": [
+    "写实风景",
+    "温馨生活照"
+  ],
+  "known_failures": [
+    "极简构图中若加入过多物件，垂直分割的识别度会迅速下降。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0072.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0072.json"
+  },
+  "replacement_id": null
+}

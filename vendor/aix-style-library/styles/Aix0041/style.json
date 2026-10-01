@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0041",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "粉紫剪影海报",
+  "description": "鲑鱼粉渐变到深紫的海报式黄昏：人物与城市设施化作深色剪影，大面积留白给渐变做主，安静而有电影感。",
+  "category": "graphic",
+  "tags": [
+    "渐变",
+    "剪影",
+    "海报",
+    "粉紫",
+    "电影感"
+  ],
+  "aliases": [
+    "粉紫黄昏",
+    "dusk gradient",
+    "剪影海报"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以鲑鱼粉至深紫渐变天色与暗色剪影表现电影感海报的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "palette",
+      "tier": "core",
+      "text": "鲑鱼粉至深紫的垂直渐变天色"
+    },
+    {
+      "id": "F02",
+      "axis": "composition",
+      "tier": "core",
+      "text": "剪影人物与城市设施，留白与渐变的电影感版式"
+    },
+    {
+      "id": "F03",
+      "axis": "medium",
+      "tier": "core",
+      "text": "矢量平涂剪影，几何概括"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "逆光剪影，轮廓清晰"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "干净无纹理"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "写实细节"
+    },
+    {
+      "id": "N02",
+      "text": "粗糙噪点"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "海报",
+    "封面",
+    "氛围视觉"
+  ],
+  "weak_for": [
+    "热闹群像"
+  ],
+  "known_failures": [
+    "渐变方向与剪影需统一光源朝向，否则失真。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0041.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0041.json"
+  },
+  "replacement_id": null
+}

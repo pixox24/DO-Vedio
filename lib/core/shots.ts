@@ -103,7 +103,7 @@ export function normalizeShots(shots: Shot[], lines: Line[], times: Map<string, 
   const list = sortShots(shots, lines);
   if (list.length === 0 || list[0].at.lineId !== lines[0].id || list[0].at.char !== 0) {
     if (list.length && !list[0].locked && anchorMs(list[0].at, times)! < SHOT_RULES.minMs) list[0] = { ...list[0], at: { lineId: lines[0].id, char: 0 } };
-    else list.unshift(blankShot(newId(), lines[0].id));
+      else list.unshift(blankShot(newId(), lines[0].id));
   }
 
   const startOf = (s: Shot) => anchorMs(s.at, times) ?? 0;
@@ -191,7 +191,7 @@ export function normalizeShots(shots: Shot[], lines: Line[], times: Map<string, 
 }
 
 export function blankShot(id: string, lineId: string, char = 0): Shot {
-  return { id, at: { lineId, char }, kind: "placeholder", description: "", motion: "zoom-in", importance: 1, referenceAssetIds: [], characterIds: [], candidates: [], sourceHash: "", locked: false };
+  return { id, at: { lineId, char }, kind: "placeholder", description: "", motion: "zoom-in", importance: 1, referenceAssetIds: [], characterIds: [], candidates: [], assetVariants: {}, sourceHash: "", locked: false };
 }
 
 /** 刷新每个镜头的 sourceHash（生成或确认后调用） */

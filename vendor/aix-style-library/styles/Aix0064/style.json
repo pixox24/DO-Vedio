@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0064",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "紫蓝阶梯巨眼",
+  "description": "无限阶梯上的巨眼：淡黄天光下，蓝紫色的楼梯结构层层上升，侧壁睁开亮蓝色的眼睛，眩晕感如迷宫梦境。",
+  "category": "illustration",
+  "tags": [
+    "阶梯",
+    "巨眼",
+    "紫蓝",
+    "几何",
+    "梦境"
+  ],
+  "aliases": [
+    "阶梯巨眼",
+    "endless stairs",
+    "几何梦境"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以蓝紫几何阶梯与亮蓝眼睛表现迷宫梦境感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "数字绘画结合严谨几何线条"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "蓝紫阶梯配淡黄天空与亮蓝眼睛"
+    },
+    {
+      "id": "F03",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "强几何投影，模拟日光"
+    },
+    {
+      "id": "F04",
+      "axis": "composition",
+      "tier": "core",
+      "text": "重复几何结构制造纵深与眩晕"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "干净利落，干净渐层"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "有机曲线"
+    },
+    {
+      "id": "N02",
+      "text": "暗黑压抑"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念插画",
+    "封面",
+    "品牌视觉"
+  ],
+  "weak_for": [
+    "写实题材"
+  ],
+  "known_failures": [
+    "几何结构复杂时透视易崩，需单一视点。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0064.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0064.json"
+  },
+  "replacement_id": null
+}

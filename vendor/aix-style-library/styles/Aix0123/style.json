@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0123",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "黑洞捧持",
+  "description": "人物双手捧住黑色圆洞，头部被黑矩形遮挡，同心圆把拥抱虚无和隐藏身份变成克制的单色海报。",
+  "category": "graphic",
+  "tags": [
+    "黑洞",
+    "同心圆",
+    "隐藏身份",
+    "灰黑白",
+    "极简海报"
+  ],
+  "aliases": [
+    "黑洞捧持",
+    "held void",
+    "monochrome portal"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以捧持动作、黑色圆洞和同心圆构图表现拥抱虚无的极简概念海报。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "极简平涂与轻颗粒结合，几何边缘必须干净。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "灰、黑、白三色分层，中心黑洞拥有最高对比。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "双手围绕圆形核心，头部遮挡形成第二个矩形负形。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "均匀平光，依靠圆形层级与黑白关系塑造空间。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "细微纸面颗粒和套印感，不加入写实材质。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "复杂多色背景"
+    },
+    {
+      "id": "N02",
+      "text": "写实人物表情"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "哲思海报",
+    "品牌概念",
+    "封面设计"
+  ],
+  "weak_for": [
+    "节庆插画",
+    "复杂自然景观"
+  ],
+  "known_failures": [
+    "同心圆过密会变成靶心，应让黑洞和手部关系保持清晰。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0123.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0123.json"
+  },
+  "replacement_id": null
+}

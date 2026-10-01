@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0059",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "黑白蝶化升腾",
+  "description": "黑白版画中的蝶化升腾：锁链束缚的坐姿之上，头部化为一群飞散的蝴蝶，繁复排线带着哥特式的静穆。",
+  "category": "illustration",
+  "tags": [
+    "蝶化",
+    "升腾",
+    "黑白",
+    "版画",
+    "排线"
+  ],
+  "aliases": [
+    "蝶化升腾",
+    "butterfly dissolve",
+    "黑白蝶群"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以黑白排线版画质感与飞散蝶群表现升腾意象的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "黑白墨水排线结合版画质感"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "全黑白灰高对比"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "垂直构图，主体上下升腾动势"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "高对比明暗，黑密白疏"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "繁复排线与颗粒"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "彩色元素"
+    },
+    {
+      "id": "N02",
+      "text": "光滑数字"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念插画",
+    "封面",
+    "文化主题"
+  ],
+  "weak_for": [
+    "轻快日常"
+  ],
+  "known_failures": [
+    "排线过密时蝴蝶群易糊成团。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0059.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0059.json"
+  },
+  "replacement_id": null
+}

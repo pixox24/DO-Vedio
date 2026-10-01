@@ -23,6 +23,8 @@ export type TtsBlockInput = {
   lines: BlockMember[];
   voice: VoiceSettings;
   force?: boolean;
+  /** 批次 id：只用于「停止本次提交」，不参与缓存键 */
+  batchId?: string;
 };
 
 /** 低于这个切分置信度就不采用（静音切分在探针里多为 0.64–0.95，时间戳切分为 0.6 或 1） */
@@ -52,7 +54,7 @@ export const ttsBlockStage = defineStage<TtsBlockInput, Output>({
     const state = { attempts: 0, done: 0, total: input.lines.length, reasons: [] as string[], refCps: measured ? measured / 60 : DEFAULT_CPS * (input.voice.provider === "dashscope" ? input.voice.rate : 1) };
     ctx.progress(0.05, "整段合成中");
     const entries = await synthGroup(ctx, input, input.lines.map((l, index) => ({ ...l, index })), 0, state);
-    commitCache(ctx, entries);
+    commitCache(ctx, entries, "revoice", input.force === true);
 
     const blocked = entries.filter(([, r]) => r.block);
     recordVoiceStats(input.voice, blocked.reduce((s, [, r]) => s + r.spokenChars, 0), blocked.reduce((s, [, r]) => s + r.speechEndMs - r.speechStartMs, 0));

@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0034",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "红蓝淹没时刻",
+  "description": "被工作淹没的红色时刻：大面积鲜红背景里的深蓝与米白主体，屏幕冷光照亮脸庞，压迫感直白而有力。",
+  "category": "illustration",
+  "tags": [
+    "红蓝",
+    "压迫",
+    "厚涂",
+    "情绪",
+    "屏幕光"
+  ],
+  "aliases": [
+    "淹没时刻",
+    "overwhelmed",
+    "红色压力"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以鲜红背景与深蓝主体的强对比表现被淹没感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "palette",
+      "tier": "core",
+      "text": "鲜红背景与深蓝主体的强对比，米白提亮"
+    },
+    {
+      "id": "F02",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "屏幕冷光自下而上照亮主体的局部光效"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "中心包围构图，杂物从四周压向中心"
+    },
+    {
+      "id": "F04",
+      "axis": "medium",
+      "tier": "support",
+      "text": "厚涂质感的数字绘画，笔触可见"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "略带粗糙的笔触肌理"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "柔光治愈"
+    },
+    {
+      "id": "N02",
+      "text": "干净矢量"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "情绪海报",
+    "社媒配图",
+    "编辑插画"
+  ],
+  "weak_for": [
+    "轻松题材"
+  ],
+  "known_failures": [
+    "文件堆细节过多时易崩，建议概括处理。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0034.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0034.json"
+  },
+  "replacement_id": null
+}

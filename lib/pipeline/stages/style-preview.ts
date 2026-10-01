@@ -3,7 +3,7 @@ import { compilePrompt } from "../../core/prompt-compiler";
 import type { ShotSize, VisualStyleInput } from "../../core/types";
 import { beginGenerationRun, failGenerationRun, finishGenerationRun } from "../../providers/runs";
 import { cacheGet, cachePut } from "../../server/cache";
-import { generateBatch, generateMediaAssets, mediaProviderId } from "../media-gen";
+import { defaultGenerationFrame, generateBatch, generateMediaAssets, mediaProviderId } from "../media-gen";
 import { defineStage } from "../stage";
 
 /**
@@ -45,9 +45,9 @@ export const stylePreviewStage = defineStage<StylePreviewInput, StylePreview>({
       current: ctx.current,
       onProgress: (done, total) => ctx.progress(done / total, `样张 ${done}/${total}`),
       run: async (prompt, k) => {
-        const run = beginGenerationRun({ jobId: ctx.job.id, providerId: mediaProviderId("image", input.modelId), modelId: input.modelId, kind: "image", inputHash: `${key}:${k}`, params: { stage: "style-preview", style: input.style.name, scene: PREVIEW_SCENES[k].name, prompt: prompt.full } });
+        const run = beginGenerationRun({ jobId: ctx.job.id, providerId: mediaProviderId("image", input.modelId), modelId: input.modelId, kind: "image", inputHash: `${key}:${k}`, params: { stage: "style-preview", style: input.style.name, scene: PREVIEW_SCENES[k].name, prompt: prompt.full, frame: defaultGenerationFrame } });
         try {
-          const { assets: [asset] } = await generateMediaAssets({ kind: "image", modelId: input.modelId, prompt: prompt.full, meta: { stylePreview: input.style.name, scene: PREVIEW_SCENES[k].name } }, ctx.signal);
+          const { assets: [asset] } = await generateMediaAssets({ kind: "image", modelId: input.modelId, prompt: prompt.full, frame: defaultGenerationFrame, meta: { stylePreview: input.style.name, scene: PREVIEW_SCENES[k].name } }, ctx.signal);
           finishGenerationRun(run.id, { status: "succeeded", latencyMs: Date.now() - run.startedAt, outputAssets: [asset] });
           return asset;
         } catch (e) {

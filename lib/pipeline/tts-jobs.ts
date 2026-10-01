@@ -20,6 +20,8 @@ export type TtsStepOptions = {
   force?: boolean;
   /** 任务键前缀：换音色的任务与自动编排的任务分开计数、分开取消 */
   keyPrefix?: string;
+  /** 批次 id：写进任务 input，用于只停止本次提交的任务 */
+  batchId?: string;
 };
 
 /** 这句的配音由哪个任务键负责（段落模式是块键） */
@@ -37,7 +39,7 @@ export function ttsSteps(doc: ProjectDoc, projectId: string, items: TtsKeyItem[]
     seen.add(key);
     if (item.block) {
       const { members, joiner } = item.block;
-      const input: TtsBlockInput = { projectId, blockKey: item.block.key, joiner, lines: members, voice, ...(opts.force ? { force: true } : {}) };
+      const input: TtsBlockInput = { projectId, blockKey: item.block.key, joiner, lines: members, voice, ...(opts.force ? { force: true } : {}), ...(opts.batchId ? { batchId: opts.batchId } : {}) };
       steps.push({ stage: "tts-block", key, target: `第 ${order.get(members[0].lineId) ?? "?"}–${order.get(members[members.length - 1].lineId) ?? "?"} 句`, input, cost: cost(members.map((m) => m.spoken).join(joiner)), priority: 4 });
       continue;
     }
@@ -45,7 +47,7 @@ export function ttsSteps(doc: ProjectDoc, projectId: string, items: TtsKeyItem[]
       stage: "tts",
       key,
       target: `第 ${order.get(item.line.id) ?? "?"} 句`,
-      input: { projectId, lineId: item.line.id, text: item.line.text, spoken: item.spoken, ttsText: item.ttsText, textType: item.textType, map: item.map, voice, ...(opts.force ? { force: true } : {}) },
+      input: { projectId, lineId: item.line.id, text: item.line.text, spoken: item.spoken, ttsText: item.ttsText, textType: item.textType, map: item.map, voice, ...(opts.force ? { force: true } : {}), ...(opts.batchId ? { batchId: opts.batchId } : {}) },
       cost: cost(item.spoken),
       priority: 4,
     });

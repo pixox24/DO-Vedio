@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0154",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "赤日分镜",
+  "description": "灰黑城市建筑被红色夕日切成漫画分镜，人物侧脸只露出一角，硬边块面把压抑城市变成末日般的叙事片段。",
+  "category": "graphic",
+  "tags": [
+    "漫画分镜",
+    "红日",
+    "灰黑城市",
+    "硬边",
+    "压抑"
+  ],
+  "aliases": [
+    "赤日分镜",
+    "red sun panels",
+    "urban dusk comic"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以灰黑建筑、红色夕日和漫画分镜式切割表现城市压抑与末日焦虑。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "硬边漫画色块，建筑和人物采用清晰剪影，不堆积写实细节。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "灰黑基底上只保留红色天空或太阳作为视觉主色。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "分镜框或建筑切面形成多段视线，侧脸作为局部叙事锚点。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "平面暮光，无复杂云层和摄影渐变。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "粗糙纸面、套印颗粒和少量墨线。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "完整对白气泡"
+    },
+    {
+      "id": "N02",
+      "text": "多彩卡通装饰"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "漫画封面",
+    "末日寓言",
+    "电影海报"
+  ],
+  "weak_for": [
+    "轻松生活插画",
+    "产品静物"
+  ],
+  "known_failures": [
+    "分镜切割过多会让故事不可读，应保留一个主红日和一个明确人物方向。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0154.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0154.json"
+  },
+  "replacement_id": null
+}

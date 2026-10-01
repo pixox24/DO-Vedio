@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0094",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "冷蓝剪影留白",
+  "description": "冷蓝渐变背景上，一个优雅的深色侧影被大量留白托住，边缘锐利、人物极简，像高端杂志的神秘封面。",
+  "category": "graphic",
+  "tags": [
+    "冷蓝渐变",
+    "侧影",
+    "留白",
+    "极简",
+    "高端"
+  ],
+  "aliases": [
+    "冷蓝剪影",
+    "minimal blue silhouette",
+    "留白侧影"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以冷蓝渐变、大面积留白和锐利深色侧影表现高端极简版式的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "极简矢量剪影，边缘锐利而无多余细节"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "极淡蓝紫背景与深黑主体形成低饱和对比"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "侧面全身置于一侧，大面积空白平衡轮廓"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "几乎无光影，依靠轮廓与背景明度"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "干净平滑的平面表面"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "复杂背景和装饰"
+    },
+    {
+      "id": "N02",
+      "text": "多人物拥挤构图"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "杂志封面",
+    "品牌视觉",
+    "极简海报"
+  ],
+  "weak_for": [
+    "宏大动作场景",
+    "写实风景"
+  ],
+  "known_failures": [
+    "人物轮廓过于普通时会显得空白，需加入一处明确姿态或服装剪影特征。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0094.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0094.json"
+  },
+  "replacement_id": null
+}

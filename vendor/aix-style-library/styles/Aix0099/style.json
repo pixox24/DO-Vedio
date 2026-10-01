@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0099",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "白立方匿名",
+  "description": "低饱和灰背景中，黑色高领人物的头部被纯白立方体替代，柔和冷光与精确几何阴影把匿名感做成冷峻雕塑。",
+  "category": "3d",
+  "tags": [
+    "白色立方体",
+    "匿名",
+    "低饱和",
+    "冷光",
+    "几何替换"
+  ],
+  "aliases": [
+    "白立方匿名",
+    "cube head",
+    "冷峻雕塑"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以低饱和灰背景、黑色衣物、白色立方体头部和柔和冷光表现匿名雕塑感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "极简三维或数字雕塑渲染，形体边界精确"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "灰白背景、黑色衣物与纯白几何体的低饱和对比"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "居中胸像，几何体替代头部成为唯一焦点"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "柔和侧光在立方体上形成明确几何阴影"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "光滑冰冷表面，背景轻微雾化"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "高饱和颜色和复杂装饰"
+    },
+    {
+      "id": "N02",
+      "text": "粗糙手绘纹理"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念肖像",
+    "品牌概念",
+    "封面"
+  ],
+  "weak_for": [
+    "热闹叙事场景",
+    "自然风景"
+  ],
+  "known_failures": [
+    "立方体角度和头颈连接若不清楚，会像漂浮道具，需保持雕塑整体性。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0099.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0099.json"
+  },
+  "replacement_id": null
+}

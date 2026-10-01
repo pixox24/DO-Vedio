@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0005",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "厚涂油画",
+  "description": "传统厚涂油画质感，堆叠可见的颜料笔触与亚麻画布纹理，色彩沉稳、光影由笔触塑造。",
+  "category": "painting",
+  "tags": ["油画", "厚涂", "笔触", "画布", "古典"],
+  "aliases": ["厚涂风", "impasto oil painting"],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以厚涂笔触、画布纹理与温暖室内光表现的代表图。"
+  },
+  "features": [
+    {"id": "F01", "axis": "medium", "tier": "core", "text": "油画厚涂，颜料堆叠形成可见的立体笔触"},
+    {"id": "F02", "axis": "palette", "tier": "core", "text": "沉稳低饱和配色，同一画面统一于一个主色调"},
+    {"id": "F03", "axis": "lighting", "tier": "support", "text": "明暗由笔触塑造，光源温暖柔和的室内光"},
+    {"id": "F04", "axis": "texture", "tier": "support", "text": "亚麻画布纹理与旧画罩染的时光感"},
+    {"id": "F05", "axis": "composition", "tier": "accent", "text": "经典油画构图，主体居中式或三分位，背景以笔触虚化"}
+  ],
+  "avoid": [
+    {"id": "N01", "text": "光滑数字质感与3D渲染反光"},
+    {"id": "N02", "text": "硬边矢量色块与均匀平涂"}
+  ],
+  "suitable_for": ["静物", "人物肖像", "风景"],
+  "weak_for": ["扁平图标", "精细文字排版"],
+  "known_failures": ["笔触在小尺寸下可能糊成噪点，需要求笔触方向可辨识。"],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0005.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-19",
+    "evidence_ref": "results/0.2.0/Aix0005.json"
+  },
+  "replacement_id": null
+}

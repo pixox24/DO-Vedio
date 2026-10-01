@@ -34,7 +34,8 @@ function migrate(db: Db) {
     const again = new Set((db.prepare("SELECT id FROM schema_migrations").all() as { id: number }[]).map((r) => r.id));
     for (const m of pending) {
       if (again.has(m.id)) continue;
-      db.exec(m.sql);
+      if (m.apply) m.apply(db);
+      else db.exec(m.sql);
       db.prepare("INSERT INTO schema_migrations (id, name, applied_at) VALUES (?, ?, ?)").run(m.id, m.name, Date.now());
     }
   });

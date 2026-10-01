@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0124",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "巨面切柱",
+  "description": "巨大蓝紫面孔被黑色建筑柱切成碎片，顶部微小人物站在其上，橙色天空与极端尺度制造被观察的压迫。",
+  "category": "graphic",
+  "tags": [
+    "巨型面孔",
+    "黑色切柱",
+    "蓝紫",
+    "橙光",
+    "尺度反差"
+  ],
+  "aliases": [
+    "巨面切柱",
+    "fragmented giant face",
+    "watching monolith"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以蓝紫巨面、黑色垂直切柱和橙色天空表现巨物观察者与微小个体。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "硬边矢量色块结合漫画式线条，建筑柱保持纯黑剪影。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "蓝紫冷色面孔对橙米暖天空，黑柱作为强骨架。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "垂直切割与顶部微小人物构成巨物/小人的极端尺度关系。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "平面光配局部柔和渐变，避免写实皮肤和建筑反光。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "低密度印刷噪点与干净色面并存。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "真实五官特写"
+    },
+    {
+      "id": "N02",
+      "text": "均匀小物件铺满画面"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念海报",
+    "奇幻封面",
+    "社会寓言"
+  ],
+  "weak_for": [
+    "温馨生活图",
+    "产品目录"
+  ],
+  "known_failures": [
+    "切柱太多会让巨面不可辨认，应保留一个主眼或主轮廓作为视觉锚点。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0124.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0124.json"
+  },
+  "replacement_id": null
+}

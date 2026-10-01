@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0029",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "紫蓝鱼眼透视",
+  "description": "3D 渲染式的鱼眼透视：紫蓝渐变里夸张的透视把前景推向极致，金属与路面质感写实又冷峻。",
+  "category": "3d",
+  "tags": [
+    "3D渲染",
+    "鱼眼",
+    "紫蓝",
+    "透视",
+    "运动"
+  ],
+  "aliases": [
+    "鱼眼渲染",
+    "fisheye 3d",
+    "夸张透视渲染"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以紫蓝渐变与鱼眼式夸张透视表现 3D 渲染质感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "3D 渲染质感，写实材质与景深"
+    },
+    {
+      "id": "F02",
+      "axis": "composition",
+      "tier": "core",
+      "text": "鱼眼式极端透视，前景物体夸张放大"
+    },
+    {
+      "id": "F03",
+      "axis": "palette",
+      "tier": "core",
+      "text": "紫蓝渐变色调，晨昏青色调"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "逆光半剪影，边缘光勾勒轮廓"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "金属与路面的写实细节"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "平涂卡通"
+    },
+    {
+      "id": "N02",
+      "text": "高饱和霓虹"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念视觉",
+    "运动海报",
+    "封面"
+  ],
+  "weak_for": [
+    "扁平图形设计"
+  ],
+  "known_failures": [
+    "鱼眼变形过度时主体易迷失。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0029.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0029.json"
+  },
+  "replacement_id": null
+}

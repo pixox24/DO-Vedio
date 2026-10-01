@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0151",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "水灯倒眠",
+  "description": "水边房屋和红灯笼在青绿色倒影中上下对称，孤独人物站在静水边，东方夜景以克制色点保留未说出口的等待。",
+  "category": "painting",
+  "tags": [
+    "水面倒影",
+    "红灯笼",
+    "青绿夜色",
+    "静谧",
+    "对称"
+  ],
+  "aliases": [
+    "水灯倒眠",
+    "lantern reflection",
+    "teal waterside"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以青绿水面、红灯笼、房屋倒影和孤独人物表现静谧夜行与等待。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "细腻数字绘画与概括建筑结合，水面反射柔和但不摄影化。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "青绿色环境配少量红色灯笼作为唯一暖色焦点。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "水平水线建立上下对称，人物位于岸边作为尺度锚点。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "低照度夜光与灯笼暖光并置，整体保持安静。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "水面细波、柔颗粒和轻微旧画布质感。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "可读招牌文字"
+    },
+    {
+      "id": "N02",
+      "text": "喧闹街景"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "东方夜景",
+    "诗意封面",
+    "孤独叙事"
+  ],
+  "weak_for": [
+    "动作运动",
+    "白底商品图"
+  ],
+  "known_failures": [
+    "倒影过度清晰会像照片，应保留轻微水波和上下色块呼应。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0151.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0151.json"
+  },
+  "replacement_id": null
+}

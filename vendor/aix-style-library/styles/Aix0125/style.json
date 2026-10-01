@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0125",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "水箱思域",
+  "description": "透明水箱取代人物头部，气泡在蓝色空间中缓慢上升，清新的平滑笔触把思想困在一座可见容器里。",
+  "category": "illustration",
+  "tags": [
+    "透明水箱",
+    "气泡",
+    "蓝色空间",
+    "清新超现实",
+    "容器头部"
+  ],
+  "aliases": [
+    "水箱思域",
+    "aquarium mind",
+    "glass head"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以透明水箱头部、气泡和清新蓝色空间表现被困思想的超现实插画。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "平滑数字绘画与简化人物结合，透明边缘清澈而不写实炫光。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "蓝色水体与白色衣物形成清冷低饱和关系。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "透明容器置于人物肩颈上方，内部气泡提供向上的节奏。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "均匀柔光，玻璃只用少量边缘高光说明透明关系。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "水面微波、气泡和干净渐变，避免复杂纹理。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "玻璃摄影级反射"
+    },
+    {
+      "id": "N02",
+      "text": "浑浊脏水"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "心理插画",
+    "环保概念",
+    "书封"
+  ],
+  "weak_for": [
+    "动作场面",
+    "密集城市全景"
+  ],
+  "known_failures": [
+    "透明容器若没有边界会像普通蓝色头发，应保留完整几何轮廓和水位线。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0125.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0125.json"
+  },
+  "replacement_id": null
+}

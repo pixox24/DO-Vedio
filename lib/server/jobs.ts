@@ -33,6 +33,7 @@ type Row = {
   result: string | null;
   created_at: number;
   updated_at: number;
+  started_at: number | null;
 };
 
 const toJob = (r: Row, includeLockToken = false): Job => ({
@@ -55,6 +56,8 @@ const toJob = (r: Row, includeLockToken = false): Job => ({
   result: parseJson(r.result, null),
   createdAt: r.created_at,
   updatedAt: r.updated_at,
+  // 真实开始时间：进度界面用它估算剩余时间（updated_at 会被心跳刷新，不能当基准）
+  startedAt: r.started_at ?? undefined,
   lockToken: includeLockToken ? (r.lock_token ?? undefined) : undefined,
 });
 
@@ -126,7 +129,7 @@ export function claim(workerId: string, stages: string[]): Job | undefined {
   const now = Date.now();
   const lockToken = randomUUID();
   const r = get<Row>(
-    `UPDATE jobs SET status = 'running', locked_by = ?, lock_token = ?, lease_until = ?, attempts = attempts + 1, error = NULL, updated_at = ?
+    `UPDATE jobs SET status = 'running', locked_by = ?, lock_token = ?, lease_until = ?, attempts = attempts + 1, error = NULL, started_at = ?, updated_at = ?
      WHERE id = (
        SELECT id FROM jobs WHERE status = 'queued' AND run_after <= ? AND stage IN (${stages.map(() => "?").join(",")})
        ORDER BY priority, created_at LIMIT 1
@@ -135,6 +138,7 @@ export function claim(workerId: string, stages: string[]): Job | undefined {
     workerId,
     lockToken,
     now + LEASE_MS,
+    now,
     now,
     now,
     ...stages,
@@ -208,11 +212,29 @@ export function cancelProjectJobs(projectId: string, stages?: string[]) {
   ).changes;
 }
 
+/**
+ * 只取消某次批量提交的任务，避免误伤同项目的单个任务。
+ * stages 支持多个：配音批次同时包含逐句（tts）和段落块（tts-block）两种 stage。
+ */
+export function cancelProjectJobBatch(projectId: string, stages: string | string[], batchId: string) {
+  const list = Array.isArray(stages) ? stages : [stages];
+  if (!list.length) return 0;
+  return run(
+    `UPDATE jobs SET status = 'canceled', locked_by = NULL, lock_token = NULL, lease_until = NULL, updated_at = ?
+     WHERE project_id = ? AND stage IN (${list.map(() => "?").join(",")}) AND status IN ('queued', 'running')
+       AND json_extract(input, '$.batchId') = ?`,
+    Date.now(),
+    projectId,
+    ...list,
+    batchId,
+  ).changes;
+}
+
 /** 失败或取消的任务重新排队 */
 export function retryJob(id: string) {
   return (
     run(
-      "UPDATE jobs SET status = 'queued', attempts = 0, error = NULL, run_after = 0, progress = 0, message = '', locked_by = NULL, lock_token = NULL, lease_until = NULL, updated_at = ? WHERE id = ? AND status IN ('failed', 'canceled')",
+      "UPDATE jobs SET status = 'queued', attempts = 0, error = NULL, run_after = 0, progress = 0, message = '', locked_by = NULL, lock_token = NULL, lease_until = NULL, started_at = NULL, updated_at = ? WHERE id = ? AND status IN ('failed', 'canceled')",
       Date.now(),
       id,
     ).changes > 0
@@ -223,7 +245,7 @@ export function retryJob(id: string) {
 export function recoverExpired() {
   const now = Date.now();
   return run(
-    "UPDATE jobs SET status = 'queued', locked_by = NULL, lock_token = NULL, lease_until = NULL, message = '上次执行中断，已重新排队', updated_at = ? WHERE status = 'running' AND lease_until < ?",
+    "UPDATE jobs SET status = 'queued', locked_by = NULL, lock_token = NULL, lease_until = NULL, started_at = NULL, message = '上次执行中断，已重新排队', updated_at = ? WHERE status = 'running' AND lease_until < ?",
     now,
     now,
   ).changes;
@@ -258,7 +280,12 @@ export function latestJobByKey(key: string, projectId?: string | null) {
 
 /** 清理 30 天前已结束的任务 */
 export function pruneJobs(olderThanMs = 30 * 86400_000) {
-  return run("DELETE FROM jobs WHERE status IN ('succeeded', 'failed', 'canceled') AND updated_at < ?", Date.now() - olderThanMs).changes;
+  return tx(() => {
+    const cutoff = Date.now() - olderThanMs;
+    const deleted = run("DELETE FROM jobs WHERE status IN ('succeeded', 'failed', 'canceled') AND updated_at < ?", cutoff).changes;
+    run("DELETE FROM tts_takes WHERE archived_at < ?", cutoff);
+    return deleted;
+  });
 }
 
 // ---------- Worker 心跳 ----------

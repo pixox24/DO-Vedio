@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0077",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "赤拱无尽廊",
+  "description": "深红与黑色重复拱门层层套叠，极少量白色灯光引导一个微小身影穿过几何迷宫，压迫感来自重复而非细节。",
+  "category": "graphic",
+  "tags": [
+    "重复拱门",
+    "深红黑",
+    "几何迷宫",
+    "微小身影",
+    "压迫感"
+  ],
+  "aliases": [
+    "赤拱长廊",
+    "red endless arches",
+    "拱门迷宫"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以深红黑色重复拱形结构和微小灯光人物表现无尽几何廊道的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "几何矢量平涂，结构边缘硬朗清晰"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "深红与纯黑主导，白色微光作为唯一亮点"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "连续拱门形成一点透视和无限纵深"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "暗部占大面积，局部灯光切出路径"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "纯净平面色块，不加入写实材质"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "多彩装饰和柔和粉彩"
+    },
+    {
+      "id": "N02",
+      "text": "复杂写实建筑细节"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "建筑概念",
+    "海报",
+    "悬疑场景"
+  ],
+  "weak_for": [
+    "自然风景",
+    "轻松生活插画"
+  ],
+  "known_failures": [
+    "拱门数量过多或消失点不统一时，纵深会变成无序重复。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0077.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0077.json"
+  },
+  "replacement_id": null
+}

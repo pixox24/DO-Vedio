@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0082",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "荒原心火",
+  "description": "深蓝黑荒原里，一个孤独身影走向远方橙红发光体，粗犷厚涂、裂纹地面和单一暖光构成末世般的神秘朝圣。",
+  "category": "painting",
+  "tags": [
+    "荒原",
+    "橙红发光",
+    "冷暖对比",
+    "厚涂",
+    "孤独行者"
+  ],
+  "aliases": [
+    "荒原心火",
+    "wasteland ember",
+    "末世光源"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以深蓝荒原、中心橙红光源和粗犷厚涂笔触表现末世孤独感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "粗犷数字厚涂，地面笔触与空气层次明显"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "蓝黑冷环境中嵌入橙红单一暖光"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "中心透视路径将孤独主体引向远方光源"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "内发光暖源切开冷暗环境，明暗界线明确"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "裂纹地面、尘雾和粗笔触强化荒凉质感"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "明亮清新日光"
+    },
+    {
+      "id": "N02",
+      "text": "平面可爱卡通"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念艺术",
+    "科幻封面",
+    "叙事场景"
+  ],
+  "weak_for": [
+    "轻松日常",
+    "室内产品图"
+  ],
+  "known_failures": [
+    "光源过大或地面纹理过密时，孤独行者会失去叙事焦点。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0082.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0082.json"
+  },
+  "replacement_id": null
+}

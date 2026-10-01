@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0081",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "冷蓝阴影巨物",
+  "description": "冷蓝灰动画式场景中，微小人物面对被灯光实体化的巨大阴影，清晰线稿与少量红色焦点制造心理恐惧。",
+  "category": "illustration",
+  "tags": [
+    "巨大阴影",
+    "冷蓝灰",
+    "动画赛璐璐",
+    "红色焦点",
+    "压迫感"
+  ],
+  "aliases": [
+    "阴影巨物",
+    "shadow entity",
+    "冷蓝恐惧"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以冷蓝灰赛璐璐画法、微小人物与实体化巨大阴影表现心理压迫感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "清晰线稿结合动画式硬边赛璐璐色块"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "冷蓝灰环境与纯黑阴影，单点红色聚焦"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "上方巨形压境、下方小人物形成极端比例"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "侧向强光把普通物体投射成夸张阴影"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "平滑动画质感，背景保留轻微颗粒"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "写实血腥恐怖"
+    },
+    {
+      "id": "N02",
+      "text": "暖色明亮日常"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "动画分镜",
+    "心理概念",
+    "恐怖海报"
+  ],
+  "weak_for": [
+    "温馨亲子",
+    "产品静物"
+  ],
+  "known_failures": [
+    "阴影轮廓过于复杂时会失去实体感，应让巨形边缘一眼可读。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0081.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0081.json"
+  },
+  "replacement_id": null
+}

@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0038",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "荧光绿牵引光",
+  "description": "复古科幻漫画的奇想时刻：深蓝夜空被一束荧光绿牵引光劈开，颗粒噪点与手绘线稿让想象带着老漫画的粗粝。",
+  "category": "illustration",
+  "tags": [
+    "科幻",
+    "光束",
+    "荧光绿",
+    "复古漫画",
+    "颗粒"
+  ],
+  "aliases": [
+    "牵引光束",
+    "green beam",
+    "复古科幻"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以深蓝夜空与荧光绿牵引光束表现复古科幻感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "数字手绘线稿结合颗粒噪点，复古漫画质感"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "深蓝夜空与荧光绿光束的强对比"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "对角构图，光束斜贯画面"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "单一光源主导，被照物亮部清晰"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "颗粒噪点与纸张肌理"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "写实光影"
+    },
+    {
+      "id": "N02",
+      "text": "干净无噪点"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "科幻漫画",
+    "海报",
+    "封面"
+  ],
+  "weak_for": [
+    "写实题材"
+  ],
+  "known_failures": [
+    "光束内细节易糊，主体轮廓要留在亮部。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0038.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0038.json"
+  },
+  "replacement_id": null
+}

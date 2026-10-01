@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0066",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "深蓝星云环绕",
+  "description": "双手围绕的星云头部：深靛蓝底上，发光的双手托着一团星空般的头部，光点与掌心的辉光让神秘带着温度。",
+  "category": "illustration",
+  "tags": [
+    "星云",
+    "环绕",
+    "深蓝",
+    "发光",
+    "梦幻"
+  ],
+  "aliases": [
+    "星云头部",
+    "nebula hands",
+    "深蓝辉光"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以深靛蓝底与自发光星云头部表现梦幻神秘感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "数字绘画结合发光特效"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "深靛蓝底配荧光蓝与苍白高光"
+    },
+    {
+      "id": "F03",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "自发光效果，光点层次丰富"
+    },
+    {
+      "id": "F04",
+      "axis": "composition",
+      "tier": "core",
+      "text": "环绕式构图，双手围绕中心头部"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "流动梦幻的质感"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "硬边平涂"
+    },
+    {
+      "id": "N02",
+      "text": "明亮日光"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念插画",
+    "封面",
+    "音乐视觉"
+  ],
+  "weak_for": [
+    "写实题材"
+  ],
+  "known_failures": [
+    "光效过多时轮廓易模糊。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0066.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0066.json"
+  },
+  "replacement_id": null
+}

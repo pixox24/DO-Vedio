@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0117",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "蓝黄喷思",
+  "description": "深蓝剪影顶部喷出蓝黄能量柱，硬边色块把安静站姿转化为灵感过热的垂直爆发。",
+  "category": "graphic",
+  "tags": [
+    "蓝黄能量",
+    "喷发",
+    "剪影",
+    "硬边平涂",
+    "垂直动势"
+  ],
+  "aliases": [
+    "蓝黄喷思",
+    "blue yellow burst",
+    "mind flare"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以深蓝剪影、蓝黄垂直能量喷发和硬边平涂表现灵感爆发。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "现代矢量平涂，能量形体采用清晰火焰状几何边缘。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "深蓝底与亮蓝、亮黄形成有限的互补高对比。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "人物垂直轴与能量柱重合，顶部爆发打破静态平衡。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "无复杂光影，亮色块自身承担视觉发光感。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "干净色面配少量颗粒，不使用真实火焰烟尘。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "写实火焰材质"
+    },
+    {
+      "id": "N02",
+      "text": "多色霓虹渐变"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "创意海报",
+    "音乐视觉",
+    "灵感主题"
+  ],
+  "weak_for": [
+    "写实肖像",
+    "细节繁复的室内"
+  ],
+  "known_failures": [
+    "能量柱若变成普通火焰会失去抽象性，应保留蓝黄双层和硬边节奏。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0117.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0117.json"
+  },
+  "replacement_id": null
+}

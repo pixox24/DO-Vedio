@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0003",
+  "version": "1.1.0",
+  "status": "active",
+  "name": "扁平几何海报",
+  "description": "扁平色块海报构成，高对比限定色板与几何分割线，网格对齐、强留白、无立体阴影。",
+  "category": "graphic",
+  "tags": ["扁平", "几何", "海报", "高对比", "色块"],
+  "aliases": ["扁平海报", "flat geometric poster"],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以高对比色块、几何分割线与大面积留白表现的代表图。"
+  },
+  "features": [
+    {"id": "F01", "axis": "medium", "tier": "core", "text": "扁平色块构成，无渐变或立体阴影"},
+    {"id": "F02", "axis": "palette", "tier": "core", "text": "高对比限定色板，大面积纯色底"},
+    {"id": "F03", "axis": "line", "tier": "support", "text": "几何分割线与圆形、三角基本形"},
+    {"id": "F04", "axis": "composition", "tier": "support", "text": "网格对齐与强留白"},
+    {"id": "F05", "axis": "texture", "tier": "accent", "text": "轻微丝网印刷噪点"}
+  ],
+  "avoid": [
+    {"id": "N01", "text": "照片写实材质与复杂渐变"},
+    {"id": "N02", "text": "繁复装饰花纹与手绘笔触"}
+  ],
+  "suitable_for": ["海报", "品牌图形", "信息图"],
+  "weak_for": ["人像写实"],
+  "known_failures": ["照片类主体会被色块简化，不适合要求保留细节的写实需求。"],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0003.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-19",
+    "evidence_ref": "results/0.2.0/Aix0003.json"
+  },
+  "replacement_id": null
+}

@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0113",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "黑白回环",
+  "description": "人物双手托起一个黑白无限回环，极简单色几何把理性姿态与无法逃脱的思维循环压成冷峻符号。",
+  "category": "graphic",
+  "tags": [
+    "无限回环",
+    "黑白",
+    "几何",
+    "极简",
+    "思维迷宫"
+  ],
+  "aliases": [
+    "黑白回环",
+    "monochrome loop",
+    "endless mind"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以黑白回环几何、极简留白和托举动作表现思维循环的概念海报。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "硬边几何与精确曲线构成清晰符号，避免照片式材质。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "纯黑、纯白与中性灰三层分明，不引入额外彩色。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "中心托举结构与环形内部负空间形成稳定对称和视觉闭环。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "均匀平光，依靠明度和遮挡关系表现几何层次。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "干净数字表面，边缘锐利，局部保留细微印刷颗粒。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "复杂多彩渐变"
+    },
+    {
+      "id": "N02",
+      "text": "真实金属反光"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "哲思海报",
+    "编辑插画",
+    "品牌概念"
+  ],
+  "weak_for": [
+    "自然风光",
+    "热闹群像"
+  ],
+  "known_failures": [
+    "回环若被其他物件遮断会失去无尽感，应保留完整轮廓和明确内孔。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0113.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0113.json"
+  },
+  "replacement_id": null
+}

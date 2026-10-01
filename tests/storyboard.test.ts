@@ -117,16 +117,16 @@ describe("定妆提示词", () => {
   it("立绘套用风格与身份锚；后续定妆以选定立绘为参考", async () => {
     const { sheetPrompts, sheetReferences } = await import("@/lib/pipeline/stages/character-sheet");
     const { characterCardSchema } = await import("@/lib/core/types");
-    const { builtinVisualStyles } = await import("@/lib/visual-styles/builtin");
+    const { aixFixture } = await import("@/lib/aix/test-fixture");
     const card = characterCardSchema.parse({ id: "c1", name: "林夏", hair: "短发", looks: [{ id: "L1", name: "默认", wardrobe: "风衣" }, { id: "L2", name: "婚礼", wardrobe: "白色婚纱" }], referenceAssetIds: ["up"] });
-    const doc = { visualStyle: builtinVisualStyles[2] };
+    const doc = { visualStyle: aixFixture({ medium: "illustration" }) };
     const portraits = sheetPrompts(doc, card, "portrait", undefined, 4);
     expect(portraits).toHaveLength(4);
     expect(portraits[0].slots.characters).toBe("画面人物——林夏：短发，穿着风衣");
-    expect(portraits[0].slots.style).toContain("手绘插画");
+    expect(portraits[0].slots.style).toContain("插画");
     // 定妆照不继承构图、镜头和光影氛围，保证背景干净
-    expect(portraits[0].slots.style).not.toContain(builtinVisualStyles[2].lighting);
-    expect(portraits[0].slots.style).not.toContain(builtinVisualStyles[2].atmosphere);
+    expect(portraits[0].slots.style).not.toContain(aixFixture().lighting);
+    expect(portraits[0].slots.style).not.toContain(aixFixture().atmosphere);
     expect(portraits[0].slots.camera).toBe("中景");
     expect(sheetPrompts(doc, card, "turnaround").map((p) => p.name)).toEqual(["正面", "侧面", "背面"]);
     expect(sheetPrompts(doc, card, "look", "L2")[0].slots.characters).toContain("白色婚纱");

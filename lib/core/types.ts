@@ -1,5 +1,8 @@
 import { z } from "zod";
 import { briefSchema, metadataSchema, sectionSchema, segmentSchema } from "../types";
+import { aixAvoidSchema, aixFeatureSchema, aixProvenanceSchema, aixQualitySchema } from "../aix/schema";
+import { motionProfileSchema } from "./motion";
+import { subtitleConfigSchema } from "./subtitle/types";
 
 /**
  * 项目文档：用户可编辑的全部内容。机器产物（配音、缓存）不在这里，
@@ -11,6 +14,18 @@ export type Aspect = (typeof aspects)[number];
 export const aspectSize: Record<Aspect, { width: number; height: number }> = {
   "16:9": { width: 1920, height: 1080 },
   "9:16": { width: 1080, height: 1920 },
+};
+export const outputSpecIds = ["landscape-1080p", "portrait-1080p"] as const;
+export type OutputSpecId = (typeof outputSpecIds)[number];
+export const assetFramingModes = ["smart-dual", "per-output", "shared"] as const;
+export type AssetFramingMode = (typeof assetFramingModes)[number];
+export const outputSpecSchema = z.object({
+  id: z.enum(outputSpecIds), aspect: z.enum(aspects), width: z.number().int().positive(), height: z.number().int().positive(), fps: z.literal(30), label: z.string(),
+}).strict();
+export type OutputSpec = z.infer<typeof outputSpecSchema>;
+export const outputSpecs: Record<OutputSpecId, OutputSpec> = {
+  "landscape-1080p": { id: "landscape-1080p", aspect: "16:9", width: 1920, height: 1080, fps: 30, label: "横屏 1080p" },
+  "portrait-1080p": { id: "portrait-1080p", aspect: "9:16", width: 1080, height: 1920, fps: 30, label: "竖屏 1080p" },
 };
 
 export const moods = ["悬疑", "紧张", "轻松", "温暖", "激昂", "史诗", "科技", "忧伤", "中性"] as const;
@@ -55,6 +70,10 @@ export const lineSchema = z.object({
   voiceTag: voiceTagSchema.optional(),
   /** 段落级配音时这句单独录制（自成一块），不和前后句合成 */
   ttsIsolated: z.boolean().optional(),
+  /** 双语字幕副行：这句的翻译；与 text 通过 secondaryHash 对账，文本改过即视为过期 */
+  secondaryText: z.string().optional(),
+  /** 生成翻译时 text 的指纹；与当前 text 不一致时渲染端宁可不画副行 */
+  secondaryHash: z.string().optional(),
   locked: z.boolean().default(false),
 });
 export type Line = z.infer<typeof lineSchema>;
@@ -76,6 +95,26 @@ export const p1ShotKinds = ["title", "quote", "placeholder", "upload"] as const 
 
 export const motions = ["zoom-in", "zoom-out", "pan-left", "pan-right", "none"] as const;
 export type Motion = (typeof motions)[number];
+
+/** 封闭的动画家族：模型只能选择配方，渲染层决定具体画法。 */
+export const animationFamilies = ["none", "editorial", "kinetic", "stat", "compare", "process", "callout", "timeline", "collage", "hud", "ink"] as const;
+export type AnimationFamily = (typeof animationFamilies)[number];
+export const anchorRoles = ["enter", "emphasis", "exit"] as const;
+export type AnchorRole = (typeof anchorRoles)[number];
+export const animationAnchorSchema = z.object({
+  lineId: z.string(),
+  char: z.number().int().min(0).default(0),
+  role: z.enum(anchorRoles),
+  target: z.string().default(""),
+}).strict();
+export type AnimationAnchor = z.infer<typeof animationAnchorSchema>;
+export const animationSpecSchema = z.object({
+  family: z.enum(animationFamilies).default("none"),
+  intensity: z.union([z.literal(1), z.literal(2), z.literal(3)]).default(1),
+  anchors: z.array(animationAnchorSchema).default([]),
+  params: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).default({}),
+}).strict();
+export type AnimationSpec = z.infer<typeof animationSpecSchema>;
 
 /** 景别：由远到近 */
 export const shotSizes = ["extreme-wide", "wide", "medium", "close", "extreme-close"] as const;
@@ -99,6 +138,12 @@ export const cardSchema = z.object({
 });
 export type Card = z.infer<typeof cardSchema>;
 
+export const shotAssetVariantSchema = z.object({
+  assetId: z.string(), promptHash: z.string(), aspect: z.enum(aspects), width: z.number().int().positive().optional(), height: z.number().int().positive().optional(),
+  source: z.enum(["generated", "shared", "legacy"]).default("generated"), sourceAspect: z.enum(aspects).optional(), generatedAt: z.string().optional(),
+}).strict();
+export type ShotAssetVariant = z.infer<typeof shotAssetVariantSchema>;
+
 export const shotSchema = z.object({
   id: z.string(),
   /** 锚点：从某句第 char 个字开始；时间由字级时间戳换算 */
@@ -113,8 +158,12 @@ export const shotSchema = z.object({
   prompt: z.string().optional(),
   onScreenText: z.string().optional(),
   motion: z.enum(motions).default("zoom-in"),
+  animation: animationSpecSchema.optional(),
+  /** 编排层决定的入场转场；模型不直接决定相邻镜头关系。 */
+  transitionIn: z.enum(["cut", "fade", "wipe", "whip", "push", "dissolve"]).optional(),
   importance: z.union([z.literal(1), z.literal(2), z.literal(3)]).default(1),
   assetId: z.string().optional(),
+  assetVariants: z.partialRecord(z.enum(aspects), shotAssetVariantSchema).default({}),
   focus: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) }).optional(),
   /** 一致性输入：参考素材、角色卡、场景卡和首尾帧。 */
   referenceAssetIds: z.array(z.string()).default([]),
@@ -162,6 +211,7 @@ export type StyleStrength = (typeof styleStrengths)[number];
 const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/, "颜色需为 #RRGGBB");
 const moodTweakSchema = z.object({ lighting: z.string().optional(), colorGrade: z.string().optional(), atmosphere: z.string().optional() });
 
+/** 没有风格卡时的默认动效，与 lib/aix/motion.ts 的 preset 表保持一致 */
 export const visualStyleInputSchema = z.object({
   name: z.string().trim().min(1, "请填写风格名称"),
   description: z.string().default(""),
@@ -188,11 +238,24 @@ export const visualStyleInputSchema = z.object({
   negative: z.array(z.string()).default([]),
   /** 风格强度：写实科普类内容建议 light，避免风格把信息画歪 */
   strength: z.enum(styleStrengths).default("normal"),
+  /** 动效：代码画面（信息卡、标题卡、转场）怎么动。与画风同源，换风格连节奏一起换 */
+  motion: motionProfileSchema.default(motionProfileSchema.parse({})),
   /** 适合的解说风格模板 id，用于新项目推荐 */
   suits: z.array(z.string()).default([]),
 });
 export type VisualStyleInput = z.infer<typeof visualStyleInputSchema>;
-export const visualStyleSchema = visualStyleInputSchema.extend({ id: z.string(), builtin: z.boolean().optional() });
+export const visualStyleSourceSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("native"), legacy: z.boolean().optional() }).strict(),
+  z.object({
+    kind: z.literal("aix"), aixId: z.string(), libraryVersion: z.string(), styleVersion: z.string(), contentHash: z.string(),
+    category: z.string(), features: z.array(aixFeatureSchema), avoid: z.array(aixAvoidSchema), suitableFor: z.array(z.string()),
+    weakFor: z.array(z.string()), knownFailures: z.array(z.string()), provenance: aixProvenanceSchema, quality: aixQualitySchema,
+  }).strict(),
+]);
+export type VisualStyleSource = z.infer<typeof visualStyleSourceSchema>;
+export const visualStyleSchema = visualStyleInputSchema.extend({
+  id: z.string(), builtin: z.boolean().optional(), source: visualStyleSourceSchema.optional(), themeSource: z.enum(["native", "aix-derived", "user"]).optional(),
+});
 export type VisualStyle = z.infer<typeof visualStyleSchema>;
 
 /**
@@ -312,6 +375,8 @@ export const musicCueSchema = z.object({
   /** 从曲目的第几毫秒开始播放 */
   offsetMs: z.number().min(0).default(0),
   locked: z.boolean().default(false),
+  /** 自动选曲的可解释说明（精确匹配 / 退让原因）；手动或锁定片段为空 */
+  reason: z.string().optional(),
 });
 export type MusicCue = z.infer<typeof musicCueSchema>;
 
@@ -351,11 +416,13 @@ export const duckingSchema = z.object({
 export type Ducking = z.infer<typeof duckingSchema>;
 
 export const settingsSchema = z.object({
-  aspects: z.array(z.enum(aspects)).min(1).default(["16:9", "9:16"]),
+  aspects: z.array(z.enum(aspects)).min(1).default(["16:9"]),
+  outputSpecIds: z.array(z.enum(outputSpecIds)).min(1).optional(),
+  previewAspect: z.enum(aspects).optional(),
+  assetFraming: z.enum(assetFramingModes).default("smart-dual"),
   voice: voiceSettingsSchema.default(voiceSettingsSchema.parse({})),
-  subtitle: z
-    .object({ enabled: z.boolean().default(true), burnIn: z.boolean().default(true), highlight: z.boolean().default(true) })
-    .default({ enabled: true, burnIn: true, highlight: true }),
+  /** 字幕模块配置（样式、字体、动效、双语），见 lib/core/subtitle */
+  subtitle: subtitleConfigSchema.default(subtitleConfigSchema.parse({})),
   music: z
     .object({ enabled: z.boolean().default(true), gainDb: z.number().min(-40).max(6).default(0), ducking: duckingSchema.default(duckingSchema.parse({})) })
     .default({ enabled: true, gainDb: 0, ducking: duckingSchema.parse({}) }),
@@ -422,6 +489,7 @@ export const emptyDoc = (): ProjectDoc =>
       avoid: "",
       rate: "auto",
     },
+    settings: { aspects: ["16:9"], outputSpecIds: ["landscape-1080p"], previewAspect: "16:9", assetFraming: "smart-dual" },
   });
 
 export type AssetKind = "audio" | "image" | "video" | "subtitle" | "other";
@@ -461,6 +529,8 @@ export type Job = {
   result: unknown;
   createdAt: number;
   updatedAt: number;
+  /** 本次执行的开始时间；进度界面用它估算剩余时间（updatedAt 会被心跳刷新） */
+  startedAt?: number;
   /** 当前 Worker 执行代次；仅服务端/Worker 使用。 */
   lockToken?: string;
 };

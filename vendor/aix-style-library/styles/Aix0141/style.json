@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0141",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "巨眼紫监",
+  "description": "巨大紫色眼睛占满背景，微小人物站在其前方，线条平涂和黑白高光制造全景监视般的压迫。",
+  "category": "graphic",
+  "tags": [
+    "巨型眼睛",
+    "紫黑白",
+    "监视",
+    "微小人物",
+    "线条平涂"
+  ],
+  "aliases": [
+    "巨眼紫监",
+    "violet eye",
+    "panoptic gaze"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以巨大紫色眼睛、微小人物和黑白线条表现被注视与监视压力。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "线稿与平面色块结合，巨眼边缘清晰、人物保持剪影化。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "紫色背景为主，黑色主体与白色高光建立凝视焦点。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "巨眼作为背景圆形结构，人物位于下方形成极端比例。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "平面光与局部白色高光，不使用真实湿润眼球。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "少量印刷颗粒、线稿纹理和干净色面。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "写实眼球细节"
+    },
+    {
+      "id": "N02",
+      "text": "温暖多彩背景"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "心理海报",
+    "社会寓言",
+    "奇幻封面"
+  ],
+  "weak_for": [
+    "产品摄影",
+    "轻快日常"
+  ],
+  "known_failures": [
+    "巨眼细节过多会转成恐怖写实，应保留图形化虹膜和清晰人物比例。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0141.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0141.json"
+  },
+  "replacement_id": null
+}

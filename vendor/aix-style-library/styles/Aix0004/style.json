@@ -1,0 +1,47 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0004",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "水墨写意",
+  "description": "中国水墨写意语言，墨色浓淡渗化与宣纸质感，大面积留白，笔意松弛而有气韵。",
+  "category": "painting",
+  "tags": ["水墨", "中国画", "留白", "写意", "宣纸"],
+  "aliases": ["水墨风", "水墨意境", "chinese ink wash painting"],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以墨色晕染、宣纸质感与大面积留白表现的代表图。"
+  },
+  "features": [
+    {"id": "F01", "axis": "medium", "tier": "core", "text": "宣纸水墨绘制，墨色随水渗化、边缘自然晕开"},
+    {"id": "F02", "axis": "palette", "tier": "core", "text": "墨色浓淡层次为主，点缀极少量淡赭、花青等低饱和色"},
+    {"id": "F03", "axis": "line", "tier": "support", "text": "毛笔线条有提按顿挫，笔意松弛不僵硬"},
+    {"id": "F04", "axis": "composition", "tier": "support", "text": "大面积留白，主体偏置于一侧，空间疏朗"},
+    {"id": "F05", "axis": "texture", "tier": "accent", "text": "宣纸纤维纹理与干笔飞白的墨色变化"}
+  ],
+  "avoid": [
+    {"id": "N01", "text": "鲜艳荧光色与数字渐变"},
+    {"id": "N02", "text": "均匀厚涂与强调立体感的西式光影"}
+  ],
+  "suitable_for": ["山水", "花鸟", "写意场景"],
+  "weak_for": ["高细节写实人物"],
+  "known_failures": [
+    "复杂结构在墨色渗化下容易松散，需要求关键轮廓保持清晰。",
+    "墨色细节处可能自发出现伪文字或乱码（如题款、印章），需在提示中明确无文字或后期清理。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0004.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-19",
+    "evidence_ref": "results/0.2.0/Aix0004.json"
+  },
+  "replacement_id": null
+}

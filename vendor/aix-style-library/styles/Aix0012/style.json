@@ -1,0 +1,106 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0012",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "朱日禅意",
+  "description": "日式极简禅意插画：米白墙面大面积留白，朱红大圆如日轮悬于一角，建筑与人物化作深色剪影，细密颗粒带出旧纸般的温润。",
+  "category": "illustration",
+  "tags": [
+    "日式",
+    "极简",
+    "剪影",
+    "朱红",
+    "留白",
+    "禅意"
+  ],
+  "aliases": [
+    "日式红日极简",
+    "vermilion sun minimal",
+    "japanese zen silhouette"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以米白留白、朱红大圆与深色剪影建筑表现日式极简禅意氛围的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "平涂剪影为主，形体高度概括，边缘整体硬朗"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "米白底、朱红大圆、深灰黑剪影三色构成，辅以灰蓝暗绿微点缀"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "非对称极简构图，大面积留白与一个醒目的大体量圆形元素"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "侧光投下清晰的条状或几何光斑，明暗简化处理"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "中等颗粒噪点，模拟旧纸与印刷的温润质感"
+    },
+    {
+      "id": "F06",
+      "axis": "line",
+      "tier": "accent",
+      "text": "轮廓简洁无描边，细节以最小限度的线条交代"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "照片写实材质与厚重肌理"
+    },
+    {
+      "id": "N02",
+      "text": "繁复装饰花纹与浓艳多色"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字印章"
+    }
+  ],
+  "suitable_for": [
+    "海报",
+    "封面",
+    "文化视觉",
+    "氛围插画"
+  ],
+  "weak_for": [
+    "写实人像",
+    "繁复热闹场景"
+  ],
+  "known_failures": [
+    "艳丽复杂的题材会被留白与剪影语言简化；大圆元素需要合适落位，否则画面失衡。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0012.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.3.0/Aix0012.json"
+  },
+  "replacement_id": null
+}

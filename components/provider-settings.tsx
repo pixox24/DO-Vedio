@@ -76,7 +76,7 @@ export function ProviderSettings() {
   }
 
   async function removeProvider(providerId: string) {
-    if (!(await confirm({ title: "删除第三方服务商？", message: "该服务商的模型和已保存的密钥将一起删除。", confirmLabel: "删除", tone: "danger" }))) return;
+    if (!(await confirm({ title: "删除第三方服务商？", message: "该服务商的模型和已保存的密钥将一起删除。", confirmLabel: "删除", tone: "danger", bullets: ["预计费用：不产生新的服务商费用。", "影响范围：该服务商、模型配置和已保存密钥会被删除。", "可恢复：删除后需要重新添加并配置服务商。"] }))) return;
     setBusy(providerId);
     try {
       const response = await fetch(`/api/providers/custom/${encodeURIComponent(providerId)}`, { method: "DELETE" });

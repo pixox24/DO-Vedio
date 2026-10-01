@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0105",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "赤潮漩涡头",
+  "description": "赤红背景与黄绿色几何纹理卷成漩涡，人物头部被黑色烟团替代，粗线条表现主义把焦虑变成可见的气流。",
+  "category": "painting",
+  "tags": [
+    "赤红",
+    "漩涡纹理",
+    "黑烟头部",
+    "表现主义",
+    "粗线条"
+  ],
+  "aliases": [
+    "赤潮漩涡",
+    "red vortex head",
+    "表现主义烟头"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以赤红漩涡纹理、黑烟化头部和粗犷线条表现表现主义焦虑感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "手绘表现主义线条结合粗糙平涂和粉笔质感"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "赤红橙底与黑色主体，黄绿色图案作冲突点"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "垂直人物居中，背景漩涡围绕头部旋转"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "平面高对比，不追求写实体积光"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "炭笔、粉笔和纸面摩擦的粗糙痕迹"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "光滑3D渲染"
+    },
+    {
+      "id": "N02",
+      "text": "低对比柔和配色"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "心理海报",
+    "音乐封面",
+    "表现主义插画"
+  ],
+  "weak_for": [
+    "轻松儿童题材",
+    "产品展示"
+  ],
+  "known_failures": [
+    "漩涡线条如果覆盖主体全身会显得混乱，应让头部区域成为唯一高密度中心。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0105.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0105.json"
+  },
+  "replacement_id": null
+}

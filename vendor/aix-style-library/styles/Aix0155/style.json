@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0155",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "红坡静树",
+  "description": "红色斜坡、绿色树和坐在台阶上的小人物被几何色块拆分，静止观察在高饱和互补关系中获得戏剧张力。",
+  "category": "graphic",
+  "tags": [
+    "红色斜坡",
+    "绿色树",
+    "几何色块",
+    "静止观察",
+    "互补色"
+  ],
+  "aliases": [
+    "红坡静树",
+    "red slope tree",
+    "geometric pause"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以红色斜坡、绿色树和静坐人物的几何关系表现静止观察与人与自然。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "扁平矢量色块，轮廓几何化但人物姿态清楚。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "红与绿形成强互补，黑或深青用于细节和轮廓。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "斜坡提供强对角线，树和人物作为垂直锚点打破斜向压力。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "均匀日落平光，依靠色块分割而非阴影塑形。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "平滑色面配细微印刷噪点。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "写实自然光"
+    },
+    {
+      "id": "N02",
+      "text": "过多装饰纹理"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "自然寓言",
+    "编辑封面",
+    "极简海报"
+  ],
+  "weak_for": [
+    "复杂室内",
+    "热闹群像"
+  ],
+  "known_failures": [
+    "斜坡和树的方向冲突过强会失去安静，应让人物成为明确的静止支点。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0155.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0155.json"
+  },
+  "replacement_id": null
+}

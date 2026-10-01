@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0062",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "芥末黄面具喷涌",
+  "description": "头部的喷涌生长：芥末黄底色前，黑色制服侧影的头顶像树冠一样涌出灰白人脸，垂直向上的张力带着压抑的爆发。",
+  "category": "illustration",
+  "tags": [
+    "面具",
+    "喷涌",
+    "芥末黄",
+    "垂直",
+    "张力"
+  ],
+  "aliases": [
+    "面具喷涌",
+    "mask burst",
+    "芥末黄侧影"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以芥末黄底色与头顶喷涌的面具群表现爆发张力的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "平涂结合矢量线条，图形感硬朗"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "芥末黄底配炭黑主体与灰白喷涌物"
+    },
+    {
+      "id": "F03",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "扁平侧光，明暗简洁明朗"
+    },
+    {
+      "id": "F04",
+      "axis": "composition",
+      "tier": "core",
+      "text": "垂直向上构图，顶部长出密集元素"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "干净硬朗，轻微颗粒"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "写实光影"
+    },
+    {
+      "id": "N02",
+      "text": "柔和粉彩"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念插画",
+    "封面",
+    "海报"
+  ],
+  "weak_for": [
+    "写实题材"
+  ],
+  "known_failures": [
+    "喷涌元素密集时需保持轮廓可辨。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0062.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0062.json"
+  },
+  "replacement_id": null
+}

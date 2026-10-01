@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0098",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "蓝紫数字消融",
+  "description": "屏幕前的人物边缘被蓝紫轮廓光和粒子逐渐溶解，暗室、电脑白光与数字消融共同讲述进入虚拟世界的瞬间。",
+  "category": "illustration",
+  "tags": [
+    "数字消融",
+    "蓝紫",
+    "屏幕光",
+    "粒子",
+    "暗室"
+  ],
+  "aliases": [
+    "蓝紫消融",
+    "digital dissolve",
+    "屏幕边缘光"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以暗室屏幕光、蓝紫轮廓光和粒子化边缘表现人物进入数字世界的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "暗调数字绘画结合粒子和柔和轮廓光"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "黑色背景、蓝紫光晕与屏幕白光形成冷色焦点"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "侧面人物与屏幕形成横向关系，消融向后方扩散"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "屏幕光与轮廓光塑造主体，背景压暗"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "像素碎片、微粒和柔化光晕"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "白天明亮场景"
+    },
+    {
+      "id": "N02",
+      "text": "传统厚重油画笔触"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "科技封面",
+    "音乐视觉",
+    "概念分镜"
+  ],
+  "weak_for": [
+    "自然纪实",
+    "古典静物"
+  ],
+  "known_failures": [
+    "粒子消融若从身体中心开始会破坏主体识别，应优先从边缘向外扩散。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0098.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0098.json"
+  },
+  "replacement_id": null
+}

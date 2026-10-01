@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0025",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "粉蓝流体共生",
+  "description": "超现实的人体与海洋流体共生：青蓝色调中缠绕粉色流体，圆润硬边平涂与极简背景，梦幻而静谧。",
+  "category": "illustration",
+  "tags": [
+    "流体",
+    "超现实",
+    "粉蓝",
+    "平涂",
+    "梦幻"
+  ],
+  "aliases": [
+    "流体共生",
+    "fluid surreal",
+    "水母流体"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以青蓝主体与缠绕的粉色流体表现超现实共生意象的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "硬边矢量平涂，造型圆润流畅"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "青蓝主体配粉色流体，深蓝与米色作背景"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "框式或侧向特写，主体与流体缠绕共生"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "纯平光，层次全靠色块明度区分"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "干净数字质感，流体具液态光泽"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "写实光影"
+    },
+    {
+      "id": "N02",
+      "text": "粗糙颗粒"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念插画",
+    "封面",
+    "品牌视觉"
+  ],
+  "weak_for": [
+    "纪实题材"
+  ],
+  "known_failures": [
+    "流体形态易生成杂乱，需明确流线走向。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0025.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0025.json"
+  },
+  "replacement_id": null
+}

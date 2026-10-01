@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0131",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "屏焰头盒",
+  "description": "发光屏幕替代人物头部，后方白黄火焰与红衣形成冷机器和热烈燃烧的赛博寓言，高饱和色块带有波普冲击。",
+  "category": "graphic",
+  "tags": [
+    "屏幕头部",
+    "火焰",
+    "赛博波普",
+    "高饱和",
+    "机器与热"
+  ],
+  "aliases": [
+    "屏焰头盒",
+    "screen head fire",
+    "cyber pop burn"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以发光屏幕头部、红蓝高饱和色块和背后火焰表现信息过载与头脑燃烧。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "波普式硬边数字插画，屏幕和火焰用概括几何形而非写实材质。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "冷蓝背景对红衣与白黄火焰，形成三组高饱和焦点。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "方形屏幕的稳定几何与火焰向上动势形成冷暖结构冲突。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "屏幕自发亮但不使用复杂反射，火焰以色块表达热度。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "干净色面加轻微印刷颗粒，避免金属塑料质感。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "真实电子产品广告"
+    },
+    {
+      "id": "N02",
+      "text": "烟雾遮满主体"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "科技概念",
+    "专辑封面",
+    "未来寓言"
+  ],
+  "weak_for": [
+    "古典静物",
+    "柔和婚礼主题"
+  ],
+  "known_failures": [
+    "屏幕内部若出现伪文字会污染风格，应保持抽象光面或无字图形。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0131.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0131.json"
+  },
+  "replacement_id": null
+}

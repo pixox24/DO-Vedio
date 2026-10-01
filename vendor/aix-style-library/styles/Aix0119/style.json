@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0119",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "旋涡藏眼",
+  "description": "思考姿态中的头部化为黑白漩涡，隐藏的眼睛从油画纹理中浮现，灰绿环境把凝视深渊变成心理寓言。",
+  "category": "painting",
+  "tags": [
+    "黑白漩涡",
+    "隐藏眼睛",
+    "灰绿",
+    "油画纹理",
+    "凝视"
+  ],
+  "aliases": [
+    "旋涡藏眼",
+    "eye in vortex",
+    "thinking abyss"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以灰绿背景、黑白漩涡和隐约眼睛表现思考与混乱的心理肖像。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "数字油画笔触与概括轮廓结合，漩涡方向清晰而非随机涂抹。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "灰绿环境压低饱和度，黑白漩涡作为局部高对比核心。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "手托下巴的静态姿态与向内卷入的圆形动势形成反差。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "柔和侧光只照出漩涡层次，不制造戏剧性写实反光。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "厚重油画刷痕、粗颗粒和局部干笔擦痕。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "平滑商业矢量"
+    },
+    {
+      "id": "N02",
+      "text": "艳丽多色背景"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "哲思肖像",
+    "悬疑封面",
+    "艺术海报"
+  ],
+  "weak_for": [
+    "儿童绘本",
+    "食品广告"
+  ],
+  "known_failures": [
+    "漩涡若没有明确中心会显得脏乱，应保留一个隐藏但可辨的凝视点。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0119.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0119.json"
+  },
+  "replacement_id": null
+}

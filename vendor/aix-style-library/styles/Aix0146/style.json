@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0146",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "白束悬问",
+  "description": "纯黑空间里一束白光垂直照下，抽象形体被压缩成极简问号般的中心，孤立和未解问题依靠留白成立。",
+  "category": "graphic",
+  "tags": [
+    "白色光束",
+    "黑色空间",
+    "中心形体",
+    "极简",
+    "未解问题"
+  ],
+  "aliases": [
+    "白束悬问",
+    "white beam question",
+    "minimal mystery"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以纯黑空间、垂直白光束和抽象中心形体表现孤立、未解问题与留白。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "极简硬边图形，中心形体只保留必要轮廓，不追求写实材质。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "黑白二色形成最高明度对比，避免额外颜色。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "垂直光束切出长条负空间，抽象中心形体位于中心偏下。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "单一顶光，光束边缘清晰并保留大片黑暗。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "平滑黑面与极少颗粒，突出空旷。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "真实痛苦或伤害"
+    },
+    {
+      "id": "N02",
+      "text": "复杂道具背景"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "极简海报",
+    "悬疑封面",
+    "实验视觉"
+  ],
+  "weak_for": [
+    "温馨叙事",
+    "信息图表"
+  ],
+  "known_failures": [
+    "中心形体过于具体会引导错误题材，应保持抽象轮廓和中心留白。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0146.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0146.json"
+  },
+  "replacement_id": null
+}

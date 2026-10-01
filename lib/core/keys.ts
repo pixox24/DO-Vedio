@@ -2,6 +2,8 @@ import { quickHash } from "./hash";
 import { mergeSpans, ruleSpans, spokenText, type LexEntry } from "./lines";
 import { compileShotPrompt } from "./prompt-compiler";
 import type { Line, Mood, ProjectDoc, Shot, VoiceSettings, VoiceTag } from "./types";
+import { outputSpecs } from "./types";
+import type { GenerationFrame } from "./output-spec";
 
 /**
  * 各步骤的缓存键。键 = hash(步骤名@版本 + 决定结果的全部输入)。
@@ -9,7 +11,7 @@ import type { Line, Mood, ProjectDoc, Shot, VoiceSettings, VoiceTag } from "./ty
  * 改了某步骤的算法就把版本号加 1，旧缓存自然失效。
  */
 
-export const STAGE_VERSION = { annotate: 1, tts: 3, ttsBlock: 1, storyboard: 3, music: 1, render: 1, shotGeneration: 3, cast: 3, characterSheet: 1 } as const;
+export const STAGE_VERSION = { annotate: 1, tts: 3, ttsBlock: 1, storyboard: 3, music: 1, render: 2, shotGeneration: 4, cast: 3, characterSheet: 1 } as const;
 
 /** 标注：输入是一个段落的全部句子 */
 export function annotateKey(lines: Pick<Line, "id" | "text">[], lex: LexEntry[], modelId: string) {
@@ -158,18 +160,19 @@ export function musicKey(input: unknown) {
   return `music:${quickHash({ v: STAGE_VERSION.music, input })}`;
 }
 
-export function renderKey(timelineHash: string, quality: string) {
-  return `render:${quickHash({ v: STAGE_VERSION.render, t: timelineHash, q: quality })}`;
+export function renderKey(timelineHash: string, quality: string, output?: Pick<GenerationFrame, "aspect" | "width" | "height" | "fps">) {
+  return `render:${quickHash({ v: STAGE_VERSION.render, t: timelineHash, q: quality, output })}`;
 }
 
 /** 镜头生成键：编译后的提示词（内容 + 景别 + 风格 + 情绪）加上参考输入，支持单镜头精确重算。 */
-export function shotGenerationKey(doc: ProjectDoc, shot: Shot, kind: "image" | "video", modelId: string) {
+export function shotGenerationKey(doc: ProjectDoc, shot: Shot, kind: "image" | "video", modelId: string, frame: GenerationFrame = { ...outputSpecs["landscape-1080p"] }) {
   const characters = doc.characters.filter((c) => shot.characterIds.includes(c.id));
   const scene = shot.sceneId ? doc.scenes.find((s) => s.id === shot.sceneId) : undefined;
   return `shot:${quickHash({
     v: STAGE_VERSION.shotGeneration,
     kind,
     modelId,
+    frame: { aspect: frame.aspect, width: frame.width, height: frame.height, fps: frame.fps },
     shot: {
       id: shot.id,
       prompt: compileShotPrompt(doc, shot).hash,

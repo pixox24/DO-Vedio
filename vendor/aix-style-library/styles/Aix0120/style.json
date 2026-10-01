@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0120",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "灰雾离首",
+  "description": "全灰度人物的头部由烟雾和黑球组成并向上脱离，柔和渐变把肉身和虚无压成一幅安静的升腾寓言。",
+  "category": "painting",
+  "tags": [
+    "灰雾",
+    "黑球",
+    "全灰度",
+    "升腾",
+    "虚无"
+  ],
+  "aliases": [
+    "灰雾离首",
+    "grey spirit",
+    "floating thought"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以全灰度人物、上升烟雾和黑色球体表现实体与虚无分离的诗性插画。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "柔和数字绘画，形体边缘轻微融化但人物姿态仍清楚。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "黑白灰单色阶，依靠明度而非色相变化建立层次。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "下方实体与上方脱离形体形成连续的垂直升腾路径。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "低对比漫射光，亮部只用于托住烟雾边缘。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "细腻雾化、柔颗粒和少量铅灰画布纹理。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "鲜艳彩色焦点"
+    },
+    {
+      "id": "N02",
+      "text": "硬边信息图风"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "冥想封面",
+    "诗歌视觉",
+    "心理叙事"
+  ],
+  "weak_for": [
+    "商业促销",
+    "复杂建筑图"
+  ],
+  "known_failures": [
+    "烟雾与身体断开后会失去叙事，应保留一条可读的上升联系。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0120.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0120.json"
+  },
+  "replacement_id": null
+}

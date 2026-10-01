@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0045",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "暗夜屏幕微光",
+  "description": "深夜失眠的微光时刻：深灰黑底上只有屏幕的暖白照亮四周，粗糙纸张噪点让孤独有了颗粒的触感。",
+  "category": "illustration",
+  "tags": [
+    "失眠",
+    "屏幕光",
+    "暗调",
+    "纸张噪点",
+    "孤独"
+  ],
+  "aliases": [
+    "屏幕微光",
+    "screen glow",
+    "暗夜独处"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以深灰黑底与单一屏幕微光表现深夜孤独感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "数字仿手绘平涂结合粗糙纸张噪点"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "深灰黑底色配低饱和灰蓝，屏幕暖白为唯一亮源"
+    },
+    {
+      "id": "F03",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "极暗环境的局部发光，光源单一"
+    },
+    {
+      "id": "F04",
+      "axis": "composition",
+      "tier": "support",
+      "text": "底部重心构图与大面积留白"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "粗糙纸张纹理与颗粒噪点"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "明亮多光源"
+    },
+    {
+      "id": "N02",
+      "text": "光滑数字"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "氛围插画",
+    "情绪视觉",
+    "社媒配图"
+  ],
+  "weak_for": [
+    "热闹场景"
+  ],
+  "known_failures": [
+    "暗部过暗时细节丢失，屏幕亮度需克制。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0045.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0045.json"
+  },
+  "replacement_id": null
+}

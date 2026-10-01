@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0035",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "青绿水下涂鸦",
+  "description": "水下的涂鸦空间：青绿色调里丁达尔光束自顶部倾泻，朦胧湿画质感让人与涂鸦墙一同漂浮。",
+  "category": "illustration",
+  "tags": [
+    "水下",
+    "涂鸦",
+    "青绿",
+    "光束",
+    "湿画"
+  ],
+  "aliases": [
+    "水下涂鸦",
+    "underwater graffiti",
+    "青绿光束"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以青绿色调与顶部体积光束表现水下涂鸦漂浮感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "palette",
+      "tier": "core",
+      "text": "翠绿与墨绿主调，顶部黄绿色光束"
+    },
+    {
+      "id": "F02",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "水下体积光束（丁达尔效应），柔化边缘"
+    },
+    {
+      "id": "F03",
+      "axis": "medium",
+      "tier": "support",
+      "text": "数字湿画法质感，笔触柔和"
+    },
+    {
+      "id": "F04",
+      "axis": "composition",
+      "tier": "support",
+      "text": "垂直纵深构图，楼梯引导视线"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "水波与墙面涂鸦的混合肌理"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "干燥硬边"
+    },
+    {
+      "id": "N02",
+      "text": "高饱和霓虹"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "氛围插画",
+    "封面",
+    "音乐视觉"
+  ],
+  "weak_for": [
+    "清晰纪实"
+  ],
+  "known_failures": [
+    "水下环境易把细节糊掉，主体轮廓要明确。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0035.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0035.json"
+  },
+  "replacement_id": null
+}

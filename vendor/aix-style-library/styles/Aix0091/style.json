@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0091",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "光爆无面",
+  "description": "深色剪影的面部被彩色光束从内部爆开，锐利平面与过曝色谱把思想释放压缩成一个极简而有力的符号。",
+  "category": "graphic",
+  "tags": [
+    "光爆",
+    "无面剪影",
+    "彩色光谱",
+    "极简",
+    "能量释放"
+  ],
+  "aliases": [
+    "光爆无面",
+    "spectrum face burst",
+    "彩光剪影"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以深色剪影、面部彩色光爆和极简背景表现能量释放概念的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "扁平矢量剪影与锐利光束色块结合"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "深黑主体对比红橙蓝白高饱和光谱"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "居中对称肖像，光束从核心垂直穿出"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "核心区域过曝发光，外部保持纯暗"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "光束边缘干净，内部可带少量颗粒"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "复杂背景和丰富道具"
+    },
+    {
+      "id": "N02",
+      "text": "柔和低对比光"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念海报",
+    "封面",
+    "音乐视觉"
+  ],
+  "weak_for": [
+    "写实纪实",
+    "生活方式插画"
+  ],
+  "known_failures": [
+    "彩色光束过宽会吞没剪影轮廓，应保留稳定的外部形体。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0091.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0091.json"
+  },
+  "replacement_id": null
+}

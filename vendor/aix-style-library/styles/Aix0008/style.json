@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0008",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "霓虹雨夜街拍",
+  "description": "雨夜街头摄影，湿润路面反射霓虹招牌光，青品对比色与夜景颗粒，电影感氛围。",
+  "category": "photographic",
+  "tags": ["霓虹", "夜拍", "街拍", "雨夜", "电影感"],
+  "aliases": ["霓虹夜景", "neon night street", "cyberpunk street"],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以雨夜霓虹光、湿地面反光与夜景颗粒表现的代表图。"
+  },
+  "features": [
+    {"id": "F01", "axis": "medium", "tier": "core", "text": "摄影式夜晚街拍，真实城市质感"},
+    {"id": "F02", "axis": "palette", "tier": "core", "text": "青蓝夜色与品红暖霓虹强对比，湿地面镜面反光"},
+    {"id": "F03", "axis": "lighting", "tier": "support", "text": "霓虹招牌与橱窗的局部高光，暗部深沉有层次"},
+    {"id": "F04", "axis": "texture", "tier": "support", "text": "夜景颗粒与轻微镜头光晕"},
+    {"id": "F05", "axis": "composition", "tier": "accent", "text": "街道透视引导线，人物或车辆剪影点缀"}
+  ],
+  "avoid": [
+    {"id": "N01", "text": "日光场景与明亮蓝天"},
+    {"id": "N02", "text": "塑料感HDR与过度磨皮"}
+  ],
+  "suitable_for": ["城市夜景", "人物氛围", "商业空间"],
+  "weak_for": ["明快产品图"],
+  "known_failures": ["强霓虹色偏可能改变明确指定的品牌色，需排除色偏组件。"],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0008.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-19",
+    "evidence_ref": "results/0.2.0/Aix0008.json"
+  },
+  "replacement_id": null
+}

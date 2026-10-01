@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0069",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "灰白无面手眼",
+  "description": "手与眼的超现实触碰：浅灰背景前，黑色剪影被几只白色的手轻轻遮捧，手背睁着眼睛，荒诞而克制。",
+  "category": "illustration",
+  "tags": [
+    "手眼",
+    "无面",
+    "超现实",
+    "灰白",
+    "克制"
+  ],
+  "aliases": [
+    "手眼交织",
+    "hands of eyes",
+    "无面剪影"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以浅灰背景与覆眼白手表现超现实克制感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "平涂为主略带体积感，线条清晰"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "浅灰底色配黑色主体、白色双手与青色点缀"
+    },
+    {
+      "id": "F03",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "柔和光影，皮肤细腻"
+    },
+    {
+      "id": "F04",
+      "axis": "composition",
+      "tier": "core",
+      "text": "特写构图，手部动作引导视线"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "净润质感，轻微细节"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "浓重噪点"
+    },
+    {
+      "id": "N02",
+      "text": "写实照片"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念插画",
+    "封面",
+    "品牌视觉"
+  ],
+  "weak_for": [
+    "写实题材"
+  ],
+  "known_failures": [
+    "多只手叠加时结构易错乱。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0069.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0069.json"
+  },
+  "replacement_id": null
+}

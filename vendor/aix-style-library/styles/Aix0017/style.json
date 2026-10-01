@@ -1,0 +1,106 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0017",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "黑白负空间",
+  "description": "黑白负空间图形：密集黑色剪影围合出中心白色负形，黑区内部布满精细白色线稿，木刻版画式的信息密度与巧思。",
+  "category": "graphic",
+  "tags": [
+    "黑白",
+    "负空间",
+    "版画",
+    "剪影",
+    "线稿",
+    "巧思"
+  ],
+  "aliases": [
+    "负形构图",
+    "negative space graphic",
+    "figure-ground"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以黑色剪影围合出中心白色负形、黑区内部布满白色线稿表现版画式巧思的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "composition",
+      "tier": "core",
+      "text": "图底反转负空间构图：黑色块面围合的中心留白构成可识别的第二形状"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "纯黑白双色，无灰度过渡"
+    },
+    {
+      "id": "F03",
+      "axis": "line",
+      "tier": "core",
+      "text": "黑色块面内以白色精细线稿刻画纹理（砖墙、栏杆、格栅）"
+    },
+    {
+      "id": "F04",
+      "axis": "medium",
+      "tier": "support",
+      "text": "高对比剪影结合精细线稿，木刻与蚀刻版画语言"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "干净锐利无噪点，印刷品般的完成度"
+    },
+    {
+      "id": "F06",
+      "axis": "lighting",
+      "tier": "accent",
+      "text": "无写实光影，明暗完全由黑白块面承担"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "灰度渐变与彩色"
+    },
+    {
+      "id": "N02",
+      "text": "照片写实与柔和笔触"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字标签"
+    }
+  ],
+  "suitable_for": [
+    "海报",
+    "品牌图形",
+    "包装",
+    "文化视觉"
+  ],
+  "weak_for": [
+    "写实照片",
+    "彩色插画"
+  ],
+  "known_failures": [
+    "负形目标轮廓不明确时易读性差；需要文字时须另行指定，无附加细节空间。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0017.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.3.0/Aix0017.json"
+  },
+  "replacement_id": null
+}

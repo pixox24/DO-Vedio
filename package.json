@@ -14,11 +14,16 @@
     "dev:all": "concurrently -k -n web,worker -c cyan,magenta \"next dev\" \"npm:dev:worker\"",
     "start:all": "concurrently -k -n web,worker -c cyan,magenta \"node scripts/next-start.mjs\" \"npm:worker\"",
     "typecheck": "tsc --noEmit",
+    "aix:sync": "node --import tsx scripts/aix-sync.ts",
+    "aix:check": "node --import tsx scripts/aix-check.ts",
     "library:ingest": "tsx scripts/library-ingest.ts",
     "library:ingest:strict": "tsx scripts/library-ingest.ts --strict",
+    "library:fetch": "tsx scripts/library-fetch.ts",
     "tts:probe": "node --import tsx scripts/tts-probe.ts",
     "tts:paragraph-probe": "node --import tsx scripts/tts-paragraph-probe.ts",
-    "smoke": "tsx scripts/smoke.ts"
+    "smoke": "tsx scripts/smoke.ts",
+    "animation:probe": "node --import tsx scripts/animation-probe.ts",
+    "animation:eval": "node --import tsx scripts/animation-eval.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.62",

@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0100",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "雾蓝双影",
+  "description": "雾蓝青绿色空间里，人物与墙上巨大模糊影子保持距离，柔和喷枪和水彩般渐层把孤独画成安静的灵魂回声。",
+  "category": "painting",
+  "tags": [
+    "雾蓝",
+    "双重影",
+    "柔焦",
+    "孤独",
+    "水彩质感"
+  ],
+  "aliases": [
+    "雾蓝双影",
+    "misty double shadow",
+    "灵魂回声"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以雾蓝青绿色、柔焦人物和巨大模糊影子表现内省孤独感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "柔和数字绘画结合喷枪或水彩般边缘"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "蓝绿单色调配灰白雾气，低饱和克制"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "小型实体人物与大面积模糊影子形成双重尺度"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "朦胧均匀光，影子没有锐利边缘"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "雾化渐层、柔焦和轻微纸面颗粒"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "锐利硬边海报"
+    },
+    {
+      "id": "N02",
+      "text": "高饱和霓虹"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "情绪插画",
+    "音乐封面",
+    "叙事概念"
+  ],
+  "weak_for": [
+    "信息图",
+    "动作场面"
+  ],
+  "known_failures": [
+    "影子过于具体会变成第二个主体，需保持模糊和略大于现实的关系。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0100.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0100.json"
+  },
+  "replacement_id": null
+}

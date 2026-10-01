@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { z } from "zod";
 import { fail, handle, parseBody } from "@/lib/api";
 import { getProject } from "@/lib/server/projects";
@@ -18,7 +19,10 @@ export async function POST(req: Request, ctx: RouteContext<"/api/projects/[id]/l
     const hits = cacheMany(keys.map((k) => k.key));
     const rows = keys.filter((k) => mode === "all" || !hits.has(k.key));
     if (!rows.length) return fail(mode === "missing" ? "所有句子都已有配音" : "没有可重录的句子", 409);
-    const jobs = enqueueTtsSteps(id, ttsSteps(project.doc, id, rows, { force: mode === "all" }), { replace: true });
-    return Response.json({ count: jobs.length, jobs, mode });
+    // 批次 id：客户端用它只停止「本次提交」的任务，不误伤单独重录的任务
+    const batchId = randomUUID();
+    const steps = ttsSteps(project.doc, id, rows, { force: mode === "all", batchId });
+    const jobs = enqueueTtsSteps(id, steps, { replace: true });
+    return Response.json({ count: rows.length, jobs: jobs.length, items: jobs, batchId, mode });
   });
 }

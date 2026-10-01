@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0106",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "硬光颓影",
+  "description": "低饱和蓝灰天空与土黄服装下，人物靠墙留下硬朗投影，大面积留白和近似剧照的硬光把颓废感变得克制。",
+  "category": "photographic",
+  "tags": [
+    "硬光",
+    "墙面投影",
+    "低饱和",
+    "电影剧照",
+    "大留白"
+  ],
+  "aliases": [
+    "硬光颓影",
+    "hard light portrait",
+    "颓废剧照"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以低饱和蓝灰环境、硬光墙面投影和大面积留白表现电影剧照式孤独感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "写实摄影或写实数字绘画，人物材质自然"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "蓝灰天空、土黄服装与深灰阴影的低饱和关系"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "主体压在下方，上方留出大面积单色天空或墙面"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "单一硬光源投出清晰而略夸张的影子"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "真实布料、墙面颗粒和轻微胶片质感"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "柔和梦幻光效"
+    },
+    {
+      "id": "N02",
+      "text": "高饱和商业时尚"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "电影概念图",
+    "编辑摄影",
+    "情绪海报"
+  ],
+  "weak_for": [
+    "卡通角色",
+    "繁复群像"
+  ],
+  "known_failures": [
+    "硬光方向不一致时会破坏剧照感，必须让人物、墙面和影子共享一个光源。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0106.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0106.json"
+  },
+  "replacement_id": null
+}

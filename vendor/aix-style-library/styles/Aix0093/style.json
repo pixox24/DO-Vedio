@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0093",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "彩烟思绪",
+  "description": "暗色背景里，人物头顶的彩色烟雾向上流动成梦境，细腻厚涂把蓝黄橙紫混合成有体积的想象力。",
+  "category": "painting",
+  "tags": [
+    "彩色烟雾",
+    "思绪",
+    "暗调",
+    "厚涂",
+    "梦境"
+  ],
+  "aliases": [
+    "彩烟思绪",
+    "colored thought smoke",
+    "梦境烟流"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以暗色背景、人物上方流动彩烟和细腻厚涂体积感表现思绪具象化的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "细腻数字厚涂，烟雾层次柔和且有方向"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "深蓝黑底中混合蓝、黄、橙、紫的高饱和彩烟"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "主体位于下方，烟雾向上侧扩散占据主要空间"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "烟雾内部柔和发光，人物保持较暗"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "半透明体积烟雾与细腻笔触并存"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "纯平无层次色块"
+    },
+    {
+      "id": "N02",
+      "text": "空白无叙事背景"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念封面",
+    "音乐视觉",
+    "梦境插画"
+  ],
+  "weak_for": [
+    "技术图表",
+    "写实产品照"
+  ],
+  "known_failures": [
+    "彩烟颜色混合过脏或扩散无方向时，思绪的形态会失去可读性。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0093.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0093.json"
+  },
+  "replacement_id": null
+}

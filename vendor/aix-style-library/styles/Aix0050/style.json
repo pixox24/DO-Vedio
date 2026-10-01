@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0050",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "粉蓝晨光慵懒",
+  "description": "晨光里的慵懒时刻：淡粉与浅蓝的柔和配色，漫射光落在床单的褶皱上，日系清新插画把松弛感画得很轻。",
+  "category": "illustration",
+  "tags": [
+    "晨光",
+    "慵懒",
+    "粉蓝",
+    "日系",
+    "治愈"
+  ],
+  "aliases": [
+    "慵懒晨光",
+    "morning light",
+    "清新日常"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以淡粉浅蓝柔光与织物褶皱表现清晨慵懒感的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "日系数字平涂结合柔和厚涂过渡"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "淡粉、浅蓝与白色的柔调配色"
+    },
+    {
+      "id": "F03",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "柔和漫射的清晨光"
+    },
+    {
+      "id": "F04",
+      "axis": "composition",
+      "tier": "support",
+      "text": "俯视斜角构图，主体舒展"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "干净微噪点，织物褶皱细腻"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "浓重阴影"
+    },
+    {
+      "id": "N02",
+      "text": "高饱和撞色"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "日常插画",
+    "社媒配图",
+    "封面"
+  ],
+  "weak_for": [
+    "暗黑题材"
+  ],
+  "known_failures": [
+    "褶皱细节过密时画面易腻。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0050.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.4.0/Aix0050.json"
+  },
+  "replacement_id": null
+}

@@ -1,0 +1,107 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0018",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "图腾奇幻厚涂",
+  "description": "奇幻图腾厚涂插画：橙红暖色与深海军蓝强撞色，底光聚光托起剪影主角，背景满铺图腾纹样，干刷颗粒带出古老质感。",
+  "category": "painting",
+  "tags": [
+    "奇幻",
+    "图腾",
+    "撞色",
+    "底光",
+    "厚涂",
+    "纹样"
+  ],
+  "aliases": [
+    "部落图腾奇幻",
+    "totem fantasy",
+    "tribal painting"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以橙红与深蓝撞色、底光聚光与满构图图腾纹样表现奇幻厚涂气质的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "palette",
+      "tier": "core",
+      "text": "橙红与土黄暖色同深海军蓝冷色强互补撞色"
+    },
+    {
+      "id": "F02",
+      "axis": "lighting",
+      "tier": "core",
+      "text": "戏剧性底光与聚光，暖光自下方照亮主体下缘与地面光斑"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "中心对称主体，背景满构图密集排列的矩形纹样墙"
+    },
+    {
+      "id": "F04",
+      "axis": "medium",
+      "tier": "support",
+      "text": "干刷质感数字厚涂，边缘块面化，带木刻版画味"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "做旧纸张与粗糙肌理，颗粒覆盖全画"
+    },
+    {
+      "id": "F06",
+      "axis": "line",
+      "tier": "accent",
+      "text": "几何纹样与符号化线条装饰服装与器物边缘"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "干净光滑的矢量质感"
+    },
+    {
+      "id": "N02",
+      "text": "写实写生光影与大面积留白"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "奇幻题材",
+    "游戏概念",
+    "封面",
+    "海报"
+  ],
+  "weak_for": [
+    "极简风格",
+    "写实人像"
+  ],
+  "known_failures": [
+    "满构图纹样在复杂主体下易混乱；密集细节可能吞掉主体轮廓。",
+    "高密度装饰符号区域有偶然乱码化倾向（本批 6 样中 2 样被评审判定为疑似乱码），生成后需复核。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0018.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-20",
+    "evidence_ref": "results/0.3.0/Aix0018.json"
+  },
+  "replacement_id": null
+}

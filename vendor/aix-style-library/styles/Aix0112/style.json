@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0112",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "蓝魇多首",
+  "description": "白衣人物的头部被深蓝多首烟雾占据，柔和晕染把平静外表和潜伏的多重意识压进一幅冷暗心理肖像。",
+  "category": "painting",
+  "tags": [
+    "深蓝烟雾",
+    "多重意识",
+    "柔和晕染",
+    "心理肖像",
+    "冷暗"
+  ],
+  "aliases": [
+    "蓝魇多首",
+    "blue many-headed",
+    "inner demons"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以白衣人物、深蓝多首烟雾和柔和冷调表现内心分裂的心理插画。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "水彩式数字晕染与概括形体结合，烟雾边缘柔软但轮廓仍可读。"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "白与深蓝黑形成低彩度对照，局部冷灰用于分层。"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "人物居中、头部向上膨胀，顶部重量压住下方稳定姿态。"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "柔光包住人物，烟雾内部以深浅层次制造隐约体积。"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "半透明水彩叠染、细颗粒和轻微纸面雾感。"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "可爱卡通表情"
+    },
+    {
+      "id": "N02",
+      "text": "硬朗金属写实"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "心理主题",
+    "书封",
+    "叙事人物"
+  ],
+  "weak_for": [
+    "明快广告",
+    "建筑制图"
+  ],
+  "known_failures": [
+    "烟雾形状过于随机会失去多首结构，应保留几个可辨认的分叉节奏。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0112.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-29",
+    "evidence_ref": "results/0.6.0/Aix0112.json"
+  },
+  "replacement_id": null
+}

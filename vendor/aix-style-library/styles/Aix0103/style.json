@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "Aix0103",
+  "version": "1.0.0",
+  "status": "active",
+  "name": "星空背窗",
+  "description": "巨大人物背影的发丝化作星空，背部开出一扇小窗容纳另一个世界，蓝橙互补的平滑海报风把内在空间说得安静而宏大。",
+  "category": "illustration",
+  "tags": [
+    "星空头发",
+    "身体窗口",
+    "蓝橙互补",
+    "画中画",
+    "超现实海报"
+  ],
+  "aliases": [
+    "星空背窗",
+    "inner window figure",
+    "蓝橙内在空间"
+  ],
+  "thumbnail": {
+    "path": "thumbnail.webp",
+    "media_type": "image/webp",
+    "alt": "以巨大背影、星空发丝、身体内窗口和蓝橙互补色表现内在世界寓言的代表图。"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "axis": "medium",
+      "tier": "core",
+      "text": "平滑矢量插画与细腻渐层，边缘干净"
+    },
+    {
+      "id": "F02",
+      "axis": "palette",
+      "tier": "core",
+      "text": "深蓝星空与橙红沙地或室内形成互补对比"
+    },
+    {
+      "id": "F03",
+      "axis": "composition",
+      "tier": "core",
+      "text": "巨大轮廓包裹小窗口，内外尺度形成画中画"
+    },
+    {
+      "id": "F04",
+      "axis": "lighting",
+      "tier": "support",
+      "text": "窗口内部暖光与外部冷色平衡"
+    },
+    {
+      "id": "F05",
+      "axis": "texture",
+      "tier": "support",
+      "text": "干净海报表面，星点细密但不过度写实"
+    }
+  ],
+  "avoid": [
+    {
+      "id": "N01",
+      "text": "复杂写实肖像细节"
+    },
+    {
+      "id": "N02",
+      "text": "随机多色背景"
+    },
+    {
+      "id": "N03",
+      "text": "乱码文字与伪文字"
+    }
+  ],
+  "suitable_for": [
+    "概念海报",
+    "心理主题",
+    "封面"
+  ],
+  "weak_for": [
+    "热闹动作场景",
+    "产品摄影"
+  ],
+  "known_failures": [
+    "内部窗口过小或内容过密时，画中画概念会被缩成装饰，需保证内外关系清楚。"
+  ],
+  "provenance": {
+    "source_type": "original",
+    "source_ref": "evaluation/rights/Aix0103.md",
+    "license_ref": "LICENSE.md#2-风格提示词与结构化数据",
+    "commercial_use": "allowed",
+    "attribution": null
+  },
+  "quality": {
+    "review_status": "passed",
+    "tested_tool": "gpt-image-2 via change2pro OpenAI-compatible Images API",
+    "tested_at": "2026-09-28",
+    "evidence_ref": "results/0.5.0/Aix0103.json"
+  },
+  "replacement_id": null
+}
