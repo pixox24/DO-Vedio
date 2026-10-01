@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "motions": {
+    "creator-cinema-editorial-quote": {
+      "version": "1.0.0",
+      "installedAt": 1790865378911
+    },
+    "hero-spotlight-stage": {
+      "version": "1.0.0",
+      "installedAt": 1790865471869
+    },
+    "hero-split-wipe": {
+      "version": "1.0.0",
+      "installedAt": 1790865510005
+    }
+  }
+}

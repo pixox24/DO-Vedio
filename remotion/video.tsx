@@ -14,6 +14,7 @@ import { ChartShot, StockShot, UnsupportedModeShot } from "./shots/special";
 import { ThemeContext } from "./theme";
 import { TransitionLayer } from "./layers/transitions";
 import { renderAnimation } from "./animation/registry";
+import { renderUi2vTemplate } from "./animation/ui2v";
 
 ensureFonts();
 
@@ -21,10 +22,13 @@ export type VideoProps = { timeline: Timeline };
 
 export function ShotView({ shot, durationInFrames, theme }: { shot: TimelineShot; durationInFrames: number; theme?: VideoTheme }) {
   if (shot.mode === "real" && !shot.imageSrc && !shot.videoSrc) return <UnsupportedModeShot shot={shot} durationInFrames={durationInFrames} />;
+  const ui2vView = shot.animation?.templateId && shot.mode !== "real" && !["image", "video", "upload", "stock", "chart"].includes(shot.kind)
+    ? renderUi2vTemplate(shot, durationInFrames)
+    : null;
   const familyView = shot.animation?.family && shot.animation.family !== "none" && shot.mode !== "real" && shot.kind !== "image" && shot.kind !== "video" && shot.kind !== "upload" && shot.kind !== "stock" && shot.kind !== "chart"
     ? renderAnimation(shot, durationInFrames)
     : null;
-  const view = familyView ?? (() => {
+  const view = ui2vView ?? familyView ?? (() => {
     switch (shot.kind) {
       case "title":
         return <TitleShot shot={shot} durationInFrames={durationInFrames} />;

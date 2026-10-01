@@ -7,10 +7,11 @@ import { dbToGain, duckEnvelope, type Envelope } from "./mix";
 import { anchorMs, sortShots, type LineTime } from "./shots";
 import { cuesForLine, normalizeCues, type Cue } from "./subtitles";
 import { isSecondaryUsable, type SubtitleBlock, type SubtitleConfig } from "./subtitle";
-import { outputSpecs, shotKindLabels, animationSpecSchema, type AnimationFamily, type Aspect, type Card, type Line, type OutputSpec, type ProjectDoc, type ShotKind, type ShotMode, type Motion } from "./types";
+import { outputSpecs, shotKindLabels, animationSpecSchema, type AnimationFamily, type Aspect, type Card, type Line, type OutputSpec, type ProjectDoc, type ShotKind, type ShotMode, type Motion, type Ui2vTemplateId } from "./types";
 import { outputSpecIdForAspect } from "./output-spec";
 import { normalizeAnimation } from "./animation";
 import { choreograph } from "./choreography";
+import { defaultUi2vTemplateForShot } from "./ui2v";
 
 /**
  * 时间轴 —— 纯函数。输入 = 项目文档 + 机器产物（配音缓存、曲库），输出 = Remotion 的 inputProps。
@@ -46,6 +47,7 @@ export type TimelineShot = {
   card: Card;
   animation?: {
     family: AnimationFamily;
+    templateId?: Ui2vTemplateId;
     intensity: 1 | 2 | 3;
     anchors: { frame: number; role: "enter" | "emphasis" | "exit"; target: string }[];
     params: Record<string, string | number | boolean>;
@@ -228,15 +230,17 @@ export function buildTimeline(doc: ProjectDoc, art: Artifacts, aspectOrSpec: Asp
     const overlapInFrames = k > 0 && transitionIn && transitionIn !== "cut" ? Math.max(1, Math.round((transitionMs / 1000) * fps)) : 0;
     const overlapOutFrames = k + 1 < sorted.length && sorted[k + 1].transitionIn && sorted[k + 1].transitionIn !== "cut" ? Math.max(1, Math.round((transitionMs / 1000) * fps)) : 0;
     const parsedAnimation = s.animation ? animationSpecSchema.parse(s.animation) : undefined;
-    const animation = parsedAnimation ? {
-      family: parsedAnimation.family,
-      intensity: parsedAnimation.intensity,
-      anchors: parsedAnimation.anchors.flatMap((a) => {
+    const templateId = parsedAnimation?.templateId ?? defaultUi2vTemplateForShot(s);
+    const animation = parsedAnimation || templateId ? {
+      family: parsedAnimation?.family ?? "none",
+      templateId,
+      intensity: parsedAnimation?.intensity ?? 1,
+      anchors: (parsedAnimation?.anchors ?? []).flatMap((a) => {
         const at = anchorMs({ lineId: a.lineId, char: a.char }, times);
         if (at === undefined || at < startMs || at >= endMs) return [];
         return [{ frame: Math.max(0, Math.round(((at - startMs) / 1000) * fps)), role: a.role, target: a.target }];
       }),
-      params: parsedAnimation.params,
+      params: parsedAnimation?.params ?? {},
     } : undefined;
     return {
       shotId: s.id,

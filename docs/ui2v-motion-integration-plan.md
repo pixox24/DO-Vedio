@@ -1,10 +1,10 @@
 # ui2v 动效模板接入与内容匹配实施方案
 
-> 状态：设计评估与落地计划
+> 状态：设计评估、许可证边界与快速验证记录
 >
 > 目标：在保持 DO-Vedio 时间轴、字幕、音频和 Remotion 成片一致性的前提下，引入 ui2v 的高质量动效设计语言，解决现有内置动画模板简单、重复、难看、与分镜语义不匹配的问题。
 >
-> 约束：本文件只描述接入方案，不改变当前渲染行为。真正接入前必须完成模板来源、许可证、依赖和真实渲染验证。
+> 约束：本文的长期移植方案仍以许可证、依赖和真实渲染验证为前置条件；本次只完成三个模板的隔离式快速验证，模板源文件留在 `motions/` 供审计，生产渲染使用本地 Remotion 适配器，不把外部 HTML 或 CDN 运行时带入成片。
 
 ## 1. 结论先行
 
@@ -45,7 +45,41 @@ timeline         = 何时开始、何时结束、何时响应旁白
 
 这说明 ui2v 至少包含一个面向 agent 的 skill / 模板入口和一个模板展示社区。`npx skills add ...` 本身不等于把模板注册进 DO-Vedio 的 Remotion registry；它更适合作为开发参考和模板生产辅助工具。
 
-### 2.2 接入前必须确认的事实
+### 2.2 本次许可证核验结果（截至 2026-10-01）
+
+已核对仓库 [LICENSE](https://github.com/illli-studio/ui2v/blob/main/LICENSE)、GitHub 的许可证识别和 [packages/ui2v/package.json](https://github.com/illli-studio/ui2v/blob/main/packages/ui2v/package.json)：
+
+| 范围 | 当前证据 | 可得结论 |
+|---|---|---|
+| 仓库根目录及未另行声明的代码 | 根目录 `LICENSE` 是 GNU GPL v3，GitHub 标记为 `GPL-3.0-only` | 复制、修改并并入 DO-Vedio 的代码，按 GPL-3.0 的 copyleft 条件处理；不能把它当作 MIT 代码直接内嵌到闭源产品 |
+| `packages/ui2v` 的 `@ui2v/cli` | `package.json` 的 `license` 字段声明 `MIT`，版本为 `2.0.2` | CLI 包可以按 MIT 条件作为开发工具评估；仍应随包核对它自己的 `LICENSE` 和依赖许可证 |
+| HyperFrames 模板、registry item 和模板资源 | 根目录许可证与 CLI 的 `license` 字段没有为每个模板提供许可证明 | **尚未确认**。每个模板及其字体、图片、图标、音频和第三方依赖必须单独取证 |
+
+因此，当前不能写成“ui2v 全部是 MIT”，也不能把 CLI 的 MIT 声明当成模板授权。审计时还要固定具体 commit；本次页面显示的 `main` 最新提交为 `7c1ab79f473d12292bde11fa76feb0797598f640`，后续不能只引用可变的 `main`。
+
+许可证对视频输出的影响也要分开判断：GPL 通常不会因为运行程序生成了普通 MP4 就自动把 MP4 变成 GPL；但把 GPL 模板代码移植进 Remotion bundle、把受限字体/图片打进成片，或把模板本身作为可执行/可再分发资产交付，都可能触发相应的 copyleft 或素材许可条件。这里不能用一句“可以导出”替代逐项审计，商业发布前应让法律/许可负责人确认组合方式。
+
+### 2.3 本次快速接入（已完成）
+
+三个模板已通过 `npx @ui2v/cli@latest install` 安装到 `motions/`，锁定信息写入 `.ui2v/lock.json`。DO-Vedio 不直接运行这些 HTML 模板，而是使用本地 Remotion 适配器：
+
+| 分镜语义 | 默认模板 |
+|---|---|
+| 标题卡 | `hero-spotlight-stage`（片头聚光 · 舞台） |
+| 金句卡 / quote | `creator-cinema-editorial-quote`（观点金句 · 暖纸编辑） |
+| 对比卡 / split | `hero-split-wipe`（分屏擦除 · 编辑） |
+
+适配器支持 16:9 与 9:16，短镜头会按实际时长压缩入场区间；镜头卡的模板下拉框可以锁定具体模板，清空覆盖时回到“自动匹配（默认模板）”。复现真实渲染：
+
+```bash
+ANIMATION_PROBE_PORT=3100 npm run animation:probe
+ffprobe -v error -show_streams -show_format .tmp-animation-probe/landscape.mp4
+ffprobe -v error -show_streams -show_format .tmp-animation-probe/portrait.mp4
+```
+
+验证基线为横屏 `672×378 / 30fps / 10s`、竖屏 `378×672 / 30fps / 10s`；probe 还包含一个本地测试素材的 `composite` 镜头，确认底图与透明动画层同时出现。样片只用于内部验证，`licenseStatus` 仍为 `pending`，没有进入生产模板许可白名单。
+
+### 2.4 接入前必须确认的事实
 
 在任何代码或资产进入生产渲染链之前，逐个模板确认：
 
@@ -58,9 +92,9 @@ timeline         = 何时开始、何时结束、何时响应旁白
 7. 是否能适配中文、长文本、16:9 和 9:16。
 8. 是否允许商业使用、修改和再分发。
 
-在许可证未确认前，只能把模板当作设计参考，不能提交模板代码、图片、字体或导出视频到生产包。
+在模板及其资源的许可证未确认前，只能把模板当作设计参考，不能把模板代码、图片、字体或音频提交到生产包。由这些模板临时导出的 MP4 只能作为内部评估样片隔离保存；是否可以商业发布，要等模板代码、成片内嵌资源和目标交付方式分别完成许可核验。GPL 本身不是“所有导出视频都不能用”的结论。
 
-### 2.3 如何使用本文
+### 2.5 如何使用本文
 
 本文把内容分成两种状态：
 

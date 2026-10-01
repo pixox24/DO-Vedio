@@ -9,6 +9,7 @@ import type { Timeline } from "../lib/core/timeline";
 
 const root = process.cwd();
 const outputDir = path.join(root, ".tmp-animation-probe");
+const probePort = Number(process.env.ANIMATION_PROBE_PORT ?? 3100);
 
 function timeline(aspect: "16:9" | "9:16"): Timeline {
   const portrait = aspect === "9:16";
@@ -16,7 +17,9 @@ function timeline(aspect: "16:9" | "9:16"): Timeline {
   const height = portrait ? 1920 : 1080;
   const families = ["editorial", "kinetic", "stat", "compare", "process", "callout", "timeline", "collage", "hud", "ink"] as const;
   const captions = ["观点先亮出来", "住房与收入的对比", "五千元房租", "过去与现在", "住房 → 托育 → 加班", "重点信息", "时间线", "拼贴重点", "系统状态", "墨线重点"];
+  const compositeFixture = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1920' height='1080'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' x2='1'%3E%3Cstop stop-color='%2310213a'/%3E%3Cstop offset='1' stop-color='%23d46a52'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1920' height='1080' fill='url(%23g)'/%3E%3Ccircle cx='1450' cy='340' r='260' fill='%23f4d35e' fill-opacity='.72'/%3E%3Ctext x='120' y='880' fill='white' font-size='92' font-family='sans-serif'%3ECOMPOSITE FIXTURE%3C/text%3E%3C/svg%3E";
   const shots = families.map((family, index) => {
+    const composite = family === "ink";
     const startMs = index * 1000;
     const card = family === "stat"
       ? { variant: "stat" as const, headline: "房租", stat: { value: "5000", unit: "元", label: "每月房租" } }
@@ -29,7 +32,7 @@ function timeline(aspect: "16:9" | "9:16"): Timeline {
         : { variant: "headline" as const, headline: captions[index] };
     return {
       shotId: `animation-probe-${family}`,
-      kind: "placeholder" as const,
+      kind: composite ? "image" as const : "placeholder" as const,
       startMs,
       endMs: startMs + 1000,
       motion: "none" as const,
@@ -38,9 +41,16 @@ function timeline(aspect: "16:9" | "9:16"): Timeline {
       caption: captions[index],
       keywords: [],
       seed: index + 11,
-      mode: "motion" as const,
+      mode: composite ? "composite" as const : "motion" as const,
+      imageSrc: composite ? compositeFixture : undefined,
       card,
-      animation: { family, intensity: 2 as const, anchors: [], params: {} },
+      animation: {
+        family,
+        templateId: family === "editorial" ? "creator-cinema-editorial-quote" as const : family === "compare" ? "hero-split-wipe" as const : family === "kinetic" ? "hero-spotlight-stage" as const : undefined,
+        intensity: 2 as const,
+        anchors: [],
+        params: {},
+      },
       safeArea: { bottomRatio: portrait ? 0.3 : 0.12, sideRatio: portrait ? 0.08 : 0.04 },
       transitionIn: index ? "fade" as const : "cut" as const,
       overlapInFrames: index ? 8 : 0,
@@ -83,9 +93,9 @@ async function main() {
   });
   for (const aspect of ["16:9", "9:16"] as const) {
     const props = { timeline: timeline(aspect) };
-    const composition = await selectComposition({ serveUrl, id: "Main", inputProps: props, port: 3002 });
+    const composition = await selectComposition({ serveUrl, id: "Main", inputProps: props, port: probePort });
     const outputLocation = path.join(outputDir, `${aspect === "16:9" ? "landscape" : "portrait"}.mp4`);
-    await renderMedia({ serveUrl, composition, inputProps: props, codec: "h264", outputLocation, crf: 28, scale: 0.35, x264Preset: "veryfast", pixelFormat: "yuv420p", imageFormat: "jpeg", jpegQuality: 72, enforceAudioTrack: false, chromiumOptions: { gl: "angle" }, port: 3002, logLevel: "warn" });
+    await renderMedia({ serveUrl, composition, inputProps: props, codec: "h264", outputLocation, crf: 28, scale: 0.35, x264Preset: "veryfast", pixelFormat: "yuv420p", imageFormat: "jpeg", jpegQuality: 72, enforceAudioTrack: false, chromiumOptions: { gl: "angle" }, port: probePort, logLevel: "warn" });
     console.log(`${aspect}: ${outputLocation}`);
   }
 }

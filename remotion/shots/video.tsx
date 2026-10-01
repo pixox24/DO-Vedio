@@ -2,6 +2,7 @@ import { AbsoluteFill, Video as RemotionVideo } from "remotion";
 import type { TimelineShot } from "@/lib/core/timeline";
 import { Motion } from "../layers/motion";
 import { PlaceholderShot } from "./placeholder";
+import { renderOverlayAnimation } from "../animation/overlay";
 
 /** AI 视频镜头。视频自身静音，整片旁白和配乐仍由 AudioLayer 统一混音。 */
 export function VideoShot({ shot, durationInFrames }: { shot: TimelineShot; durationInFrames: number }) {
@@ -13,6 +14,7 @@ export function VideoShot({ shot, durationInFrames }: { shot: TimelineShot; dura
         <RemotionVideo src={shot.videoSrc} muted loop style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: pos }} />
       </Motion>
       <AbsoluteFill style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.18), transparent 30%, transparent 62%, rgba(0,0,0,0.5))" }} />
+      {shot.mode === "composite" && renderOverlayAnimation(shot, durationInFrames)}
     </AbsoluteFill>
   );
 }

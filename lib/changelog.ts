@@ -39,6 +39,28 @@ export const changeKindOrder: ChangeKind[] = ["feature", "improvement", "fix", "
 
 export const changelog: ChangeEntry[] = [
   {
+    version: "0.28.1",
+    date: "2026-10-01",
+    title: "复合画面动画层真正生效",
+    summary: "选择“画面 + 动画层”后，图片和视频镜头现在都会在素材上方渲染逐帧动画；没有额外选择 family 时也会使用克制的默认层。",
+    items: [
+      { kind: "fix", title: "图片与视频支持叠加动画", detail: "复合模式不再绕过动画渲染器，ui2v 模板和原生 family 都能作为透明层叠加到素材上。" },
+      { kind: "improvement", title: "复合模式有可见默认层", detail: "只切换模式、不额外配置 family 时会显示默认标记和强调线，避免设置已保存但画面没有变化。" },
+    ],
+  },
+  {
+    version: "0.28.0",
+    date: "2026-10-01",
+    title: "ui2v 三模板快速接入验证",
+    summary: "安装并接入三个 ui2v HyperFrames 样例，以 Remotion 逐帧适配验证标题、金句和分屏擦除三类视觉模板的内容匹配与默认选择。",
+    items: [
+      { kind: "feature", title: "三个 ui2v 模板适配", detail: "新增观点金句、片头聚光和分屏擦除三个模板的 Remotion 渲染器，预览与成片共用同一时间轴。" },
+      { kind: "feature", title: "按镜头语义默认选择", detail: "标题卡、金句卡和对比卡自动使用对应模板，也可以在镜头设置中手动切换。" },
+      { kind: "improvement", title: "模板来源可追溯", detail: "保留 ui2v 安装包、版本和来源信息；模板许可证仍标记为待审计，不把外部 HTML 或 CDN 运行时带入生产渲染。" },
+      { kind: "infra", title: "逐帧渲染验证样例", detail: "动画 probe 覆盖三个模板，并继续输出横屏与竖屏样片用于比较预览、成片和字幕安全区。" },
+    ],
+  },
+  {
     version: "0.27.0",
     date: "2026-10-01",
     title: "存储管理：回收站、素材回收与缓存清理",

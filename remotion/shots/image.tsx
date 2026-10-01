@@ -6,6 +6,7 @@ import { useLayout } from "../layout";
 import { Motion } from "../layers/motion";
 import { useTheme } from "../theme";
 import { PlaceholderShot } from "./placeholder";
+import { renderOverlayAnimation } from "../animation/overlay";
 
 /** 图片镜头（上传图 / P2 的 AI 生图）：按焦点裁剪填满画面 + 运镜；底图模糊铺满防止黑边 */
 export function ImageShot({ shot, durationInFrames }: { shot: TimelineShot; durationInFrames: number }) {
@@ -42,6 +43,7 @@ function ParallaxImageShot({ shot, durationInFrames }: { shot: TimelineShot; dur
         <Img src={src} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: pos }} />
       </AbsoluteFill>
       <AbsoluteFill style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.12), transparent 35%, rgba(0,0,0,0.58))" }} />
+      {shot.mode === "composite" && renderOverlayAnimation(shot, durationInFrames)}
       {headline && <div style={{ position: "absolute", left: pad, right: pad, bottom, color: theme.text, fontFamily: FONT, fontSize: portrait ? u * 7 : u * 5, fontWeight: 900, lineHeight: 1.16, transform: `translateX(${pan * 0.55 * u}px)`, textShadow: "0 2px 14px rgba(0,0,0,.45)" }}>{headline}</div>}
     </AbsoluteFill>
   );

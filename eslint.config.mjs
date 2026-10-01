@@ -13,6 +13,11 @@ const eslintConfig = defineConfig([
     "build/**",
     "data/**",
     "next-env.d.ts",
+    // Downloaded ui2v source packages are audit fixtures, not project source.
+    "motions/**",
+    ".ui2v/**",
+    // Remotion probe output contains generated bundles and media.
+    ".tmp-animation-probe/**",
   ]),
 ]);
 
