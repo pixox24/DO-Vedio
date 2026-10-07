@@ -31,9 +31,10 @@ describe("normalizeAnimation", () => {
     expect(result[0].animation?.anchors.map((anchor) => anchor.char)).toEqual([0, 3]);
   });
 
-  it("连续第三个同 family 降级为 none", () => {
-    const result = normalizeAnimation(["a", "b", "c"].map((id, i) => shot(id, id, { family: "stat", intensity: 1, anchors: [], params: { value: String(i) } })), lines, times, defaultMotionProfile);
-    expect(result.map((item) => item.animation?.family)).toEqual(["stat", "stat", "none"]);
+  it("没有动画配方时保留运镜，不再补成旧家族", () => {
+    const result = normalizeAnimation([{ ...blankShot("a", "a"), motion: "zoom-in" }], lines, times, defaultMotionProfile);
+    expect(result[0].animation).toBeUndefined();
+    expect(result[0].motion).toBe("zoom-in");
   });
 
   it("相邻重复转场改为 cut", () => {
@@ -51,11 +52,4 @@ describe("normalizeAnimation", () => {
     expect(result.some((item) => item.animation?.intensity === 1)).toBe(true);
   });
 
-  it("stat/kinetic/compare 不重复完整字幕", () => {
-    const result = normalizeAnimation([
-      shot("a", "a", { family: "stat", intensity: 2, anchors: [], params: { text: lines[0].text } }),
-      shot("b", "b", { family: "none", intensity: 1, anchors: [], params: {} }),
-    ], lines, times, defaultMotionProfile);
-    expect(result[0].animation).toMatchObject({ family: "none", intensity: 1, params: {} });
-  });
 });

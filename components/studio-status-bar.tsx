@@ -13,8 +13,8 @@ import { Icon, Spinner } from "@/components/ui";
 export type StudioStatus = {
   /** 配音切换：新配音就绪进度（旧音频仍生效） */
   voice?: { ready: number; total: number; failed: number; onOpen: () => void } | null;
-  /** 成片是否已过期 */
-  renderStale?: boolean;
+  /** 各画幅成片是否已过期；只显示当前已计算过状态的画幅 */
+  renderStale?: Partial<Record<"16:9" | "9:16", boolean>>;
   /** 已花费 */
   spend: number;
   /** 生成服务是否在线 */
@@ -32,8 +32,15 @@ export function StudioStatusBar({ voice, renderStale, spend, online }: StudioSta
       onClick: voice.onOpen,
     });
   }
-  if (renderStale) {
-    items.push({ key: "render", tone: "warn", text: "内容或动画有改动，成片已过期" });
+  const renderAspects = renderStale ? (["16:9", "9:16"] as const).filter((aspect) => typeof renderStale[aspect] === "boolean") : [];
+  if (renderAspects.length) {
+    const staleAspects = renderAspects.filter((aspect) => renderStale?.[aspect]);
+    const freshAspects = renderAspects.filter((aspect) => !renderStale?.[aspect]);
+    items.push({
+      key: "render",
+      tone: staleAspects.length ? "warn" : "accent",
+      text: [...freshAspects.map((aspect) => `${aspect} 最新`), ...staleAspects.map((aspect) => `${aspect} 需重渲染`)].join(" · "),
+    });
   }
   items.push({ key: "spend", tone: "muted", text: `已花费 ¥${spend.toFixed(2)}` });
   if (online === false) {

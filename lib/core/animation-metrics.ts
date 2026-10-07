@@ -1,5 +1,4 @@
 import type { Timeline } from "./timeline";
-import type { AnimationFamily } from "./types";
 
 export type AnimationMetrics = {
   anchorErrorMs: number;
@@ -18,9 +17,9 @@ const stripPunctuation = (value: string) => value.replace(/[\s\p{P}\p{S}]/gu, ""
 /** Pure quality report for animation timelines; geometry checks use the derived subtitle band. */
 export function animationMetrics(timeline: Timeline): AnimationMetrics {
   const shots = timeline.shots;
-  const families = shots.map((shot) => shot.animation?.family ?? "none");
-  const counts = new Map<AnimationFamily, number>();
-  for (const family of families) counts.set(family, (counts.get(family) ?? 0) + 1);
+  const templates = shots.map((shot) => shot.animation?.templateId ?? "none");
+  const counts = new Map<string, number>();
+  for (const template of templates) counts.set(template, (counts.get(template) ?? 0) + 1);
   const entropy = shots.length ? [...counts.values()].reduce((sum, count) => {
     const p = count / shots.length;
     return sum - p * Math.log2(p);
@@ -31,18 +30,18 @@ export function animationMetrics(timeline: Timeline): AnimationMetrics {
     return Math.max(max, run);
   }, 0);
   const duplicateTextShots = shots.filter((shot) => {
-    const family = shot.animation?.family;
-    if (!family || !["stat", "kinetic", "compare"].includes(family)) return false;
-    const visible = [shot.onScreenText, shot.card.headline, ...(family === "stat" ? [] : [shot.card.stat?.value]), ...(shot.card.items ?? []), ...(shot.card.sides ?? [])].filter(Boolean).map((value) => stripPunctuation(value!));
+    const variant = shot.card.variant;
+    if (!["stat", "list", "split", "quote", "headline"].includes(variant)) return false;
+    const visible = [shot.onScreenText, shot.card.headline, ...(variant === "stat" ? [] : [shot.card.stat?.value]), ...(shot.card.items ?? []), ...(shot.card.sides ?? [])].filter(Boolean).map((value) => stripPunctuation(value!));
     const caption = stripPunctuation(shot.caption);
     return visible.some((value) => value.length > 0 && (value === caption || caption.includes(value)));
   }).map((shot) => shot.shotId);
-  const statShots = shots.filter((shot) => shot.animation?.family === "stat");
+  const statShots = shots.filter((shot) => shot.card.variant === "stat");
   const statTraceRate = statShots.length ? statShots.filter((shot) => !!shot.card.stat?.value && stripPunctuation(shot.caption).includes(stripPunctuation(shot.card.stat.value))).length / statShots.length : 1;
   const totalFrames = Math.max(1, timeline.durationInFrames);
   const motionFrames = shots.reduce((sum, shot) => {
-    const family = shot.animation?.family ?? "none";
-    return sum + (["none", "editorial"].includes(family) && shot.motion === "none" ? 0 : Math.max(0, shot.endMs - shot.startMs) * timeline.fps / 1000);
+    const moving = !!shot.animation?.templateId || shot.motion !== "none";
+    return sum + (moving ? Math.max(0, shot.endMs - shot.startMs) * timeline.fps / 1000 : 0);
   }, 0);
   const intensities = shots.map((shot) => shot.animation?.intensity ?? 1);
   const mean = intensities.length ? intensities.reduce((a, b) => a + b, 0) / intensities.length : 0;
@@ -57,7 +56,7 @@ export function animationMetrics(timeline: Timeline): AnimationMetrics {
     duplicateTextShots,
     statTraceRate,
     familyEntropy: entropy,
-    maxFamilyRun: runLength(families.filter((family) => family !== "none")),
+    maxFamilyRun: runLength(templates.filter((template) => template !== "none")),
     maxTransitionRun: runLength(shots.map((shot) => shot.transitionIn ?? "cut")),
     motionRatio: Math.min(1, motionFrames / totalFrames),
     safeAreaViolations,

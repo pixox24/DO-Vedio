@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { annotateKey } from "../../core/keys";
 import { spansValid } from "../../core/lines";
+import { compactText } from "../../core/text";
 import { moods, type Line, type Mood, type Span } from "../../core/types";
 import { generateJson } from "../../llm";
 import { annotatePrompt } from "../../prompts";
@@ -49,7 +50,7 @@ export function sanitize(lines: { id: string; text: string }[], raw: z.infer<typ
       id: line.id,
       spans: ok ? spans : [],
       pauseAfterMs: a.pauseAfterMs && a.pauseAfterMs > 0 ? Math.min(2000, Math.round(a.pauseAfterMs)) : undefined,
-      keywords: [...new Set(a.keywords.map((k) => k.trim()).filter((k) => k.length >= 2 && k.length <= 12 && line.text.includes(k)))].slice(0, 2),
+      keywords: [...new Set(a.keywords.map((k) => compactText(k)).filter((k): k is string => !!k && k.length >= 2 && line.text.replace(/\s+/g, "").includes(k)))].slice(0, 2),
       mood: a.mood,
     };
   });
@@ -71,7 +72,7 @@ export const annotateStage = defineStage<AnnotateInput, { count: number }>({
   concurrency: 2,
   async run(input, ctx) {
     const lex = effectiveLexicon(input.projectId);
-    const key = annotateKey(input.lines, lex, input.modelId);
+    const key = annotateKey(input.lines, lex, input.modelId, input.projectId);
     let ann = cacheGet<Annotation[]>(key);
     if (!ann) {
       ctx.progress(0.1, "大模型标注中");

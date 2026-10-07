@@ -14,8 +14,8 @@ import type { GenerationFrame } from "./output-spec";
 export const STAGE_VERSION = { annotate: 1, tts: 3, ttsBlock: 1, storyboard: 3, music: 1, render: 2, shotGeneration: 4, cast: 3, characterSheet: 1 } as const;
 
 /** 标注：输入是一个段落的全部句子 */
-export function annotateKey(lines: Pick<Line, "id" | "text">[], lex: LexEntry[], modelId: string) {
-  return `annotate:${quickHash({ v: STAGE_VERSION.annotate, t: lines.map((l) => l.text), lex, modelId })}`;
+export function annotateKey(lines: Pick<Line, "id" | "text">[], lex: LexEntry[], modelId: string, projectId: string) {
+  return `annotate:${quickHash({ v: STAGE_VERSION.annotate, projectId, t: lines.map((l) => l.text), lex, modelId })}`;
 }
 
 /** 一句话最终的朗读文本：标注 + 词典 + 数字规则 */
@@ -148,16 +148,16 @@ export type TtsBlockInfo = {
   blockAssetId: string;
 };
 
-export function storyboardKey(input: unknown) {
-  return `storyboard:${quickHash({ v: STAGE_VERSION.storyboard, input })}`;
+export function storyboardKey(input: unknown, projectId: string) {
+  return `storyboard:${quickHash({ v: STAGE_VERSION.storyboard, projectId, input })}`;
 }
 
-export function castKey(input: unknown) {
-  return `cast:${quickHash({ v: STAGE_VERSION.cast, input })}`;
+export function castKey(input: unknown, projectId: string) {
+  return `cast:${quickHash({ v: STAGE_VERSION.cast, projectId, input })}`;
 }
 
-export function musicKey(input: unknown) {
-  return `music:${quickHash({ v: STAGE_VERSION.music, input })}`;
+export function musicKey(input: unknown, projectId: string) {
+  return `music:${quickHash({ v: STAGE_VERSION.music, projectId, input })}`;
 }
 
 export function renderKey(timelineHash: string, quality: string, output?: Pick<GenerationFrame, "aspect" | "width" | "height" | "fps">) {

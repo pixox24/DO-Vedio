@@ -155,7 +155,7 @@ export async function renderTimeline(opts: {
     // 素材地址改成本地服务
     const local = JSON.parse(JSON.stringify(t).replaceAll("/api/media/", `${server.origin}/`)) as Timeline;
     const inputProps = { timeline: local };
-    const composition = await selectComposition({ serveUrl, id: "Main", inputProps });
+    const composition = await selectComposition({ serveUrl, id: "Video", inputProps });
     const licenseKey = process.env.REMOTION_LICENSE_KEY?.trim();
     await renderMedia({
       serveUrl,

@@ -34,7 +34,7 @@ export const castStage = defineStage<CastInput, { characters: number; skipped: n
       segments: doc.segments.map((s, index) => ({ index, title: s.title })),
       lines: doc.lines.map((l) => ({ id: l.id, segmentIndex: l.segmentIndex, text: l.text })),
     };
-    const key = castKey({ payload, modelId: input.modelId });
+    const key = castKey({ payload, modelId: input.modelId }, input.projectId);
     let draft = input.force ? undefined : cacheGet<CastDraft>(key);
     if (!draft) {
       ctx.progress(0.1, "大模型分析角色中");

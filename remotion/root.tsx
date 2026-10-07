@@ -1,3 +1,4 @@
+import { CardShowcase, CARD_SHOWCASE_DURATION_IN_FRAMES } from "./demo/card-showcase";
 import { Composition } from "remotion";
 import type { Timeline } from "@/lib/core/timeline";
 import { DEFAULT_SUBTITLE_CONFIG } from "@/lib/core/subtitle";
@@ -29,16 +30,25 @@ const empty: Timeline = {
 /** 只注册一个合成，尺寸、帧率、时长全部来自 inputProps 里的时间轴 */
 export function Root() {
   return (
-    <Composition
-      id="Main"
-      component={Video}
-      defaultProps={{ timeline: empty } satisfies VideoProps}
-      calculateMetadata={({ props }) => ({
-        width: props.timeline.width,
-        height: props.timeline.height,
-        fps: props.timeline.fps,
-        durationInFrames: props.timeline.durationInFrames,
-      })}
-    />
+    <>
+      <Composition
+        id="Video"
+        component={Video}
+        durationInFrames={empty.durationInFrames}
+        fps={empty.fps}
+        width={empty.width}
+        height={empty.height}
+        defaultProps={{ timeline: empty } satisfies VideoProps}
+      />
+
+      <Composition
+        id="CardShowcase"
+        component={CardShowcase}
+        durationInFrames={CARD_SHOWCASE_DURATION_IN_FRAMES}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+    </>
   );
 }

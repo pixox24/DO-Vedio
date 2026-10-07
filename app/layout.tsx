@@ -1,8 +1,27 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import { Nav } from "@/components/nav";
 import { FeedbackProvider } from "@/components/feedback";
 import "./globals.css";
+
+/**
+ * 字体原来只在 globals.css 的 --font-sans 里写了个名字，
+ * 从没真正加载过——除非用户本机装了 Inter，否则实际渲染的是系统字体。
+ * 这里用 next/font 自托管（构建期下载，浏览器不请求 Google）。
+ * 变量名与 app/globals.css 的 --font-sans / --font-mono 对应。
+ */
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-jetbrains-mono",
+});
 
 export const metadata: Metadata = {
   title: "DO·Vedio — AI 视频文案工坊",
@@ -11,7 +30,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="zh-CN" className="h-full antialiased">
+    <html lang="zh-CN" className={`h-full antialiased ${inter.variable} ${jetbrainsMono.variable}`}>
       <body className="flex min-h-full flex-col overflow-x-hidden">
         <FeedbackProvider>
         <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-ink/70 backdrop-blur-xl">

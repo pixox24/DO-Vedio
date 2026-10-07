@@ -102,17 +102,45 @@ export async function generatePlain(modelId: string, { instructions, prompt }: P
   return text.trim();
 }
 
-export async function generateJson<T extends z.ZodType>(modelId: string, schema: T, { instructions, prompt }: Prompt, signal?: AbortSignal) {
+export async function generateJson<T extends z.ZodType>(modelId: string, schema: T, { instructions, prompt }: Prompt, signal?: AbortSignal, maxRetries: number = 2) {
   const { model, isClaude } = getModel(modelId);
-  const { output } = await generateText({
-    model,
-    instructions: `${instructions}\n\n只输出一个 JSON 对象，不要任何解释，结构必须符合以下 JSON Schema：\n${JSON.stringify(z.toJSONSchema(schema))}`,
-    prompt,
-    abortSignal: signal,
-    output: Output.object({ schema }),
-    providerOptions: isClaude ? claudeOptions : undefined,
-  });
-  return output as z.infer<T>;
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const { output } = await generateText({
+        model,
+        instructions: `${instructions}\n\n只输出一个 JSON 对象，不要任何解释，结构必须符合以下 JSON Schema：\n${JSON.stringify(z.toJSONSchema(schema))}`,
+        prompt,
+        abortSignal: signal,
+        output: Output.object({ schema }),
+        providerOptions: isClaude ? claudeOptions : undefined,
+      });
+      return output as z.infer<T>;
+    } catch (e) {
+      lastError = e;
+      const errorMsg = errorMessage(e);
+
+      // 如果是取消操作，立即抛出，不重试
+      if (signal?.aborted || errorMsg.includes("aborted") || errorMsg.includes("canceled")) {
+        throw e;
+      }
+
+      // 如果是最后一次尝试，抛出错误
+      if (attempt === maxRetries) {
+        console.error(`generateJson 失败，已重试 ${maxRetries} 次:`, errorMsg);
+        throw e;
+      }
+
+      // 记录重试日志
+      console.warn(`generateJson 第 ${attempt + 1} 次尝试失败，正在重试... 错误: ${errorMsg}`);
+
+      // 等待一段时间后重试（指数退避）
+      await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt)));
+    }
+  }
+
+  throw lastError;
 }
 
 export function errorMessage(e: unknown) {

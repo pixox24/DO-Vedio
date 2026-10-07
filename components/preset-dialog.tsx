@@ -288,7 +288,8 @@ function PresetManagerDialog({ doc, presets, defaultId, focusSave, onClose, onCh
     setBusy("save");
     try {
       const created = await createPreset({ name: trimmed, description: description.trim() || undefined, payload: extractPresetPayload(doc) });
-      toast(`预设「${created.name}」已保存`, "success");
+      await setPresetDefault(created.id);
+      toast(`预设「${created.name}」已保存，并设为新项目默认`, "success");
       setName("未命名预设");
       setDescription("");
       onSaved(created.id);
@@ -404,11 +405,11 @@ function PresetManagerDialog({ doc, presets, defaultId, focusSave, onClose, onCh
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
           <div className="rounded-2xl border border-accent/20 bg-accent/[0.06] p-4">
             <p className="text-sm font-medium text-white/85">从当前项目另存为预设</p>
-            <p className="mt-1 text-xs leading-5 text-white/45">记录全部制作设置与画面风格快照；不包含文案、角色、分镜、配乐编排与服务商密钥。</p>
+            <p className="mt-1 text-xs leading-5 text-white/45">记录全部制作设置与画面风格快照；保存后会自动作为新项目默认预设。不包含文案、角色、分镜、配乐编排与服务商密钥。</p>
             <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto]">
               <input ref={nameRef} className="input" value={name} maxLength={40} placeholder="预设名称" onChange={(event) => setName(event.target.value)} />
               <input className="input" value={description} maxLength={80} placeholder="描述（可选）" onChange={(event) => setDescription(event.target.value)} />
-              <button className="btn btn-primary btn-sm h-10" disabled={disabled || !name.trim()} onClick={() => void saveNew()}>{busy === "save" ? <Spinner className="size-3" /> : null}保存</button>
+              <button className="btn btn-primary btn-sm h-10" disabled={disabled || !name.trim()} onClick={() => void saveNew()}>{busy === "save" ? <Spinner className="size-3" /> : null}保存并设为默认</button>
             </div>
           </div>
 

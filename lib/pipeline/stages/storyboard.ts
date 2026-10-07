@@ -2,10 +2,10 @@ import { randomUUID } from "crypto";
 import { z } from "zod";
 import { storyboardKey } from "../../core/keys";
 import { sanitizeCard } from "../../core/cards";
-import { normalizeShots, repairShots, sortShots, stampShots, blankShot, shotLineIds } from "../../core/shots";
+import { distributeMotionCards, isMotionCardShot, normalizeShots, repairShots, sortShots, stampShots, blankShot, shotLineIds } from "../../core/shots";
 import { layoutLines } from "../../core/timeline";
 import { MAX_SHOT_CHARACTERS } from "../../core/prompt-compiler";
-import { cardVariants, characterRoleLabels, motions, presentationLabels, shotSizeLabels, shotSizes, type Line, type ProjectDoc, type Shot } from "../../core/types";
+import { storyboardCardVariants, characterRoleLabels, motions, presentationLabels, shotSizeLabels, shotSizes, type Line, type ProjectDoc, type Shot } from "../../core/types";
 import { generateJson } from "../../llm";
 import { storyboardPrompt, type StoryboardPayload } from "../../prompts";
 import { getTemplate } from "../../templates/store";
@@ -33,11 +33,16 @@ const draftSchema = z.object({
       description: z.string(),
       card: z
         .object({
-          variant: z.enum(cardVariants),
+          // 旧项目仍可读取 headline/qa/cta，但新分镜不再生成这三类卡片。
+          variant: z.enum(storyboardCardVariants),
           headline: z.string().optional(),
           stat: z.object({ value: z.string(), unit: z.string().optional(), label: z.string().optional() }).optional(),
           items: z.array(z.string()).optional(),
           sides: z.array(z.string()).optional(),
+          alert: z.object({ type: z.enum(["info", "warning", "success", "danger"]), content: z.string() }).optional(),
+          definition: z.object({ term: z.string(), meaning: z.string() }).optional(),
+          timeline: z.array(z.object({ time: z.string(), event: z.string() })).optional(),
+          profile: z.object({ name: z.string(), role: z.string().optional(), bio: z.string().optional() }).optional(),
         })
         .optional(),
       onScreenText: z.string().optional(),
@@ -78,14 +83,25 @@ export function staleRanges(doc: ProjectDoc): { from: number; to: number }[] {
   const order = new Map(doc.lines.map((l, k) => [l.id, k]));
   const sorted = sortShots(shots, doc.lines);
   const ranges: { from: number; to: number }[] = [];
+  const addRange = (from: number, to: number) => {
+    const last = ranges[ranges.length - 1];
+    if (last && from <= last.to + 1) last.to = Math.max(last.to, to);
+    else ranges.push({ from, to: Math.max(from, to) });
+  };
   sorted.forEach((s, k) => {
     if (!stale.has(s.id)) return;
     const from = order.get(s.at.lineId)!;
     const next = sorted[k + 1];
     const to = next ? order.get(next.at.lineId)! - (next.at.char === 0 ? 1 : 0) : doc.lines.length - 1;
-    const last = ranges[ranges.length - 1];
-    if (last && from <= last.to + 1) last.to = Math.max(last.to, to);
-    else ranges.push({ from, to: Math.max(from, to) });
+    addRange(from, to);
+  });
+  // 旧项目可能已经保存了相邻信息卡；让下一次分镜任务重新编排并持久化交替结果。
+  sorted.forEach((shot, index) => {
+    const next = sorted[index + 1];
+    if (!next || next.locked || !isMotionCardShot(shot) || !isMotionCardShot(next)) return;
+    const from = order.get(shot.at.lineId)!;
+    const to = order.get(next.at.lineId)!;
+    addRange(from, to);
   });
   return ranges;
 }
@@ -93,15 +109,58 @@ export function staleRanges(doc: ProjectDoc): { from: number; to: number }[] {
 export function toShots(draft: Draft, lines: Line[], characterIds: Set<string> = new Set()): Shot[] {
   const order = new Map(lines.map((l, k) => [l.id, k]));
   const text = new Map(lines.map((l) => [l.id, l.text]));
-  const valid = draft.filter((d) => order.has(d.lineId)).sort((a, b) => order.get(a.lineId)! - order.get(b.lineId)! || (a.char ?? 0) - (b.char ?? 0));
-  return valid.map((d, k) => {
+
+  // 数据清洗和验证：只过滤掉关键错误，对于其他问题记录警告但保留数据
+  const cleaned = draft.filter((d, index) => {
+    // 硬性要求：lineId 必须存在且有效
+    if (!d.lineId || typeof d.lineId !== 'string') {
+      console.warn(`镜头 ${index} 缺少 lineId，已跳过`);
+      return false;
+    }
+
+    // 硬性要求：lineId 必须在句子列表中
+    if (!order.has(d.lineId)) {
+      console.warn(`镜头 ${index} lineId: ${d.lineId} 在句子列表中不存在，已跳过`);
+      return false;
+    }
+
+    // 软性验证：记录警告但不过滤
+    if (!d.intent || typeof d.intent !== 'string' || d.intent.trim() === '') {
+      console.warn(`镜头 ${index} (lineId: ${d.lineId}) intent 缺失或为空，将使用默认值`);
+    }
+    if (!d.description || typeof d.description !== 'string' || d.description.trim() === '') {
+      console.warn(`镜头 ${index} (lineId: ${d.lineId}) description 缺失或为空，将使用默认值`);
+    }
+    if (d.kind && !['title', 'quote', 'placeholder'].includes(d.kind)) {
+      console.warn(`镜头 ${index} (lineId: ${d.lineId}) kind 值无效: ${d.kind}，将使用默认值`);
+    }
+    if (d.mode && !['generate', 'motion'].includes(d.mode)) {
+      console.warn(`镜头 ${index} (lineId: ${d.lineId}) mode 值无效: ${d.mode}，将使用默认值`);
+    }
+    if (d.motion && !['zoom-in', 'zoom-out', 'pan-left', 'pan-right', 'none'].includes(d.motion)) {
+      console.warn(`镜头 ${index} (lineId: ${d.lineId}) motion 值无效: ${d.motion}，将使用默认值`);
+    }
+
+    return true;
+  });
+
+  const valid = cleaned.sort((a, b) => order.get(a.lineId)! - order.get(b.lineId)! || (a.char ?? 0) - (b.char ?? 0));
+  return distributeMotionCards(valid.map((d, k) => {
     const from = order.get(d.lineId)!;
     const next = valid[k + 1];
     const to = next ? Math.max(from, order.get(next.lineId)! - ((next.char ?? 0) === 0 ? 1 : 0)) : lines.length - 1;
     const caption = lines.slice(from, to + 1).map((l) => l.text).join("");
     const placeholder = d.kind === "placeholder";
     const mode = placeholder ? d.mode : "motion";
-    const card = placeholder && mode === "motion" && d.card ? sanitizeCard({ ...d.card, stat: d.card.stat && { ...d.card.stat, label: d.card.stat.label ?? "" }, sides: d.card.sides?.length === 2 ? [d.card.sides[0], d.card.sides[1]] : undefined }, caption) : undefined;
+    const card = placeholder && mode === "motion" && d.card ? sanitizeCard({
+      ...d.card,
+      stat: d.card.stat && { ...d.card.stat, label: d.card.stat.label ?? "" },
+      sides: d.card.sides?.length === 2 ? [d.card.sides[0], d.card.sides[1]] : undefined,
+      alert: d.card.alert,
+      definition: d.card.definition,
+      timeline: d.card.timeline,
+      profile: d.card.profile,
+    }, caption) : undefined;
     return {
       ...blankShot(randomUUID(), d.lineId, Math.min(d.char ?? 0, Math.max(0, (text.get(d.lineId)?.length ?? 1) - 1))),
       kind: d.kind,
@@ -115,7 +174,7 @@ export function toShots(draft: Draft, lines: Line[], characterIds: Set<string> =
       motion: d.motion,
       importance: Math.min(3, Math.max(1, d.importance)) as 1 | 2 | 3,
     };
-  });
+  }));
 }
 
 /** 分镜要知道的角色：未缺席的建卡角色，外貌只给摘要（完整外貌由编译器注入） */
@@ -185,7 +244,7 @@ export const storyboardStage = defineStage<StoryboardInput, { shots: number; llm
         lines: slice.map((l) => ({ id: l.id, segmentIndex: l.segmentIndex, text: l.text, ms: ms.get(l.id) ?? 0, keywords: l.keywords, mood: l.mood })),
         partial: ranges.length === 1 && r.from === 0 && r.to === doc.lines.length - 1 ? undefined : partialContext(doc, r),
       };
-      const key = storyboardKey({ payload, modelId: input.modelId });
+      const key = storyboardKey({ payload, modelId: input.modelId }, input.projectId);
       let draft = cacheGet<Draft>(key);
       if (!draft) {
         const prompt = storyboardPrompt(payload);

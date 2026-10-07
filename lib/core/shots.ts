@@ -13,6 +13,40 @@ import { motions, type Line, type Motion, type Shot } from "./types";
 
 export const SHOT_RULES = { minMs: 1500, maxMs: 6000, openingMs: 15000, openingMaxMs: 3500 };
 
+/** 信息卡属于高密度镜头；相邻信息卡会让观众没有消化时间。 */
+export function isMotionCardShot(shot: Shot): boolean {
+  return shot.kind === "placeholder" && shot.mode === "motion";
+}
+
+/** 将连续信息卡交替为生成画面，保留卡片的时间位置并让下游重新生成素材。 */
+export function distributeMotionCards(shots: Shot[]): Shot[] {
+  let previousWasCard = false;
+  return shots.map((shot) => {
+    if (!isMotionCardShot(shot)) {
+      previousWasCard = false;
+      return shot;
+    }
+    if (!previousWasCard || shot.locked) {
+      previousWasCard = true;
+      return shot;
+    }
+    previousWasCard = false;
+    return {
+      ...shot,
+      mode: "generate",
+      card: undefined,
+      shotSize: shot.shotSize ?? "medium",
+      description: shot.description || "围绕这段旁白设计具象画面",
+      onScreenText: undefined,
+      assetId: undefined,
+      assetVariants: {},
+      assetPromptHash: undefined,
+      candidateGroupId: undefined,
+      candidates: [],
+    };
+  });
+}
+
 /** 句子在时间轴上的位置（由 timeline 算出） */
 export type LineTime = { id: string; startMs: number; endMs: number; chars: { i: number; startMs: number; endMs: number }[] };
 
@@ -182,12 +216,12 @@ export function normalizeShots(shots: Shot[], lines: Line[], times: Map<string, 
 
   // 3) 运镜：静态画面必须运镜，相邻不同
   let prev: Motion | undefined;
-  return out.map((s, k) => {
+  return distributeMotionCards(out.map((s, k) => {
     let motion = s.motion;
     if (!s.locked && (motion === "none" || motion === prev) && s.kind !== "title") motion = pickMotion(prev, k);
     prev = motion;
     return motion === s.motion ? s : { ...s, motion };
-  });
+  }));
 }
 
 export function blankShot(id: string, lineId: string, char = 0): Shot {

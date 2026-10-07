@@ -1,15 +1,76 @@
 @import "tailwindcss";
 
+/**
+ * 设计令牌（单一真相来源）
+ *
+ * Tailwind 4 会按命名空间自动生成工具类：
+ *   --color-*   → text-/bg-/border-/ring-
+ *   --radius-*  → rounded-
+ *   --text-*    → text-（字号）
+ *   --animate-* → animate-
+ *   --z-*       → z-
+ *
+ * 新增颜色/圆角前先看这里有没有可复用的，不要再写 #hex 或 /[0.07] 这类魔数。
+ */
 @theme {
+  /* —— 品牌 —— */
   --color-accent: #cdff3a;
   --color-ink: #050505;
+  --color-ink-raised: #111111; /* 浮层底色：弹窗、抽屉 */
+  --color-ink-overlay: #151515; /* toast 等更浅的浮层 */
+
+  /* —— 文本层级 —— */
+  --color-text: #f4f4f5;
   --color-text-secondary: rgb(244 244 245 / 0.72);
   --color-text-muted: rgb(244 244 245 / 0.52);
-  --color-line-subtle: rgb(255 255 255 / 0.1);
-  --font-sans: "Inter", ui-sans-serif, "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
+  --color-text-faint: rgb(244 244 245 / 0.35);
+
+  /* —— 边框层级（原来有 12 种白色透明度，收敛为 4 档）—— */
+  --color-hairline: rgb(255 255 255 / 0.07);
+  --color-line: rgb(255 255 255 / 0.1);
+  --color-line-strong: rgb(255 255 255 / 0.2);
+  --color-line-bold: rgb(255 255 255 / 0.4);
+
+  /* —— 语义色：每档含前景 / 底色 / 边框 —— */
+  --color-warn: #fde68a;
+  --color-warn-surface: rgb(252 211 77 / 0.05);
+  --color-warn-border: rgb(252 211 77 / 0.25);
+
+  --color-danger: #fca5a5;
+  --color-danger-surface: rgb(248 113 113 / 0.05);
+  --color-danger-border: rgb(248 113 113 / 0.25);
+
+  --color-info: #7dd3fc;
+  --color-info-surface: rgb(125 211 252 / 0.05);
+  --color-info-border: rgb(125 211 252 / 0.25);
+
+  --color-success: #cdff3a;
+  --color-success-surface: rgb(205 255 58 / 0.05);
+  --color-success-border: rgb(205 255 58 / 0.25);
+
+  /* —— 视频衬底（letterbox）—— */
+  --color-stage: #17242c;
+
+  /* —— 圆角尺度（原来 7 级无规则，收敛为 4 档 + pill）—— */
+  --radius-control: 0.75rem; /* 输入框、菜单项        → rounded-control */
+  --radius-surface: 1rem; /* 卡片面、弹窗、横幅     → rounded-surface */
+  --radius-panel: 1.5rem; /* 顶层面板 .panel       → rounded-panel */
+
+  /* —— 字号（补上微字号，消除 140+ 处 text-[11px]/[10px]）—— */
+  --text-2xs: 0.6875rem; /* 11px */
+  --text-2xs--line-height: 1rem;
+  --text-3xs: 0.625rem; /* 10px */
+  --text-3xs--line-height: 0.875rem;
+
+  --font-sans: var(--font-inter), ui-sans-serif, "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, "SF Mono", Consolas, monospace;
+
   --animate-rise: rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
   --animate-caret: caret 1s steps(1) infinite;
+  --animate-fade-in: fade-in 0.16s ease-out both;
+  --animate-dialog-in: dialog-in 0.18s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-toast-in: toast-in 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-drawer-in: drawer-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 
   @keyframes rise {
     from { opacity: 0; transform: translateY(8px); }
@@ -17,6 +78,22 @@
   }
   @keyframes caret {
     50% { opacity: 0; }
+  }
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes dialog-in {
+    from { opacity: 0; transform: translateY(6px) scale(0.98); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes toast-in {
+    from { opacity: 0; transform: translateX(16px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes drawer-in {
+    from { transform: translateX(24px); }
+    to { transform: none; }
   }
   @keyframes generation-breathe {
     0%, 100% { box-shadow: 0 0 0 0 rgb(205 255 58 / 0.04); }
@@ -30,6 +107,22 @@
 
 :root {
   color-scheme: dark;
+
+  /*
+   * 层级尺度（单一真相来源）。
+   * Tailwind 4 没有 --z-* 命名空间，所以用普通自定义属性，
+   * 在组件层通过 z-[var(--z-modal)] 或下面的 .overlay/.alert 使用。
+   * 原来散落 z-40/50/80/90/95/100，且有 z-40 撞车（弹窗被页头盖住）。
+   */
+  --z-base: 0;
+  --z-sticky: 10;
+  --z-header: 40;
+  --z-overlay: 80; /* 抽屉、非模态浮层 */
+  --z-modal: 100; /* 弹窗、确认框 */
+  --z-toast: 110; /* toast 始终在最上 */
+  /* 噪点是纯装饰且 pointer-events: none。原来在 z-50：盖住内容与顶栏（z-40），
+     但低于下拉（z-1000）。保持这个位置——压过页面，不压过任何浮层。 */
+  --z-grain: 70;
 }
 
 body {
@@ -47,7 +140,7 @@ body::before {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 50;
+  z-index: var(--z-grain);
   opacity: 0.035;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
@@ -63,16 +156,16 @@ body::before {
 
 @layer components {
   .panel {
-    @apply rounded-3xl border border-white/[0.07] bg-white/[0.025] backdrop-blur-xl;
+    @apply rounded-panel border border-hairline bg-white/[0.025] backdrop-blur-xl;
   }
   .label {
     @apply text-xs font-medium tracking-normal text-text-secondary;
   }
   .input {
-    @apply w-full rounded-xl border border-white/[0.08] bg-white/[0.03] px-3.5 py-2.5 text-sm text-white transition placeholder:text-white/25 focus:border-accent/50 focus:ring-4 focus:ring-accent/10 focus:outline-none;
+    @apply w-full rounded-control border border-line bg-white/[0.03] px-3.5 py-2.5 text-sm text-white transition placeholder:text-white/25 focus:border-accent/50 focus:ring-4 focus:ring-accent/10 focus:outline-none;
   }
   .select-trigger {
-    @apply flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3.5 py-2.5 text-left text-sm text-white transition placeholder:text-white/25 focus:border-accent/50 focus:ring-4 focus:ring-accent/10 focus:outline-none;
+    @apply flex w-full cursor-pointer items-center justify-between gap-3 rounded-control border border-line bg-white/[0.03] px-3.5 py-2.5 text-left text-sm text-white transition placeholder:text-white/25 focus:border-accent/50 focus:ring-4 focus:ring-accent/10 focus:outline-none;
   }
   .select-trigger[aria-expanded="true"] {
     @apply border-accent/60 ring-4 ring-accent/10;
@@ -82,22 +175,23 @@ body::before {
   }
   .select-menu {
     position: fixed;
-    z-index: 1000;
+    z-index: calc(var(--z-modal) + 1);
     max-height: min(18rem, calc(100vh - 2rem));
     overflow-y: auto;
-    border: 1px solid rgb(255 255 255 / 0.12);
-    border-radius: 1rem;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-surface);
     background: rgb(16 20 19 / 0.96);
     padding: 0.375rem;
     box-shadow: 0 20px 50px rgb(0 0 0 / 0.48), 0 0 0 1px rgb(205 255 58 / 0.04);
     backdrop-filter: blur(24px);
     transform: translateY(0);
+    animation: var(--animate-fade-in);
   }
   .select-menu-above {
     transform: translateY(-100%);
   }
   .select-option {
-    @apply flex min-h-9 w-full cursor-pointer items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm text-white/70 transition;
+    @apply flex min-h-9 w-full cursor-pointer items-center justify-between gap-3 rounded-control px-3 py-2 text-left text-sm text-white/70 transition;
   }
   .select-option:hover,
   .select-option[data-active="true"] {
@@ -116,28 +210,45 @@ body::before {
     @apply bg-accent text-black shadow-[0_0_32px_-6px_rgb(205_255_58/0.55)] hover:shadow-[0_0_44px_-4px_rgb(205_255_58/0.75)] hover:brightness-105;
   }
   .btn-ghost {
-    @apply border border-white/10 text-white/75 hover:border-white/20 hover:bg-white/[0.05] hover:text-white;
+    @apply border border-line text-white/75 hover:border-line-strong hover:bg-white/[0.05] hover:text-white;
+  }
+  .btn-danger {
+    @apply border border-danger-border bg-danger-surface text-danger hover:bg-red-400/15 hover:text-red-100;
+  }
+  .btn-warn {
+    @apply border border-warn-border bg-warn-surface text-warn hover:bg-amber-300/10;
   }
   .btn-text {
-    @apply inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-text-muted transition hover:bg-white/[0.05] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white;
+    @apply inline-flex cursor-pointer items-center gap-1.5 rounded-control px-2 py-1.5 text-sm text-text-muted transition hover:bg-white/[0.05] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white;
   }
   .btn-sm {
     @apply h-8 px-3.5 text-xs;
   }
   .chip {
-    @apply inline-flex h-8 cursor-pointer items-center rounded-full border border-white/10 px-3.5 text-xs whitespace-nowrap text-text-muted transition hover:border-white/30 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white;
+    @apply inline-flex h-8 cursor-pointer items-center rounded-full border border-line px-3.5 text-xs whitespace-nowrap text-text-muted transition hover:border-line-strong hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white;
   }
   .chip-on {
     @apply border-white/60 bg-white/[0.09] text-white hover:border-white/80 hover:text-white;
   }
   .tag {
-    @apply inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs text-text-muted;
+    @apply inline-flex items-center rounded-full border border-line bg-white/[0.04] px-2.5 py-1 text-xs text-text-muted;
+  }
+  .nav-pill {
+    @apply inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-sm whitespace-nowrap text-white/55 transition hover:text-white sm:px-4;
+  }
+  .nav-pill-active {
+    @apply bg-white text-black;
+  }
+  /* 导航分组下拉：相对定位，不参与 .select-menu 的 fixed 定位体系 */
+  .nav-menu {
+    @apply absolute top-full right-0 z-[var(--z-modal)] mt-2 flex w-64 flex-col gap-0.5 rounded-surface border border-line bg-ink-raised/96 p-1.5 shadow-2xl backdrop-blur-xl;
+    animation: var(--animate-dialog-in);
   }
   .segmented {
-    @apply inline-flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.025] p-1;
+    @apply inline-flex items-center gap-1 rounded-control border border-line bg-white/[0.025] p-1;
   }
   .segmented-item {
-    @apply inline-flex h-8 cursor-pointer items-center justify-center rounded-lg px-3 text-sm text-text-muted transition hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white;
+    @apply inline-flex h-8 cursor-pointer items-center justify-center rounded-control px-3 text-sm text-text-muted transition hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white;
   }
   .segmented-item-active {
     @apply bg-white text-black;
@@ -158,7 +269,38 @@ body::before {
     @apply h-1 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-white;
   }
   .audio-button {
-    @apply inline-flex h-8 shrink-0 cursor-pointer items-center gap-2 rounded-full border border-white/10 px-3 text-xs text-text-muted transition hover:border-white/30 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white;
+    @apply inline-flex h-8 shrink-0 cursor-pointer items-center gap-2 rounded-full border border-line px-3 text-xs text-text-muted transition hover:border-line-strong hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white;
+  }
+
+  /* —— 语义横幅：替代原来 12 处各自漂移的 amber/red 边框组合 —— */
+  .alert {
+    @apply flex flex-wrap items-center justify-between gap-3 rounded-surface border px-5 py-3 text-sm leading-relaxed;
+  }
+  .alert-warn {
+    @apply border-warn-border bg-warn-surface text-warn;
+  }
+  .alert-danger {
+    @apply border-danger-border bg-danger-surface text-danger;
+  }
+  .alert-info {
+    @apply border-info-border bg-info-surface text-info;
+  }
+  .alert-success {
+    @apply border-success-border bg-success-surface text-success;
+  }
+  .alert-sm {
+    @apply gap-2 rounded-control px-4 py-2 text-xs;
+  }
+
+  /* —— 浮层：统一弹窗/抽屉的遮罩与面板 —— */
+  .overlay {
+    @apply fixed inset-0 grid place-items-center bg-black/65 p-4 backdrop-blur-sm;
+    z-index: var(--z-modal);
+    animation: var(--animate-fade-in);
+  }
+  .overlay-panel {
+    @apply w-full rounded-surface border border-line bg-ink-raised/95 p-6 shadow-2xl;
+    animation: var(--animate-dialog-in);
   }
 }
 
@@ -174,10 +316,38 @@ body::before {
   }
 }
 
+/*
+ * 减弱动效：不只关生成动画，而是关掉全部位移/缩放/脉冲/无限循环，
+ * 只保留颜色与文本状态变化（原来的规则漏掉了 animate-rise / pulse / spin / active:scale）。
+ */
 @media (prefers-reduced-motion: reduce) {
   .generation-card-running,
   .generation-image-complete,
-  .generation-live-dot {
+  .generation-live-dot,
+  .animate-rise,
+  .animate-fade-in,
+  .animate-dialog-in,
+  .animate-toast-in,
+  .animate-drawer-in,
+  .select-menu,
+  .overlay,
+  .overlay-panel {
     animation: none;
+  }
+  .animate-spin {
+    animation-duration: 1.6s;
+  }
+  .animate-pulse {
+    animation: none;
+    opacity: 0.6;
+  }
+  .btn {
+    @apply active:scale-100;
+  }
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

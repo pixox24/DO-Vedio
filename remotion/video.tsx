@@ -1,6 +1,7 @@
 import { AbsoluteFill, Sequence, useVideoConfig } from "remotion";
 import type { Timeline, TimelineShot } from "@/lib/core/timeline";
 import type { VideoTheme } from "@/lib/core/theme";
+import { isCodeCardShot } from "@/lib/core/ui2v";
 import { ensureFonts } from "./fonts";
 import { AiLabel } from "./layers/ai-label";
 import { AudioLayer } from "./layers/audio";
@@ -13,7 +14,6 @@ import { VideoShot } from "./shots/video";
 import { ChartShot, StockShot, UnsupportedModeShot } from "./shots/special";
 import { ThemeContext } from "./theme";
 import { TransitionLayer } from "./layers/transitions";
-import { renderAnimation } from "./animation/registry";
 import { renderUi2vTemplate } from "./animation/ui2v";
 
 ensureFonts();
@@ -22,13 +22,10 @@ export type VideoProps = { timeline: Timeline };
 
 export function ShotView({ shot, durationInFrames, theme }: { shot: TimelineShot; durationInFrames: number; theme?: VideoTheme }) {
   if (shot.mode === "real" && !shot.imageSrc && !shot.videoSrc) return <UnsupportedModeShot shot={shot} durationInFrames={durationInFrames} />;
-  const ui2vView = shot.animation?.templateId && shot.mode !== "real" && !["image", "video", "upload", "stock", "chart"].includes(shot.kind)
+  const ui2vView = isCodeCardShot(shot) && shot.animation?.templateId
     ? renderUi2vTemplate(shot, durationInFrames)
     : null;
-  const familyView = shot.animation?.family && shot.animation.family !== "none" && shot.mode !== "real" && shot.kind !== "image" && shot.kind !== "video" && shot.kind !== "upload" && shot.kind !== "stock" && shot.kind !== "chart"
-    ? renderAnimation(shot, durationInFrames)
-    : null;
-  const view = ui2vView ?? familyView ?? (() => {
+  const view = ui2vView ?? (() => {
     switch (shot.kind) {
       case "title":
         return <TitleShot shot={shot} durationInFrames={durationInFrames} />;

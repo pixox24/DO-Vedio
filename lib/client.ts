@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { STREAM_ERROR_MARK, type ModelInfo, type StyleTemplate } from "./types";
 import type { VisualStyle } from "./core/types";
+import { mergeProjectJobUpdates, type ProjectJobState } from "./core/project-events";
 import type { AixCompact, AixDetail, AixMeta } from "./aix/schema";
 import { staticAixCatalog } from "./aix/catalog-client";
 
@@ -357,29 +358,39 @@ type JobT = import("./core/types").Job;
 
 /** 订阅项目事件：任务进度、文档修订、Worker 在线、累计花费 */
 export function useProjectEvents(id: string, onRevision?: (revision: number) => void) {
-  const [jobs, setJobs] = useState<Map<string, JobT>>(new Map());
+  const [jobState, setJobState] = useState<ProjectJobState>(() => ({ projectId: id, jobs: new Map() }));
   const [online, setOnline] = useState<boolean | null>(null);
-  const [spend, setSpend] = useState(0);
+  const [spendState, setSpendState] = useState({ projectId: id, value: 0 });
+  const [eventsErrorState, setEventsErrorState] = useState({ projectId: id, value: false });
+  const refreshWorker = useCallback(async () => {
+    const response = await fetch("/api/worker", { cache: "no-store" });
+    if (!response.ok) throw new Error("无法检查生成服务状态");
+    const data = (await response.json()) as { online?: boolean };
+    setOnline(data.online === true);
+    return data.online === true;
+  }, []);
   const cb = useRef(onRevision);
   useEffect(() => {
     cb.current = onRevision;
   });
   useEffect(() => {
+    let active = true;
     const es = new EventSource(`/api/projects/${id}/events`);
+    es.onopen = () => { if (active) setEventsErrorState({ projectId: id, value: false }); };
+    es.onerror = () => { if (active) setEventsErrorState({ projectId: id, value: true }); };
     es.addEventListener("jobs", (e) => {
       const list = JSON.parse((e as MessageEvent).data) as JobT[];
-      setJobs((m) => {
-        const n = new Map(m);
-        for (const j of list) n.set(j.key, j);
-        return n;
-      });
+      if (active) setJobState((current) => mergeProjectJobUpdates(current, id, list));
     });
-    es.addEventListener("revision", (e) => cb.current?.(JSON.parse((e as MessageEvent).data).revision));
-    es.addEventListener("worker", (e) => setOnline(JSON.parse((e as MessageEvent).data).online));
-    es.addEventListener("spend", (e) => setSpend(JSON.parse((e as MessageEvent).data).costYuan));
-    return () => es.close();
+    es.addEventListener("revision", (e) => { if (active) cb.current?.(JSON.parse((e as MessageEvent).data).revision); });
+    es.addEventListener("worker", (e) => { if (active) setOnline(JSON.parse((e as MessageEvent).data).online); });
+    es.addEventListener("spend", (e) => { if (active) setSpendState({ projectId: id, value: JSON.parse((e as MessageEvent).data).costYuan }); });
+    return () => { active = false; es.close(); };
   }, [id]);
-  return { jobs, online, spend };
+  const jobs = jobState.projectId === id ? jobState.jobs : new Map<string, JobT>();
+  const spend = spendState.projectId === id ? spendState.value : 0;
+  const eventsError = eventsErrorState.projectId === id && eventsErrorState.value;
+  return { jobs, online, spend, eventsError, refreshWorker };
 }
 
 export const jobAction = (id: string, action: "cancel" | "retry") => postJson(`/api/jobs/${id}`, { action });

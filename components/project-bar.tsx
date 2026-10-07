@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { SaveState, useProject } from "@/lib/client";
 import { VersionHistory } from "./version-history";
@@ -13,10 +14,31 @@ const saveLabel: Record<SaveState, string> = { idle: "", saving: "保存中…",
 /** 项目页顶部：返回列表、文案 / 制作切换、保存状态和冲突处理 */
 export function ProjectBar({ id, store, title, active }: { id: string; store: Store; title: string; active: "script" | "video" }) {
   const [history, setHistory] = useState(false);
+  const [navBusy, setNavBusy] = useState(false);
+  const [navError, setNavError] = useState("");
+  const router = useRouter();
   const tabs = [
     { key: "script", href: `/projects/${id}`, label: "01 文案" },
     { key: "video", href: `/projects/${id}/video`, label: "02 制作" },
   ] as const;
+  const navigate = async (event: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    event.preventDefault();
+    if (navBusy) return;
+    setNavBusy(true);
+    setNavError("");
+    try {
+      const revision = await store.flush();
+      if (revision == null) {
+        setNavError("修改还没有可靠保存，当前页面未切换。请稍后重试。");
+        return;
+      }
+      router.push(href);
+    } catch (error) {
+      setNavError(error instanceof Error ? error.message : "保存失败，当前页面未切换");
+    } finally {
+      setNavBusy(false);
+    }
+  };
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -36,15 +58,17 @@ export function ProjectBar({ id, store, title, active }: { id: string; store: St
             <Link
               key={t.key}
               href={t.href}
-              onClick={() => store.flush()}
-              className={`rounded-full px-4 py-1 text-xs transition ${active === t.key ? "bg-white text-black" : "text-white/55 hover:text-white"}`}
+              onClick={(event) => void navigate(event, t.href)}
+              aria-disabled={navBusy}
+              className={`rounded-full px-4 py-1 text-xs transition ${navBusy ? "pointer-events-none opacity-60" : ""} ${active === t.key ? "bg-white text-black" : "text-white/55 hover:text-white"}`}
             >
-              {t.label}
+              {navBusy && active !== t.key ? "保存中…" : t.label}
             </Link>
           ))}
         </div>
         </div>
       </div>
+      {navError && <p className="text-right text-xs text-amber-200/80">{navError}</p>}
       {store.conflict != null && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300/25 bg-amber-300/[0.05] px-5 py-3 text-sm text-amber-100/85">
           <span>这个项目已在别的页面或后台任务中修改，自动保存已暂停。</span>

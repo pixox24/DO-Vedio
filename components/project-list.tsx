@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Icon, Select, Spinner } from "@/components/ui";
+import { Alert, Button, Dialog, Field, Icon, Select, Spinner } from "@/components/ui";
 import { postJson } from "@/lib/client";
 import { emptyDoc, mediaUrl, type Project, type ProjectPipelineStatus, type ProjectSummary } from "@/lib/core/types";
 import { useFeedback } from "@/components/feedback";
@@ -195,14 +195,30 @@ export function ProjectList() {
         </>
       )}
 
-      {createOpen && <div className="fixed inset-0 z-40 grid place-items-center bg-black/65 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setCreateOpen(false); }}>
-        <div className="panel w-full max-w-md space-y-5 p-6" role="dialog" aria-modal="true" aria-labelledby="create-project-title">
-          <div><h2 id="create-project-title" className="text-lg font-semibold">新建项目</h2><p className="mt-1.5 text-sm text-text-muted">先给项目起个标题，之后可以继续完善内容。</p></div>
-          <label className="block space-y-2"><span className="label">项目标题</span><input autoFocus className="input" value={createTitle} onChange={(event) => setCreateTitle(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") createFromTitle(); }} placeholder="例如：春季品牌故事" /></label>
-          {error && <p className="text-sm text-red-300/80">{error}</p>}
-          <div className="flex justify-end gap-2"><button type="button" className="btn btn-ghost btn-sm" onClick={() => { setCreateOpen(false); setCreateTitle(""); }}>取消</button><button type="button" className="btn btn-primary btn-sm" disabled={busy || !createTitle.trim()} onClick={createFromTitle}>{busy ? <Spinner className="size-3" /> : "创建项目"}</button></div>
-        </div>
-      </div>}
+      <Dialog
+        open={createOpen}
+        onClose={() => { setCreateOpen(false); setCreateTitle(""); }}
+        title="新建项目"
+        description="先给项目起个标题，之后可以继续完善内容。"
+        footer={
+          <>
+            <Button size="sm" onClick={() => { setCreateOpen(false); setCreateTitle(""); }}>取消</Button>
+            <Button size="sm" variant="primary" loading={busy} disabled={!createTitle.trim()} onClick={createFromTitle}>创建项目</Button>
+          </>
+        }
+      >
+        <Field label="项目标题">
+          <input
+            autoFocus
+            className="input"
+            value={createTitle}
+            onChange={(event) => setCreateTitle(event.target.value)}
+            onKeyDown={(event) => { if (event.key === "Enter") createFromTitle(); }}
+            placeholder="例如：春季品牌故事"
+          />
+        </Field>
+        {error && <Alert tone="danger" size="sm" className="mt-3">{error}</Alert>}
+      </Dialog>
     </div>
   );
 }

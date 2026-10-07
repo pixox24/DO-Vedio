@@ -106,6 +106,19 @@ describe("时间轴", () => {
     expect(v.width).toBe(1080);
   });
 
+  it("信息卡按版式匹配模板，生成画面保留运镜且不套模板", () => {
+    const doc = docWith([line("a", "全世界每年浪费的粮食，高达十三亿吨。"), line("b", "港口的清晨。")]);
+    doc.shots = [
+      { ...blankShot("card", "a"), mode: "motion", card: { variant: "stat", stat: { value: "十三亿", unit: "吨", label: "浪费的粮食" } } },
+      { ...blankShot("pic", "b"), kind: "image", mode: "generate", motion: "pan-left" },
+    ];
+    const timeline = buildTimeline(doc, art({ a: fakeTts("", 1000), b: fakeTts("", 1000) }), "16:9");
+    expect(timeline.shots[0].animation?.templateId).toBe("card-stat");
+    expect(timeline.shots[0].animation?.family).toBe("none");
+    expect(timeline.shots[1].animation?.templateId).toBeUndefined();
+    expect(timeline.shots[1].motion).toBe("pan-left");
+  });
+
   it("视频镜头把素材地址交给视频层，而不是图片占位层", () => {
     const doc = docWith([line("v", "视频旁白")]);
     doc.shots = [{ ...blankShot("video", "v"), kind: "video", assetId: "v".repeat(64) }];
@@ -197,7 +210,8 @@ describe("分镜规则", () => {
     const card = { ...blankShot("c", "l0"), mode: "motion" as const, card: { variant: "list" as const, items: ["一", "二"] } };
     const split = normalizeShots([card], ls, times, total, id);
     expect(split[0].card).toBeDefined();
-    expect(split.slice(1).every((s) => s.card === undefined && s.mode === "motion" && s.shotSize === undefined)).toBe(true);
+    expect(split.slice(1).every((s) => s.card === undefined && (s.mode === "motion" || s.mode === "generate"))).toBe(true);
+    expect(split.slice(1).some((s) => s.mode === "generate")).toBe(true);
   });
 
   it("句子被删后镜头移到下一句，文本变化的镜头标记过期", () => {

@@ -1,17 +1,263 @@
 "use client";
 
 import { createPortal } from "react-dom";
-import { Children, Fragment, isValidElement, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type TextareaHTMLAttributes } from "react";
+import {
+  Children,
+  Fragment,
+  isValidElement,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ButtonHTMLAttributes,
+  type KeyboardEvent,
+  type ReactNode,
+  type TextareaHTMLAttributes,
+} from "react";
+
+/**
+ * 共享原语。
+ *
+ * 约定：组件只负责「结构与行为」，视觉一律走 globals.css 的 .btn/.chip/.alert/.overlay
+ * 等语义类，不要再在调用处手写颜色/圆角魔数。
+ * 新增颜色、圆角、层级前先看 app/globals.css 顶部的 @theme 有没有可复用的令牌。
+ */
+
+type Tone = "default" | "warn" | "danger" | "info" | "success";
+
+/**
+ * 按钮。原来全站 111 处手写 "btn btn-ghost btn-sm" 字符串，
+ * 且每个 loading 按钮都要自己抄一遍 <Spinner/>，这里一并收掉。
+ */
+export function Button({
+  variant = "ghost",
+  size = "md",
+  tone,
+  loading = false,
+  icon,
+  className = "",
+  children,
+  disabled,
+  ...rest
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: "primary" | "ghost" | "text";
+  size?: "sm" | "md";
+  tone?: Tone;
+  loading?: boolean;
+  icon?: ReactNode;
+}) {
+  const variantClass = tone && tone !== "default" ? `btn-${tone}` : `btn-${variant}`;
+  const classes = ["btn", variantClass, size === "sm" && "btn-sm", className].filter(Boolean).join(" ");
+  return (
+    <button {...rest} className={classes} disabled={disabled || loading} aria-busy={loading || undefined}>
+      {loading ? <Spinner className="size-3.5" /> : icon}
+      {children}
+    </button>
+  );
+}
+
+/** 语义横幅：原来错了 12 处各自漂移的 amber/red 边框透明度。 */
+export function Alert({
+  tone = "info",
+  size = "md",
+  role,
+  className = "",
+  actions,
+  children,
+}: {
+  tone?: Tone;
+  size?: "sm" | "md";
+  role?: "alert" | "status";
+  className?: string;
+  actions?: ReactNode;
+  children: ReactNode;
+}) {
+  const resolvedRole = role ?? (tone === "danger" || tone === "warn" ? "alert" : undefined);
+  return (
+    <div role={resolvedRole} className={`alert alert-${tone} ${size === "sm" ? "alert-sm" : ""} ${className}`}>
+      <span className="min-w-0">{children}</span>
+      {actions && <span className="flex shrink-0 flex-wrap items-center gap-2">{actions}</span>}
+    </div>
+  );
+}
+
+/** 卡片容器，等价于 .panel，但带标题区与可选操作。 */
+export function Card({
+  title,
+  label,
+  description,
+  actions,
+  className = "",
+  bodyClassName = "",
+  children,
+}: {
+  title?: ReactNode;
+  label?: ReactNode;
+  description?: ReactNode;
+  actions?: ReactNode;
+  className?: string;
+  bodyClassName?: string;
+  children?: ReactNode;
+}) {
+  const hasHeader = title != null || label != null || description != null || actions != null;
+  return (
+    <section className={`panel ${className}`}>
+      {hasHeader && (
+        <header className="flex flex-wrap items-start justify-between gap-3 p-5 pb-0">
+          <div className="min-w-0">
+            {label && <p className="label">{label}</p>}
+            {title && <h2 className="mt-1 text-base font-medium">{title}</h2>}
+            {description && <p className="mt-1.5 text-sm leading-relaxed text-text-muted">{description}</p>}
+          </div>
+          {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+        </header>
+      )}
+      <div className={bodyClassName || (hasHeader ? "p-5" : "")}>{children}</div>
+    </section>
+  );
+}
 
 export function Field({ label, hint, children }: { label: string; hint?: ReactNode; children: ReactNode }) {
   return (
     <label className="block space-y-2">
       <span className="flex items-baseline justify-between">
         <span className="label">{label}</span>
-        {hint && <span className="text-[11px] text-white/35">{hint}</span>}
+        {hint && <span className="text-2xs text-text-faint">{hint}</span>}
       </span>
       {children}
     </label>
+  );
+}
+
+/**
+ * 弹窗原语。替换原来 4 套互不兼容的实现
+ * （feedback / preset-dialog / project-list / version-history）：
+ * 它们各写一遍 Esc、点遮罩关闭、role=dialog，且 z-index 从 40 到 100 各不相同，
+ * 其中 project-list 的 z-40 会被页头（同为 z-40）盖住。
+ *
+ * 这里统一：portal 到 body、z 层级、入场动画、焦点管理、Esc、遮罩点击。
+ */
+export function Dialog({
+  open,
+  onClose,
+  title,
+  description,
+  size = "md",
+  footer,
+  className = "",
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: ReactNode;
+  description?: ReactNode;
+  size?: "sm" | "md" | "lg";
+  footer?: ReactNode;
+  className?: string;
+  children?: ReactNode;
+}) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const titleId = `dialog-title-${useId().replaceAll(":", "")}`;
+  const descId = `dialog-desc-${useId().replaceAll(":", "")}`;
+
+  // Esc 关闭 + 打开时把焦点移进弹窗
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    const focusTimer = window.setTimeout(() => {
+      const panel = panelRef.current;
+      if (!panel) return;
+      const focusable = panel.querySelector<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      focusable?.focus();
+    }, 0);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      window.clearTimeout(focusTimer);
+    };
+  }, [open, onClose]);
+
+  if (!open || typeof document === "undefined") return null;
+
+  const width = size === "sm" ? "max-w-sm" : size === "lg" ? "max-w-2xl" : "max-w-md";
+
+  return createPortal(
+    <div className="overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={description ? descId : undefined}
+        className={`overlay-panel ${width} max-h-[85vh] overflow-y-auto ${className}`}
+      >
+        <h2 id={titleId} className="text-base font-semibold text-white">{title}</h2>
+        {description && <p id={descId} className="mt-2 text-sm leading-relaxed text-text-muted">{description}</p>}
+        {children && <div className="mt-4">{children}</div>}
+        {footer && <div className="mt-6 flex justify-end gap-2">{footer}</div>}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+/**
+ * 抽屉（右侧滑出）。原来 version-history 自成一派，
+ * 与弹窗共用遮罩与 z 层级，但保持右对齐与整高。
+ */
+export function Drawer({
+  open,
+  onClose,
+  title,
+  width = "max-w-md",
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: ReactNode;
+  width?: string;
+  children: ReactNode;
+}) {
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open, onClose]);
+
+  if (!open || typeof document === "undefined") return null;
+
+  return createPortal(
+    <div className="overlay" style={{ placeItems: "stretch", justifyContent: "flex-end" }} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        className={`h-full w-full ${width} overflow-y-auto rounded-l-[var(--radius-panel)] border-l border-line bg-ink-raised/95 p-6 shadow-2xl`}
+        style={{ animation: "var(--animate-drawer-in)" }}
+      >
+        <header className="flex items-center justify-between gap-3">
+          <h2 className="text-base font-semibold text-white">{title}</h2>
+          <button type="button" className="btn-text" onClick={onClose} aria-label="关闭">
+            <Icon name="stop" className="size-3.5" />
+          </button>
+        </header>
+        <div className="mt-5">{children}</div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 

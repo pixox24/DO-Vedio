@@ -30,17 +30,51 @@ const MAX_CANDIDATES = 8;
 export type CandidateAsset = { id: string; assetId: string; selected?: boolean };
 
 /** 合并候选历史，并保证当前正在使用的素材不会被容量上限淘汰。 */
-export function mergeCandidateHistory(current: CandidateAsset[], fresh: CandidateAsset[], currentAssetId?: string, max = MAX_CANDIDATES) {
-  const merged = [...fresh, ...current.filter((candidate) => !fresh.some((item) => item.assetId === candidate.assetId))];
-  const currentIndex = currentAssetId ? merged.findIndex((candidate) => candidate.assetId === currentAssetId) : -1;
-  const kept = merged.slice(0, max);
-  if (currentIndex >= max && currentIndex >= 0 && currentAssetId) {
-    const evict = kept.findLastIndex((candidate) => candidate.assetId !== currentAssetId);
-    if (evict >= 0) kept.splice(evict, 1, merged[currentIndex]);
+export function mergeCandidateHistory(current: CandidateAsset[] | undefined, fresh: CandidateAsset[], currentAssetId?: string, max = MAX_CANDIDATES) {
+  const limit = Math.max(0, Math.floor(max));
+  if (limit === 0) return [];
+
+  // 新候选覆盖同 assetId 的旧记录，同时在每个输入内部去重，避免重复候选
+  // 把容量占满后把真正不同的素材挤出去。Map 保持首次出现顺序，整体复杂度为 O(n)。
+  const pool = new Map<string, CandidateAsset>();
+  for (const candidate of current ?? []) {
+    if (candidate.assetId && !pool.has(candidate.assetId)) pool.set(candidate.assetId, candidate);
   }
-  const selectedId = currentAssetId && kept.some((candidate) => candidate.assetId === currentAssetId)
-    ? currentAssetId
-    : kept.find((candidate) => fresh.some((item) => item.assetId === candidate.assetId))?.assetId;
+  for (const candidate of fresh) {
+    if (candidate.assetId) pool.set(candidate.assetId, candidate);
+  }
+
+  // 旧项目可能只有 assetId、没有候选列表；第一次重新生成时也要把当前素材
+  // 纳入历史，否则用户虽然没有丢文件，却没有回退入口。
+  if (currentAssetId && !pool.has(currentAssetId)) {
+    pool.set(currentAssetId, { id: `current-${currentAssetId}`, assetId: currentAssetId });
+  }
+
+  const freshIds = new Set<string>();
+  const freshUnique: CandidateAsset[] = [];
+  for (const candidate of fresh) {
+    if (!candidate.assetId || freshIds.has(candidate.assetId)) continue;
+    freshIds.add(candidate.assetId);
+    const resolved = pool.get(candidate.assetId);
+    if (resolved) freshUnique.push(resolved);
+  }
+  const currentCandidate = currentAssetId ? pool.get(currentAssetId) : undefined;
+  const ordered = [
+    ...freshUnique,
+    ...(currentCandidate && !freshIds.has(currentCandidate.assetId) ? [currentCandidate] : []),
+    ...(current ?? []).filter((candidate) => candidate.assetId && !freshIds.has(candidate.assetId) && candidate.assetId !== currentAssetId)
+      .map((candidate) => pool.get(candidate.assetId))
+      .filter((candidate): candidate is CandidateAsset => !!candidate),
+  ];
+
+  const kept = ordered.slice(0, limit);
+  // 当前素材优先于新候选，保证「重新生成」不会悄悄替换用户正在使用的画面。
+  if (currentCandidate && !kept.some((candidate) => candidate.assetId === currentCandidate.assetId)) {
+    kept[kept.length - 1] = currentCandidate;
+  }
+  const selectedId = currentCandidate && kept.some((candidate) => candidate.assetId === currentCandidate.assetId)
+    ? currentCandidate.assetId
+    : kept[0]?.assetId;
   return kept.map((candidate) => ({ ...candidate, selected: candidate.assetId === selectedId }));
 }
 
@@ -86,8 +120,8 @@ export const shotGenerateStage = defineStage<ShotGenerateInput, { shotId: string
         // 合并而不是替换：保留历史候选，用户点了新候选之后还能切回旧图。
         // 旧图若仍是当前 assetId，就保持选中——重生图不该把用户已经满意的画面顶掉。
         const candidates = fresh.length
-          ? mergeCandidateHistory(current.candidates, fresh, current.assetId, MAX_CANDIDATES)
-          : current.candidates;
+          ? mergeCandidateHistory(current.candidates ?? [], fresh, current.assetId, MAX_CANDIDATES)
+          : current.candidates ?? [];
         const selectedId = candidates.find((candidate) => candidate.selected)?.assetId ?? (firstReady >= 0 ? slots[firstReady] : undefined);
         const variants = selectedId ? Object.fromEntries(outputSpecsFor(doc.settings).map((spec) => [spec.aspect, {
           assetId: selectedId,

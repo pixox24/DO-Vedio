@@ -34,6 +34,16 @@ describe("任务队列", () => {
     expect(latestJobByKey("tts:shared", "tts-project-b")?.id).toBe(b.id);
   });
 
+  it("按自动制作目标取消时不会误伤同项目独立任务", async () => {
+    const { enqueue, cancelProjectJobsByGoal, getJob } = await import("@/lib/server/jobs");
+    const goalJob = enqueue({ projectId: "goal-project", stage: "goal-echo", key: "goal-job", input: { goalId: "goal-a" } });
+    const otherJob = enqueue({ projectId: "goal-project", stage: "goal-echo", key: "other-job", input: { batchId: "panel-batch" } });
+    const result = cancelProjectJobsByGoal("goal-project", "goal-a");
+    expect(result.ids).toContain(goalJob.id);
+    expect(getJob(goalJob.id)?.status).toBe("canceled");
+    expect(getJob(otherJob.id)?.status).toBe("queued");
+  });
+
   it("租约过期的任务回到队列（Worker 崩溃恢复）", async () => {
     const { enqueue, claim, recoverExpired, getJob } = await import("@/lib/server/jobs");
     const { run } = await import("@/lib/server/db");

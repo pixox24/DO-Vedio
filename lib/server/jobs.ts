@@ -230,6 +230,27 @@ export function cancelProjectJobBatch(projectId: string, stages: string | string
   ).changes;
 }
 
+/** 只取消某一轮自动制作提交的任务，不能影响同项目的独立面板任务。 */
+export function cancelProjectJobsByGoal(projectId: string, goalId: string) {
+  const rows = all<{ id: string }>(
+    `SELECT id FROM jobs
+     WHERE project_id = ? AND status IN ('queued', 'running')
+       AND json_extract(input, '$.goalId') = ?`,
+    projectId,
+    goalId,
+  );
+  if (!rows.length) return { count: 0, ids: [] as string[] };
+  run(
+    `UPDATE jobs SET status = 'canceled', locked_by = NULL, lock_token = NULL, lease_until = NULL, updated_at = ?
+     WHERE project_id = ? AND status IN ('queued', 'running')
+       AND json_extract(input, '$.goalId') = ?`,
+    Date.now(),
+    projectId,
+    goalId,
+  );
+  return { count: rows.length, ids: rows.map((row) => row.id) };
+}
+
 /** 失败或取消的任务重新排队 */
 export function retryJob(id: string) {
   return (

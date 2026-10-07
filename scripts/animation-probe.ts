@@ -6,6 +6,7 @@ import { defaultTheme } from "../lib/core/theme";
 import { motionProfile } from "../lib/core/motion";
 import { DEFAULT_SUBTITLE_CONFIG } from "../lib/core/subtitle";
 import type { Timeline } from "../lib/core/timeline";
+import { ui2vTemplateIds, type Ui2vTemplateId } from "../lib/core/types";
 
 const root = process.cwd();
 const outputDir = path.join(root, ".tmp-animation-probe");
@@ -15,48 +16,63 @@ function timeline(aspect: "16:9" | "9:16"): Timeline {
   const portrait = aspect === "9:16";
   const width = portrait ? 1080 : 1920;
   const height = portrait ? 1920 : 1080;
-  const families = ["editorial", "kinetic", "stat", "compare", "process", "callout", "timeline", "collage", "hud", "ink"] as const;
-  const captions = ["观点先亮出来", "住房与收入的对比", "五千元房租", "过去与现在", "住房 → 托育 → 加班", "重点信息", "时间线", "拼贴重点", "系统状态", "墨线重点"];
+  const cards: Record<Ui2vTemplateId, Timeline["shots"][number]["card"]> = {
+    "creator-cinema-editorial-quote": { variant: "quote", headline: "你以为你在刷世界" },
+    "hero-spotlight-stage": { variant: "headline", headline: "新的章节" },
+    "hero-split-wipe": { variant: "split", sides: ["过去", "现在"] },
+    "card-stat": { variant: "stat", stat: { value: "5000", unit: "元", label: "每月房租" } },
+    "card-list": { variant: "list", headline: "三座山", items: ["住房", "托育", "加班"] },
+    "card-qa": { variant: "qa", qa: { question: "为什么刷不停？", answer: "推荐在替你选" } },
+    "card-cta": { variant: "cta", cta: { action: "现在就关", subtitle: "只要三秒" } },
+    "card-alert": { variant: "alert", alert: { type: "warning", content: "先放下手机" } },
+    "card-definition": { variant: "definition", definition: { term: "信息茧房", meaning: "只看见赞同的声音" } },
+    "card-timeline": { variant: "timeline", timeline: [{ time: "2018", event: "立项" }, { time: "2020", event: "上线" }] },
+    "card-profile": { variant: "profile", profile: { name: "林夏", role: "讲述者", bio: "把问题说清楚" } },
+  };
   const compositeFixture = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1920' height='1080'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' x2='1'%3E%3Cstop stop-color='%2310213a'/%3E%3Cstop offset='1' stop-color='%23d46a52'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1920' height='1080' fill='url(%23g)'/%3E%3Ccircle cx='1450' cy='340' r='260' fill='%23f4d35e' fill-opacity='.72'/%3E%3Ctext x='120' y='880' fill='white' font-size='92' font-family='sans-serif'%3ECOMPOSITE FIXTURE%3C/text%3E%3C/svg%3E";
-  const shots = families.map((family, index) => {
-    const composite = family === "ink";
+  const templateShots = ui2vTemplateIds.map((templateId, index) => {
     const startMs = index * 1000;
-    const card = family === "stat"
-      ? { variant: "stat" as const, headline: "房租", stat: { value: "5000", unit: "元", label: "每月房租" } }
-      : family === "compare"
-        ? { variant: "split" as const, sides: ["过去", "现在"] as [string, string], headline: "生活成本" }
-        : family === "process"
-          ? { variant: "list" as const, items: ["住房", "托育", "加班"], headline: "三座山" }
-      : family === "timeline"
-        ? { variant: "list" as const, headline: "时间线", items: ["起点", "转折", "现在"] }
-        : { variant: "headline" as const, headline: captions[index] };
+    const card = cards[templateId];
     return {
-      shotId: `animation-probe-${family}`,
-      kind: composite ? "image" as const : "placeholder" as const,
+      shotId: `animation-probe-${templateId}`,
+      kind: "placeholder" as const,
       startMs,
       endMs: startMs + 1000,
       motion: "none" as const,
       description: "",
-      onScreenText: captions[index],
-      caption: captions[index],
+      onScreenText: card.headline || card.stat?.value || card.qa?.question || card.cta?.action || card.alert?.content || card.definition?.term || card.profile?.name || templateId,
+      caption: card.headline || templateId,
       keywords: [],
       seed: index + 11,
-      mode: composite ? "composite" as const : "motion" as const,
-      imageSrc: composite ? compositeFixture : undefined,
+      mode: "motion" as const,
       card,
-      animation: {
-        family,
-        templateId: family === "editorial" ? "creator-cinema-editorial-quote" as const : family === "compare" ? "hero-split-wipe" as const : family === "kinetic" ? "hero-spotlight-stage" as const : undefined,
-        intensity: 2 as const,
-        anchors: [],
-        params: {},
-      },
+      animation: { family: "none" as const, templateId, intensity: 2 as const, anchors: [], params: {} },
       safeArea: { bottomRatio: portrait ? 0.3 : 0.12, sideRatio: portrait ? 0.08 : 0.04 },
       transitionIn: index ? "fade" as const : "cut" as const,
       overlapInFrames: index ? 8 : 0,
-      overlapOutFrames: index < families.length - 1 ? 8 : 0,
+      overlapOutFrames: 8,
     };
   });
+  const shots = [...templateShots, {
+    shotId: "animation-probe-composite",
+    kind: "image" as const,
+    startMs: templateShots.length * 1000,
+    endMs: templateShots.length * 1000 + 1000,
+    motion: "none" as const,
+    description: "",
+    onScreenText: "复合画面",
+    caption: "复合画面",
+    keywords: [],
+    seed: 99,
+    mode: "composite" as const,
+    imageSrc: compositeFixture,
+    card: { variant: "headline" as const, headline: "复合画面" },
+    animation: { family: "none" as const, intensity: 1 as const, anchors: [], params: {} },
+    safeArea: { bottomRatio: portrait ? 0.3 : 0.12, sideRatio: portrait ? 0.08 : 0.04 },
+    transitionIn: "fade" as const,
+    overlapInFrames: 8,
+    overlapOutFrames: 0,
+  }];
   const cues = shots.map((shot) => ({ startMs: shot.startMs, endMs: shot.endMs, lineId: shot.shotId, text: portrait ? "这是一条较长的字幕，用来确认动画自动避让底部字幕区域" : "这是一条较长的字幕，用来确认动画自动避让底部字幕区域", highlights: [] as [number, number][] }));
   return {
     outputSpecId: portrait ? "portrait-1080p" : "landscape-1080p",
@@ -64,9 +80,9 @@ function timeline(aspect: "16:9" | "9:16"): Timeline {
     width,
     height,
     aspect,
-    durationMs: 10000,
-    durationInFrames: 300,
-    title: "动画家族验证",
+    durationMs: 12000,
+    durationInFrames: 360,
+    title: "卡片模板验证",
     theme: { ...defaultTheme, motion: motionProfile("geometric-editorial") },
     voice: [],
     lines: [],
@@ -93,7 +109,7 @@ async function main() {
   });
   for (const aspect of ["16:9", "9:16"] as const) {
     const props = { timeline: timeline(aspect) };
-    const composition = await selectComposition({ serveUrl, id: "Main", inputProps: props, port: probePort });
+    const composition = await selectComposition({ serveUrl, id: "Video", inputProps: props, port: probePort });
     const outputLocation = path.join(outputDir, `${aspect === "16:9" ? "landscape" : "portrait"}.mp4`);
     await renderMedia({ serveUrl, composition, inputProps: props, codec: "h264", outputLocation, crf: 28, scale: 0.35, x264Preset: "veryfast", pixelFormat: "yuv420p", imageFormat: "jpeg", jpegQuality: 72, enforceAudioTrack: false, chromiumOptions: { gl: "angle" }, port: probePort, logLevel: "warn" });
     console.log(`${aspect}: ${outputLocation}`);

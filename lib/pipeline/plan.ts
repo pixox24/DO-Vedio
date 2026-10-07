@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { annotateKey, renderKey } from "../core/keys";
 import { stampShots } from "../core/shots";
 import { contentHash, timelineHash } from "../core/timeline";
@@ -25,7 +26,7 @@ import { castSourceHash } from "../core/cast";
  *   都齐了且目标是成片 → 每个画幅一个 render
  */
 
-export type Goal = { until: "preview" | "render"; aspects: Aspect[]; quality: Quality };
+export type Goal = { until: "preview" | "render"; aspects: Aspect[]; quality: Quality; goalId?: string };
 
 export type PlanStep = { stage: string; key: string; target: string; input: unknown; cost: number; priority: number };
 export type Plan = { steps: PlanStep[]; currentKeys: string[]; waiting: string[]; ready: { preview: boolean; render: boolean }; costYuan: number };
@@ -50,7 +51,7 @@ function annotateSteps(doc: ProjectDoc, projectId: string): PlanStep[] {
   for (const [seg, lines] of bySeg) {
     const todo = lines.filter((l) => !l.locked);
     if (todo.length === 0) continue;
-    const key = annotateKey(todo.map((l) => ({ id: l.id, text: l.text })), lex, modelId);
+    const key = annotateKey(todo.map((l) => ({ id: l.id, text: l.text })), lex, modelId, projectId);
     if (cacheHas(key)) {
       // 缓存有但文档没写回（例如写回时被别处修改冲突），重跑一次写回，不花钱
       const needs = todo.some((l) => l.spans.length === 0 && l.keywords.length === 0 && !l.mood);
@@ -78,7 +79,7 @@ function currentAnnotateKeys(doc: ProjectDoc, projectId: string) {
   const keys: string[] = [];
   for (const lines of bySeg.values()) {
     const todo = lines.filter((line) => !line.locked);
-    if (todo.length > 0) keys.push(`${annotateKey(todo.map((line) => ({ id: line.id, text: line.text })), lex, modelId)}:${projectId}`);
+    if (todo.length > 0) keys.push(`${annotateKey(todo.map((line) => ({ id: line.id, text: line.text })), lex, modelId, projectId)}:${projectId}`);
   }
   return keys;
 }
@@ -193,11 +194,15 @@ function hashStr(s: string) {
 
 export type ProduceResult = { plan: Plan; enqueued: Job[]; blocked?: string; spentYuan: number };
 
+function goalJobKey(key: string, goalId?: string) {
+  return goalId ? `${key}:goal:${goalId}` : key;
+}
+
 /**
  * 执行对账。dryRun 只返回计划；超过预算且未确认时不提交。
  * 同一个 key 失败过的任务不会自动重提（避免反复扣费），需要用户点重试。
  */
-export function produce(projectId: string, goal: Goal, opts: { dryRun?: boolean; confirmBudget?: boolean; retryFailed?: boolean } = {}): ProduceResult {
+export function produce(projectId: string, goal: Goal, opts: { dryRun?: boolean; confirmBudget?: boolean; retryFailed?: boolean; goalId?: string } = {}): ProduceResult {
   let p = getProject(projectId);
   if (!p) throw new Error("项目不存在");
   // 文案和句子保持同步
@@ -212,13 +217,19 @@ export function produce(projectId: string, goal: Goal, opts: { dryRun?: boolean;
     return { plan, enqueued: [], blocked: `预计再花 ¥${plan.costYuan.toFixed(2)}，将超出项目预算 ¥${budget}（已花 ¥${spent.toFixed(2)}）`, spentYuan: spent };
   }
   const enqueued: Job[] = [];
-  for (const s of plan.steps) {
+  const effectiveSteps = plan.steps.map((step) => ({ ...step, key: goalJobKey(step.key, opts.goalId) }));
+  const effectiveKeys = plan.currentKeys.map((key) => goalJobKey(key, opts.goalId));
+  const effectivePlan = opts.goalId ? { ...plan, steps: effectiveSteps, currentKeys: effectiveKeys } : plan;
+  for (const s of effectiveSteps) {
     const last = latestJobByKey(s.key, projectId);
     // 自动推进时不重提失败过的任务（避免反复扣费）；用户主动点开始时重试
     if (last && (last.status === "failed" || last.status === "canceled") && !opts.retryFailed) continue;
-    enqueued.push(enqueue({ projectId, stage: s.stage, key: s.key, target: s.target, input: s.input, priority: s.priority, costEstimate: s.cost }));
+    const input = opts.goalId && typeof s.input === "object" && s.input !== null
+      ? { ...(s.input as Record<string, unknown>), goalId: opts.goalId }
+      : s.input;
+    enqueued.push(enqueue({ projectId, stage: s.stage, key: s.key, target: s.target, input, priority: s.priority, costEstimate: s.cost }));
   }
-  return { plan, enqueued, spentYuan: spent };
+  return { plan: effectivePlan, enqueued, spentYuan: spent };
 }
 
 // ---------- 自动推进 ----------
@@ -226,9 +237,14 @@ export function produce(projectId: string, goal: Goal, opts: { dryRun?: boolean;
 
 export type GoalState = { goal: Goal; confirmBudget: boolean; blocked: string | null };
 
-export function setGoal(projectId: string, goal: Goal | null, confirmBudget = false) {
-  if (goal) run("INSERT OR REPLACE INTO project_goals (project_id, goal, confirm_budget, blocked, updated_at) VALUES (?, ?, ?, NULL, ?)", projectId, JSON.stringify(goal), confirmBudget ? 1 : 0, Date.now());
+export function setGoal(projectId: string, goal: Goal | null, confirmBudget = false): Goal | null {
+  if (goal) {
+    const persisted = goal.goalId ? goal : { ...goal, goalId: randomUUID() };
+    run("INSERT OR REPLACE INTO project_goals (project_id, goal, confirm_budget, blocked, updated_at) VALUES (?, ?, ?, NULL, ?)", projectId, JSON.stringify(persisted), confirmBudget ? 1 : 0, Date.now());
+    return persisted;
+  }
   else run("DELETE FROM project_goals WHERE project_id = ?", projectId);
+  return null;
 }
 
 export function getGoal(projectId: string): GoalState | undefined {
@@ -242,19 +258,24 @@ function block(projectId: string, reason: string) {
 
 /** 开始或继续自动推进 */
 export function drive(projectId: string, goal: Goal, confirmBudget = false) {
-  setGoal(projectId, goal, confirmBudget);
-  const r = produce(projectId, goal, { confirmBudget, retryFailed: true });
+  const persisted = setGoal(projectId, goal, confirmBudget)!;
+  const r = produce(projectId, persisted, { confirmBudget, retryFailed: true, goalId: persisted.goalId });
   settle(projectId, r);
   return r;
 }
 
 function settle(projectId: string, r: ProduceResult) {
   if (r.blocked) return block(projectId, r.blocked);
-  const active = get<{ n: number }>("SELECT COUNT(*) AS n FROM jobs WHERE project_id = ? AND status IN ('queued', 'running')", projectId)?.n ?? 0;
+  const goalId = getGoal(projectId)?.goal.goalId;
+  const active = goalId
+    ? get<{ n: number }>("SELECT COUNT(*) AS n FROM jobs WHERE project_id = ? AND status IN ('queued', 'running') AND json_extract(input, '$.goalId') = ?", projectId, goalId)?.n ?? 0
+    : get<{ n: number }>("SELECT COUNT(*) AS n FROM jobs WHERE project_id = ? AND status IN ('queued', 'running')", projectId)?.n ?? 0;
   if (active > 0) return;
   if (r.plan.steps.length === 0) return r.plan.waiting.length ? block(projectId, r.plan.waiting[0]) : setGoal(projectId, null);
   // 还有步骤但都没法提交（之前失败过），等待用户重试
-  const failed = all<{ n: number }>("SELECT COUNT(*) AS n FROM jobs WHERE project_id = ? AND status = 'failed'", projectId)[0]?.n ?? 0;
+  const failed = goalId
+    ? all<{ n: number }>("SELECT COUNT(*) AS n FROM jobs WHERE project_id = ? AND status = 'failed' AND json_extract(input, '$.goalId') = ?", projectId, goalId)[0]?.n ?? 0
+    : all<{ n: number }>("SELECT COUNT(*) AS n FROM jobs WHERE project_id = ? AND status = 'failed'", projectId)[0]?.n ?? 0;
   block(projectId, failed ? "有任务失败，请处理后点「重试」" : r.plan.waiting[0] ?? "无法继续");
 }
 
@@ -263,8 +284,9 @@ export function advance(job: Job) {
   if (!job.projectId) return;
   const g = getGoal(job.projectId);
   if (!g || g.blocked) return;
+  if (g.goal.goalId && (typeof job.input !== "object" || job.input === null || (job.input as { goalId?: unknown }).goalId !== g.goal.goalId)) return;
   if (!getProject(job.projectId)) return setGoal(job.projectId, null);
-  settle(job.projectId, produce(job.projectId, g.goal, { confirmBudget: g.confirmBudget }));
+  settle(job.projectId, produce(job.projectId, g.goal, { confirmBudget: g.confirmBudget, goalId: g.goal.goalId }));
 }
 
 /** 分镜变化后刷新 sourceHash（用户手动编辑镜头后调用） */

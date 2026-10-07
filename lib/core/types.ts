@@ -96,10 +96,25 @@ export const p1ShotKinds = ["title", "quote", "placeholder", "upload"] as const 
 export const motions = ["zoom-in", "zoom-out", "pan-left", "pan-right", "none"] as const;
 export type Motion = (typeof motions)[number];
 
-/** 封闭的动画家族：模型只能选择配方，渲染层决定具体画法。 */
+/**
+ * 旧动画家族。只为读取已保存的项目保留，预览和成片不再使用。
+ * 新的画面由卡片模板决定。
+ */
 export const animationFamilies = ["none", "editorial", "kinetic", "stat", "compare", "process", "callout", "timeline", "collage", "hud", "ink"] as const;
 export type AnimationFamily = (typeof animationFamilies)[number];
-export const ui2vTemplateIds = ["creator-cinema-editorial-quote", "hero-spotlight-stage", "hero-split-wipe"] as const;
+export const ui2vTemplateIds = [
+  "creator-cinema-editorial-quote",
+  "hero-spotlight-stage",
+  "hero-split-wipe",
+  "card-stat",
+  "card-list",
+  "card-qa",
+  "card-cta",
+  "card-alert",
+  "card-definition",
+  "card-timeline",
+  "card-profile",
+] as const;
 export type Ui2vTemplateId = (typeof ui2vTemplateIds)[number];
 export const anchorRoles = ["enter", "emphasis", "exit"] as const;
 export type AnchorRole = (typeof anchorRoles)[number];
@@ -129,8 +144,11 @@ export const shotModes = ["generate", "motion", "composite", "real"] as const;
 export type ShotMode = (typeof shotModes)[number];
 
 /** 信息卡版式（Remotion 画面）：数据由大模型从旁白中抽取，渲染层不再猜 */
-export const cardVariants = ["headline", "stat", "list", "split", "quote"] as const;
+export const cardVariants = ["headline", "stat", "list", "split", "quote", "qa", "cta", "alert", "definition", "timeline", "profile"] as const;
 export type CardVariant = (typeof cardVariants)[number];
+/** 新分镜允许生成的卡片。headline、qa、cta 仅为旧项目读取保留。 */
+export const storyboardCardVariants = ["stat", "list", "split", "quote", "alert", "definition", "timeline", "profile"] as const;
+export type StoryboardCardVariant = (typeof storyboardCardVariants)[number];
 export const cardSchema = z.object({
   variant: z.enum(cardVariants),
   /** 主标题：术语、关键词或一句短结论 */
@@ -138,6 +156,18 @@ export const cardSchema = z.object({
   stat: z.object({ value: z.string(), unit: z.string().optional(), label: z.string().default("") }).optional(),
   items: z.array(z.string()).optional(),
   sides: z.tuple([z.string(), z.string()]).optional(),
+  /** 问答卡：问题和答案 */
+  qa: z.object({ question: z.string(), answer: z.string() }).optional(),
+  /** 号召行动卡：行动文本和可选的副标题 */
+  cta: z.object({ action: z.string(), subtitle: z.string().optional() }).optional(),
+  /** 强调/提示卡：提示类型和内容 */
+  alert: z.object({ type: z.enum(["info", "warning", "success", "danger"]), content: z.string() }).optional(),
+  /** 定义卡：术语和定义 */
+  definition: z.object({ term: z.string(), meaning: z.string() }).optional(),
+  /** 时间线卡：时间点数组 */
+  timeline: z.array(z.object({ time: z.string(), event: z.string() })).optional(),
+  /** 人物介绍卡：姓名、角色和简介 */
+  profile: z.object({ name: z.string(), role: z.string().optional(), bio: z.string().optional() }).optional(),
 });
 export type Card = z.infer<typeof cardSchema>;
 

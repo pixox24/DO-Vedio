@@ -81,7 +81,7 @@ async function main() {
   });
   for (const aspect of ["16:9", "9:16"] as const) {
     const props = { timeline: timeline(aspect) };
-    const composition = await selectComposition({ serveUrl, id: "Main", inputProps: props, port: 3001 });
+    const composition = await selectComposition({ serveUrl, id: "Video", inputProps: props, port: 3001 });
     const outputLocation = path.join(outputDir, `${aspect === "16:9" ? "landscape" : "portrait"}.mp4`);
     await renderMedia({
       serveUrl,

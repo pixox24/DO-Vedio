@@ -12,7 +12,6 @@ export function choreograph(shots: Shot[], lines: Line[], times: Map<string, Lin
   const chapterHighlights = new Set<number>();
   const out = sorted.map((shot, index) => {
     const line = byId.get(shot.at.lineId);
-    const family = shot.animation?.family ?? "none";
     const mood = line?.mood;
     let intensity = Math.min(3, Math.max(1, shot.animation?.intensity ?? shot.importance)) as 1 | 2 | 3;
     if (mood && highEnergy.has(mood)) intensity = 3;
@@ -30,8 +29,6 @@ export function choreograph(shots: Shot[], lines: Line[], times: Map<string, Lin
         transitionIn = profile.punchy ? "whip" : "dissolve";
         intensity = 3;
       } else transitionIn = "fade";
-    } else if (index > 0 && transitionIn === "cut" && family !== "none") {
-      transitionIn = profile.punchy ? "wipe" : "fade";
     }
     return { ...shot, transitionIn, animation: shot.animation ? { ...shot.animation, intensity: intensity as 1 | 2 | 3 } : undefined };
   });

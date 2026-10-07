@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Button, Dialog } from "./ui";
 
 type ToastKind = "info" | "success" | "error";
 type ConfirmOptions = {
@@ -59,26 +60,33 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   return (
     <FeedbackContext.Provider value={value}>
       {children}
-      {dialog && (
-        <div className="fixed inset-0 z-[100] grid place-items-center bg-black/65 p-4 backdrop-blur-sm" role="presentation" onClick={() => finish(false)}>
-          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#111]/95 p-6 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="confirm-title" onClick={(event) => event.stopPropagation()}>
-            <h2 id="confirm-title" className="text-base font-semibold text-white">{dialog.title}</h2>
-            {dialog.message && <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-white/60">{dialog.message}</p>}
-            {dialog.bullets && dialog.bullets.length > 0 && (
-              <ul className="mt-3 space-y-1.5 text-sm leading-relaxed text-white/60">
-                {dialog.bullets.map((bullet, index) => <li key={index} className="flex gap-2"><span className="text-white/25">·</span><span>{bullet}</span></li>)}
-              </ul>
-            )}
-            <div className="mt-6 flex justify-end gap-2">
-              <button className="btn btn-ghost btn-sm" onClick={() => finish(false)}>{dialog.cancelLabel ?? "取消"}</button>
-              <button className={`btn btn-sm ${dialog.tone === "danger" ? "border border-red-400/30 bg-red-400/15 text-red-100 hover:bg-red-400/25" : "btn-primary"}`} onClick={() => finish(true)}>{dialog.confirmLabel ?? "确定"}</button>
-            </div>
-          </div>
-        </div>
-      )}
-      <div className="pointer-events-none fixed right-4 bottom-4 z-[90] flex w-[min(360px,calc(100vw-2rem))] flex-col gap-2" aria-live="polite">
+      <Dialog
+        open={dialog != null}
+        onClose={() => finish(false)}
+        title={dialog?.title ?? ""}
+        description={dialog?.message ? <span className="whitespace-pre-line">{dialog.message}</span> : undefined}
+        footer={
+          <>
+            <Button size="sm" onClick={() => finish(false)}>{dialog?.cancelLabel ?? "取消"}</Button>
+            <Button size="sm" tone={dialog?.tone === "danger" ? "danger" : undefined} variant={dialog?.tone === "danger" ? "ghost" : "primary"} onClick={() => finish(true)}>
+              {dialog?.confirmLabel ?? "确定"}
+            </Button>
+          </>
+        }
+      >
+        {dialog?.bullets && dialog.bullets.length > 0 && (
+          <ul className="space-y-1.5 text-sm leading-relaxed text-text-muted">
+            {dialog.bullets.map((bullet, index) => <li key={index} className="flex gap-2"><span className="text-white/25">·</span><span>{bullet}</span></li>)}
+          </ul>
+        )}
+      </Dialog>
+      <div
+        className="pointer-events-none fixed right-4 bottom-4 flex w-[min(360px,calc(100vw-2rem))] flex-col gap-2"
+        style={{ zIndex: "var(--z-toast)" }}
+        aria-live="polite"
+      >
         {toasts.map((item) => (
-          <div key={item.id} className={`pointer-events-auto flex items-center gap-3 rounded-xl border px-4 py-3 text-sm shadow-xl backdrop-blur ${item.kind === "error" ? "border-red-400/25 bg-red-950/80 text-red-100" : item.kind === "success" ? "border-accent/25 bg-[#152000]/90 text-accent" : "border-white/10 bg-[#151515]/95 text-white/85"}`}>
+          <div key={item.id} className={`pointer-events-auto flex animate-toast-in items-center gap-3 rounded-control border px-4 py-3 text-sm shadow-xl backdrop-blur ${item.kind === "error" ? "border-danger-border bg-red-950/80 text-danger" : item.kind === "success" ? "border-success-border bg-ink-raised/95 text-accent" : "border-line bg-ink-overlay/95 text-white/85"}`}>
             <span className="min-w-0 flex-1">{item.message}</span>
             {item.action && (
               <button

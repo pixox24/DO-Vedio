@@ -37,11 +37,38 @@ describe("分镜草稿转镜头", () => {
     expect(shots[2].card?.items).toEqual(["成本太高", "效率太低", "习惯难改"]);
   });
 
+  it("连续信息卡自动交替为生成画面", async () => {
+    const { toShots } = await import("@/lib/pipeline/stages/storyboard");
+    const shots = toShots([
+      draft({ lineId: "a", mode: "motion", card: { variant: "stat", stat: { value: "十三亿", unit: "吨" } } }),
+      draft({ lineId: "b", mode: "motion", card: { variant: "list", items: ["成本", "效率"] } }),
+      draft({ lineId: "c", mode: "motion", card: { variant: "alert", alert: { type: "info", content: "注意" } } }),
+    ], lines);
+    expect(shots.map((shot) => shot.mode)).toEqual(["motion", "generate", "motion"]);
+    expect(shots[1].card).toBeUndefined();
+    expect(shots[1].shotSize).toBe("medium");
+  });
+
   it("编造的数字被拒绝；标题卡和金句卡一律走代码画面", async () => {
     const { toShots } = await import("@/lib/pipeline/stages/storyboard");
     const [stat, title] = toShots([draft({ mode: "motion", card: { variant: "stat", stat: { value: "13", unit: "亿吨" } } }), draft({ lineId: "b", kind: "title", mode: "generate", shotSize: "wide", onScreenText: "焦虑" })], lines);
     expect(stat.card).toBeUndefined();
     expect(title).toMatchObject({ kind: "title", mode: "motion", shotSize: undefined });
+  });
+});
+
+describe("旧分镜卡片迁移", () => {
+  it("相邻信息卡会触发一次分镜重排", async () => {
+    const { staleRanges } = await import("@/lib/pipeline/stages/storyboard");
+    const { stampShots } = await import("@/lib/core/shots");
+    const doc = emptyDoc();
+    doc.lines = lines;
+    doc.shots = stampShots([
+      { ...blankShot("a-card", "a"), mode: "motion", card: { variant: "stat", stat: { value: "十三亿", label: "粮食" } } },
+      { ...blankShot("b-card", "b"), mode: "motion", card: { variant: "alert", alert: { type: "info", content: "注意" } } },
+      { ...blankShot("c-picture", "c"), mode: "generate", shotSize: "medium" },
+    ], lines);
+    expect(staleRanges(doc)).toEqual([{ from: 0, to: 1 }]);
   });
 });
 
@@ -85,6 +112,10 @@ describe("分镜提示词", () => {
     });
     for (const x of ["内容性质：真实科普", "硬核科普", "本章要点：浪费的规模；原因", "(3.2s · 紧张)", "目标受众：大学生"]) expect(p.prompt).toContain(x);
     expect(p.instructions).toContain("先理解，再设计");
+    expect(p.instructions).toContain("不生成通用文字卡、问答卡或号召卡");
+    expect(p.instructions).toContain("最多 8 个字");
+    expect(p.instructions).not.toContain("card.variant=qa");
+    expect(p.instructions).not.toContain("card.variant=cta");
   });
 });
 

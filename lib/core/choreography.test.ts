@@ -25,9 +25,9 @@ describe("choreograph", () => {
     expect(result[1].transitionIn).toBe("whip");
   });
 
-  it("uses a light transition for non-chapter family changes", () => {
+  it("同一章内不因旧动画家族额外加转场", () => {
     const same = lines.map((line) => ({ ...line, segmentIndex: 0 }));
     const result = choreograph([shot("a", "a"), shot("b", "b")], same, times, defaultMotionProfile);
-    expect(result[1].transitionIn).toBe("fade");
+    expect(result[1].transitionIn).toBe("cut");
   });
 });

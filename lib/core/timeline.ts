@@ -11,7 +11,8 @@ import { outputSpecs, shotKindLabels, animationSpecSchema, type AnimationFamily,
 import { outputSpecIdForAspect } from "./output-spec";
 import { normalizeAnimation } from "./animation";
 import { choreograph } from "./choreography";
-import { defaultUi2vTemplateForShot } from "./ui2v";
+import { inferCardTemplate, isActiveUi2vTemplate, isCodeCardShot } from "./ui2v";
+import { compactKeywords, compactText } from "./text";
 
 /**
  * 时间轴 —— 纯函数。输入 = 项目文档 + 机器产物（配音缓存、曲库），输出 = Remotion 的 inputProps。
@@ -211,7 +212,7 @@ export function buildTimeline(doc: ProjectDoc, art: Artifacts, aspectOrSpec: Asp
     const coveredLaid = laid.filter((l) => l.endMs > startMs && l.startMs < endMs);
     const covered = coveredLaid.map((l) => lineById.get(l.id)!);
     // 只取在本镜头时间范围内说出的关键词（镜头可能从句中开始）
-    const keywords = coveredLaid.flatMap((l) => {
+    const keywords = compactKeywords(coveredLaid.flatMap((l) => {
       const line = lineById.get(l.id)!;
       return line.keywords.filter((k) => {
         const i = line.text.indexOf(k);
@@ -219,7 +220,7 @@ export function buildTimeline(doc: ProjectDoc, art: Artifacts, aspectOrSpec: Asp
         const at = c ? c.startMs : l.startMs;
         return at >= startMs - 50 && at < endMs;
       });
-    });
+    }));
     const seg = lineById.get(s.at.lineId)?.segmentIndex ?? 0;
     const caption = covered.map((l) => l.text).join("");
     const seed = s.seed ?? parseInt(quickHash(s.id).slice(0, 6), 16);
@@ -230,9 +231,11 @@ export function buildTimeline(doc: ProjectDoc, art: Artifacts, aspectOrSpec: Asp
     const overlapInFrames = k > 0 && transitionIn && transitionIn !== "cut" ? Math.max(1, Math.round((transitionMs / 1000) * fps)) : 0;
     const overlapOutFrames = k + 1 < sorted.length && sorted[k + 1].transitionIn && sorted[k + 1].transitionIn !== "cut" ? Math.max(1, Math.round((transitionMs / 1000) * fps)) : 0;
     const parsedAnimation = s.animation ? animationSpecSchema.parse(s.animation) : undefined;
-    const templateId = parsedAnimation?.templateId ?? defaultUi2vTemplateForShot(s);
-    const animation = parsedAnimation || templateId ? {
-      family: parsedAnimation?.family ?? "none",
+    const card = sanitizeCard(s.card, caption) ?? fallbackCard(caption, keywords);
+    const requestedTemplate = isActiveUi2vTemplate(parsedAnimation?.templateId) ? parsedAnimation.templateId : undefined;
+    const templateId = isCodeCardShot(s) ? (requestedTemplate ?? inferCardTemplate({ ...s, card })) : undefined;
+    const animation = templateId || parsedAnimation ? {
+      family: "none" as const,
       templateId,
       intensity: parsedAnimation?.intensity ?? 1,
       anchors: (parsedAnimation?.anchors ?? []).flatMap((a) => {
@@ -249,7 +252,7 @@ export function buildTimeline(doc: ProjectDoc, art: Artifacts, aspectOrSpec: Asp
       endMs,
       motion: s.motion,
       description: s.description,
-      onScreenText: s.onScreenText,
+      onScreenText: s.kind === "placeholder" && s.mode === "motion" ? compactText(s.onScreenText) : s.onScreenText,
       imageSrc: assetId && s.kind !== "video" ? art.media(assetId) : undefined,
       videoSrc: assetId && s.kind === "video" ? art.media(assetId) : undefined,
       focus: s.focus,
@@ -258,7 +261,7 @@ export function buildTimeline(doc: ProjectDoc, art: Artifacts, aspectOrSpec: Asp
       keywords,
       seed,
       mode: s.mode,
-      card: sanitizeCard(s.card, caption) ?? fallbackCard(caption, keywords),
+      card,
       animation,
       overlapInFrames,
       overlapOutFrames,
@@ -266,7 +269,7 @@ export function buildTimeline(doc: ProjectDoc, art: Artifacts, aspectOrSpec: Asp
     };
   });
   if (shots.length === 0 && doc.lines.length) {
-    shots.push({ shotId: "auto", kind: "placeholder", startMs: 0, endMs: durationMs, motion: "zoom-in", description: "", caption: "", keywords: [], seed: 1, card: { variant: "headline", headline: doc.brief.title || undefined }, animation: { family: "none", intensity: 1, anchors: [], params: {} } });
+    shots.push({ shotId: "auto", kind: "placeholder", startMs: 0, endMs: durationMs, motion: "zoom-in", description: "", caption: "", keywords: [], seed: 1, mode: "motion", card: { variant: "headline", headline: doc.brief.title || undefined }, animation: { family: "none", templateId: "hero-spotlight-stage", intensity: 1, anchors: [], params: {} } });
     issues.push({ level: "info", message: "还没有分镜，暂用一个占位画面" });
   }
   shots.forEach((s) => {

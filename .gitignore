@@ -51,3 +51,6 @@ next-env.d.ts
 
 # 后台运行日志（启动.bat / scripts/start.mjs 产出）
 /logs/
+
+# 临时评测产物（动画探针截图、样片等，不进仓库）
+/tmp/

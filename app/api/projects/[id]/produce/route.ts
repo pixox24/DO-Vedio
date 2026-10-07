@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { fail, handle, parseBody } from "@/lib/api";
 import { aspects } from "@/lib/core/types";
-import { cancelProjectJobs, projectJobs } from "@/lib/server/jobs";
+import { cancelProjectJobs, cancelProjectJobsByGoal, projectJobs } from "@/lib/server/jobs";
 import { getProject } from "@/lib/server/projects";
 import { drive, getGoal, produce, setGoal } from "@/lib/pipeline/plan";
 
@@ -24,7 +24,7 @@ export async function GET(req: Request, ctx: RouteContext<"/api/projects/[id]/pr
       aspects: p.doc.settings.aspects,
       quality: (url.searchParams.get("quality") as "draft" | "final") ?? "final",
     };
-    const r = produce(id, g, { dryRun: true });
+    const r = produce(id, g, { dryRun: true, goalId: goal?.goal.goalId });
     return Response.json({ ...r, goal: goal ?? null, jobs: projectJobs(id) });
   });
 }
@@ -46,8 +46,12 @@ export async function POST(req: Request, ctx: RouteContext<"/api/projects/[id]/p
     if (!getProject(id)) return fail("项目不存在", 404);
     const { action, goal, confirmBudget } = await parseBody(req, body);
     if (action === "stop") {
+      const current = getGoal(id);
       setGoal(id, null);
-      return Response.json({ canceled: cancelProjectJobs(id) });
+      const canceled = current?.goal.goalId
+        ? cancelProjectJobsByGoal(id, current.goal.goalId)
+        : { count: cancelProjectJobs(id), ids: [] as string[] };
+      return Response.json({ canceled: canceled.count, canceledJobIds: canceled.ids });
     }
     if (!goal) return fail("缺少目标");
     const r = action === "start" ? drive(id, goal, confirmBudget) : produce(id, goal, { confirmBudget });
