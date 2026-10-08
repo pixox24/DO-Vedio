@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { charsFor, resolveRate } from "@/lib/duration";
-import { slangLevels, type SlangLevel } from "@/lib/memes";
+import { groundedLevels, slangLevels, type SlangLevel } from "@/lib/memes";
 import { speechRateLabels, type Brief, type ModelInfo, type StyleTemplate } from "@/lib/types";
 import { AutoTextarea, Field, Icon, Select, Spinner, Switch } from "./ui";
 
@@ -131,14 +131,30 @@ export function BriefForm({ brief, onChange, templates, models, modelId, onModel
             ))}
           </Select>
         </Field>
-        {slang !== "off" && (
+        <div className="space-y-2 border-t border-white/[0.06] pt-3">
+          <label className="flex items-center justify-between gap-3 text-xs">
+            <span>
+              <span className="block font-medium text-white/80">接地气表达</span>
+              <span className="mt-1 block text-[11px] text-white/40">日常口语、情绪反应和自然的转折句式</span>
+            </span>
+            <Switch checked={brief.groundedEnabled} onChange={(groundedEnabled) => onChange({ groundedEnabled })} label="使用接地气表达" />
+          </label>
+          {brief.groundedEnabled && (
+            <Field label="接地气力度" hint={`约每 ${groundedLevels[brief.groundedLevel].charsPerExpression} 字 1 处；合适时才用`}>
+              <Select value={brief.groundedLevel} onChange={(v) => onChange({ groundedLevel: v as Brief["groundedLevel"] })}>
+                {Object.entries(groundedLevels).map(([id, level]) => <option key={id} value={id}>{level.label}</option>)}
+              </Select>
+            </Field>
+          )}
+        </div>
+        {(slang !== "off" || brief.groundedEnabled) && (
           <div className="flex items-start justify-between gap-3 text-[11px] leading-relaxed">
             <span className="min-w-0 text-white/40">
               {brief.memes === null
-                ? "生成前会先挑选本期要用的梗"
+                ? "生成前会先挑选本期表达"
                 : brief.memes.length === 0
-                  ? "这期不用梗"
-                  : `本期用梗：${brief.memes.slice(0, 6).map((m) => m.term).join("、")}${brief.memes.length > 6 ? ` 等 ${brief.memes.length} 个` : ""}`}
+                  ? "这期不用梗库表达"
+                  : `本期表达：${brief.memes.slice(0, 6).map((m) => m.term).join("、")}${brief.memes.length > 6 ? ` 等 ${brief.memes.length} 个` : ""}`}
             </span>
             <button type="button" disabled={!ready || busy} onClick={onRepickMemes} className="shrink-0 cursor-pointer text-accent/80 transition hover:text-accent disabled:cursor-not-allowed disabled:opacity-35">
               {brief.memes === null ? "现在挑" : "重新挑"}

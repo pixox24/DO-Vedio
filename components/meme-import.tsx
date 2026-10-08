@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { postJson } from "@/lib/client";
 import {
-  importStatuses, memeCircles, memeKinds, memeRisks, parseSinceMonth, sinceBucket,
-  type ImportCandidate, type ImportStatus, type MemeInput, type MemeRisk,
+  importStatuses, memeCategories, memeCircles, memeKinds, memeRisks, parseSinceMonth, sinceBucket,
+  type ImportCandidate, type ImportStatus, type MemeCategory, type MemeInput, type MemeRisk,
 } from "@/lib/memes";
 import { useFeedback } from "./feedback";
 import { AutoTextarea, Icon, Select, Spinner, Switch } from "./ui";
@@ -64,8 +64,9 @@ export function MemeImport({ searchAvailable, onImported }: { searchAvailable: b
     const items = rows.filter((r) => r.checked).map((r) => r.input);
     setBusy("import");
     try {
-      const r = await postJson<{ added: number; updated: number; rechecked: number }>("/api/memes/import", { items, verify });
-      toast(`导入完成：新增 ${r.added} 个，续期 ${r.updated} 个${verify ? `，已联网核实 ${r.rechecked} 个的热度` : ""}`, "success");
+      const verifyHot = verify && items.some((item) => item.category === "hot");
+      const r = await postJson<{ added: number; updated: number; rechecked: number }>("/api/memes/import", { items, verify: verifyHot });
+      toast(`导入完成：新增 ${r.added} 个，续期 ${r.updated} 个${verifyHot ? `，已联网核实 ${r.rechecked} 个热梗热度` : ""}`, "success");
       setExtracted(null);
       setRows([]);
       setText("");
@@ -89,7 +90,7 @@ export function MemeImport({ searchAvailable, onImported }: { searchAvailable: b
       <div className="space-y-2">
         <p className="text-sm font-medium">粘贴导入</p>
         <p className="text-xs leading-relaxed text-white/40">
-          贴一篇「热梗盘点」文章、一段评论区或弹幕，AI 从里面整理出梗，先给你预览，确认后才入库。只收原文里真的出现过的词。
+          粘贴词库、评论区或弹幕，AI 从原文整理出可复用的表达，先预览和分类，确认后才入库。只收原文里真的出现过的词。
         </p>
         <AutoTextarea className="input max-h-96 min-h-32 text-sm leading-relaxed" value={text} onChange={(e) => setText(e.target.value)} placeholder="把包含梗的文字粘贴到这里，一次最多 2 万字" />
         <div className="flex items-center justify-between">
@@ -149,6 +150,9 @@ export function MemeImport({ searchAvailable, onImported }: { searchAvailable: b
               <AutoTextarea className="input min-h-0 py-1.5 text-xs leading-relaxed" value={r.input.meaning} onChange={(e) => edit(i, { meaning: e.target.value })} placeholder="含义" aria-label="含义" />
               <input className="input h-8 py-0 text-xs" value={r.input.usage} onChange={(e) => edit(i, { usage: e.target.value })} placeholder="用法：在句子里怎么用、适合放在哪" aria-label="用法" />
               <div className="flex flex-wrap items-center gap-3 text-[11px] text-white/45">
+                <Select value={r.input.category} onChange={(value) => edit(i, { category: value as MemeCategory })} className="w-auto min-w-28" aria-label="表达类别">
+                  {Object.entries(memeCategories).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+                </Select>
                 <Select value={r.input.circle} onChange={(value) => edit(i, { circle: value })} className="w-auto min-w-24" aria-label="圈层">
                   <option value="">未分类</option>
                   {memeCircles.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -167,10 +171,10 @@ export function MemeImport({ searchAvailable, onImported }: { searchAvailable: b
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] pt-4">
         <label className="flex items-center gap-2.5 text-xs">
-          <Switch checked={verify && searchAvailable} onChange={setVerify} label="联网核实热度" />
+          <Switch checked={verify && searchAvailable} onChange={setVerify} label="联网核实热梗热度" />
           <span className={searchAvailable ? "text-white/65" : "text-white/30"}>
-            联网核实热度
-            <span className="ml-1.5 text-white/35">{searchAvailable ? "逐个搜一次，更新现在的热度和流行时间（10 个约 20 秒）" : "需要配置通义千问"}</span>
+            联网核实热梗热度
+            <span className="ml-1.5 text-white/35">{searchAvailable ? "只核实选中的热梗，接地气表达不会联网刷新" : "需要配置通义千问"}</span>
           </span>
         </label>
         <button className="btn btn-primary btn-sm" disabled={!checked || busy !== null} onClick={commit}>

@@ -39,6 +39,29 @@ export const changeKindOrder: ChangeKind[] = ["feature", "improvement", "fix", "
 
 export const changelog: ChangeEntry[] = [
   {
+    version: "0.44.0",
+    date: "2026-10-08",
+    title: "接地气表达融入口播创作",
+    summary: "新增独立的接地气表达开关和力度，可与热梗共用表达库和本期选择；只开接地气时不会联网刷新热梗。",
+    items: [
+      { kind: "feature", title: "日常口语与情绪表达", detail: "表达库新增日常口语、情绪反应和节奏句式分类，可导入个人词库，也可按本期题材和风格挑选。" },
+      { kind: "improvement", title: "自然点缀，不硬塞词", detail: "写稿、改写和去 AI 味流程会参考已选表达与力度，限制重复使用，并优先保证语境自然。" },
+      { kind: "improvement", title: "热梗与接地气分别控制", detail: "接地气表达拥有单独开关；单独启用时只从本地词库挑选，不触发热梗联网刷新。" },
+    ],
+  },
+  {
+    version: "0.43.0",
+    date: "2026-10-08",
+    title: "背景音乐改为文件夹选曲",
+    summary: "配乐不再维护授权清单，也不再按句子情绪自动换曲。把音频放进 bgm 文件夹即可选用，选中的一首铺满全片。",
+    items: [
+      { kind: "improvement", title: "文件夹就是曲库", detail: "启动时和打开配乐面板时扫描 bgm 里的音频，曲名用文件名。文件没变就不再转码；第一次见到的文件仍会统一响度，避免盖过人声。" },
+      { kind: "improvement", title: "一首曲子铺满全片", detail: "在配乐面板试听并选中一首即可。句子改写后仍然用这一首。文件被移走时会提示缺失，不会自动换成别的曲子。" },
+      { kind: "improvement", title: "不选曲也能出片", detail: "没有选择背景音乐时，预览和成片继续进行，只是不加配乐。配乐开关和音量保持原样。" },
+      { kind: "infra", title: "去掉曲库导入流水线", detail: "移除按情绪自动选曲、授权核实，以及 library:fetch、library:discover、library:ingest。已有稿件里的旧曲目编号对不上文件名时，需要重新选一次。" },
+    ],
+  },
+  {
     version: "0.42.0",
     date: "2026-10-06",
     title: "内容驱动的电影感动效",

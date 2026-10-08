@@ -1,44 +1,24 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs";
+import { mkdirSync, mkdtempSync, rmSync, statSync, utimesSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import path from "path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 let dir = "";
 let musicDir = "";
-let libraryFile = "";
-
-const verified = (id: string, file: string, extra: Record<string, unknown> = {}) => ({
-  id,
-  file,
-  title: `曲目 ${id}`,
-  moods: ["温暖"],
-  loopable: true,
-  license: "CC BY 4.0",
-  source: "https://example.com",
-  licenseUrl: "https://creativecommons.org/licenses/by/4.0/",
-  sourcePage: "https://example.com/track",
-  downloadUrl: "https://example.com/track.mp3",
-  author: "Tester",
-  commercialUse: true,
-  rightsStatus: "verified",
-  rightsCheckedAt: "2026-10-01",
-  evidence: { url: "https://creativecommons.org/licenses/by/4.0/", fetchedAt: "2026-10-01", text: "commercial use allowed" },
-  ...extra,
-});
-
-const writeManifest = (tracks: unknown[]) => writeFileSync(libraryFile, JSON.stringify({ tracks }));
 
 beforeAll(async () => {
   dir = mkdtempSync(path.join(tmpdir(), "dovedio-music-"));
   musicDir = path.join(dir, "bgm");
-  mkdirSync(musicDir, { recursive: true });
+  mkdirSync(path.join(musicDir, "warm"), { recursive: true });
   process.env.DATA_DIR = path.join(dir, "data");
   process.env.MUSIC_DIR = musicDir;
-  libraryFile = path.join(musicDir, "library.json");
   const { ffmpeg } = await import("@/lib/server/ffmpeg");
   await ffmpeg(["-f", "lavfi", "-i", "sine=frequency=440:duration=6", "-ac", "1", "-ar", "44100", path.join(musicDir, "sine-a.wav")]);
   await ffmpeg(["-f", "lavfi", "-i", "sine=frequency=660:duration=6", "-ac", "1", "-ar", "44100", path.join(musicDir, "sine-b.wav")]);
+  await ffmpeg(["-f", "lavfi", "-i", "sine=frequency=880:duration=6", "-ac", "1", "-ar", "44100", path.join(musicDir, "warm", "tone.wav")]);
+  await ffmpeg(["-f", "lavfi", "-i", "sine=frequency=440:duration=0.2", "-ac", "1", "-ar", "44100", path.join(musicDir, "too-short.wav")]);
   writeFileSync(path.join(musicDir, "not-audio.mp3"), "this is definitely not audio");
+  writeFileSync(path.join(musicDir, "library.json"), "{\"tracks\":[]}");
 });
 
 afterAll(async () => {
@@ -47,66 +27,41 @@ afterAll(async () => {
   delete process.env.MUSIC_DIR;
 });
 
-describe("曲库同步", { timeout: 120_000 }, () => {
-  it("旧版清单：标记 pending、可试听但不可参与选曲，strict 不误报", async () => {
-    writeManifest([{ id: "legacy", file: "sine-a.wav", title: "旧曲目", moods: ["温暖"], loopable: true, license: "待确认", source: "" }]);
-    const { strictProblems, listTracks, listUsableTracks, syncLibrary } = await import("@/lib/server/music");
-    const result = await syncLibrary();
-    expect(result.report.pending).toBe(1);
-    expect(result.report.accepted).toBe(0);
-    expect(result.report.missingLicense).toBe(1);
-    expect(result.problems).toEqual([]);
-    expect(strictProblems(result.report)).toEqual([]);
-    const all = listTracks();
-    expect(all).toHaveLength(1);
-    expect(all[0]).toMatchObject({ rightsStatus: "pending", usable: false, id: "legacy" });
-    expect(all[0].sha256).toMatch(/^[a-f0-9]{64}$/);
-    expect(all[0].durationMs).toBeGreaterThan(4_000);
-    expect(all[0].assetId).toMatch(/^[a-f0-9]{64}$/);
-    expect(listUsableTracks()).toHaveLength(0);
+describe("文件夹曲库", { timeout: 120_000 }, () => {
+  it("扫描音频文件，跳过清单、损坏文件和过短文件", async () => {
+    const { scanLibrary } = await import("@/lib/server/music");
+    const result = await scanLibrary();
+    expect(result.tracks.map((track) => track.id).sort()).toEqual(["sine-a.wav", "sine-b.wav", "warm/tone.wav"]);
+    expect(result.tracks.every((track) => track.assetId && track.durationMs > 4_000)).toBe(true);
+    expect(result.problems.join("；")).toContain("too-short");
+    expect(result.problems.join("；")).toContain("not-audio");
+    expect(result.problems.join("；")).not.toContain("library.json");
   });
 
-  it("证据完整的已核实曲目才进入可用列表", async () => {
-    writeManifest([verified("ok", "sine-b.wav")]);
-    const { listUsableTracks, syncLibrary } = await import("@/lib/server/music");
-    const result = await syncLibrary();
-    expect(result.report.accepted).toBe(1);
-    expect(result.problems).toEqual([]);
-    const usable = listUsableTracks();
-    expect(usable).toHaveLength(1);
-    expect(usable[0]).toMatchObject({ id: "ok", rightsStatus: "verified", usable: true, author: "Tester" });
-    expect(usable[0].normalizedSha256).toBe(usable[0].assetId);
-    expect(usable[0].evidence?.text).toContain("commercial");
+  it("文件没变时不重新入库", async () => {
+    const { get } = await import("@/lib/server/db");
+    const { scanLibrary } = await import("@/lib/server/music");
+    const before = get<{ updated_at: number; asset_hash: string }>("SELECT updated_at, asset_hash FROM music_tracks WHERE id = ?", "sine-a.wav");
+    const result = await scanLibrary();
+    const after = get<{ updated_at: number; asset_hash: string }>("SELECT updated_at, asset_hash FROM music_tracks WHERE id = ?", "sine-a.wav");
+    expect(after).toEqual(before);
+    expect(result.tracks.find((track) => track.id === "sine-a.wav")?.assetId).toBe(before?.asset_hash);
   });
 
-  it("声称已核实但缺少证据会降级为 pending，strict 失败", async () => {
-    writeManifest([verified("no-evidence", "sine-a.wav", { licenseUrl: "", evidence: undefined, sourcePage: "" })]);
-    const { strictProblems, syncLibrary } = await import("@/lib/server/music");
-    const result = await syncLibrary();
-    expect(result.report.accepted).toBe(0);
-    expect(result.report.pending).toBe(1);
-    expect(result.problems.join("；")).toContain("证据不足");
-    expect(strictProblems(result.report).join("；")).toContain("证据不足");
-  });
+  it("修改时间变了会重新处理，文件删除后从曲库消失", async () => {
+    const { get } = await import("@/lib/server/db");
+    const { scanLibrary } = await import("@/lib/server/music");
+    const file = path.join(musicDir, "sine-a.wav");
+    const before = get<{ updated_at: number }>("SELECT updated_at FROM music_tracks WHERE id = ?", "sine-a.wav");
+    const stamp = new Date((statSync(file).mtimeMs || Date.now()) + 5_000);
+    utimesSync(file, stamp, stamp);
+    const refreshed = await scanLibrary();
+    const after = get<{ updated_at: number }>("SELECT updated_at FROM music_tracks WHERE id = ?", "sine-a.wav");
+    expect(after?.updated_at).toBeGreaterThan(before?.updated_at ?? 0);
+    expect(refreshed.tracks.some((track) => track.id === "sine-a.wav")).toBe(true);
 
-  it("相同 sha256 的文件不会重复入库", async () => {
-    writeManifest([verified("dup-a", "sine-a.wav"), verified("dup-b", "sine-a.wav")]);
-    const { listTracks, syncLibrary } = await import("@/lib/server/music");
-    const result = await syncLibrary();
-    expect(result.report.duplicate).toBe(1);
-    expect(result.report.accepted).toBe(1);
-    expect(listTracks().filter((t) => t.id.startsWith("dup-"))).toHaveLength(1);
-    expect(result.problems.join("；")).toContain("重复");
-  });
-
-  it("文件缺失与非音频文件进入 quarantine", async () => {
-    writeManifest([verified("missing", "does-not-exist.mp3"), verified("bad", "not-audio.mp3")]);
-    const { listTracks, syncLibrary } = await import("@/lib/server/music");
-    const result = await syncLibrary();
-    expect(result.report.quarantine).toBe(2);
-    expect(result.report.invalidAudio).toBe(1);
-    expect(result.report.accepted).toBe(0);
-    const tracks = listTracks();
-    expect(tracks.every((t) => t.rightsStatus === "quarantine" && !t.usable)).toBe(true);
+    rmSync(path.join(musicDir, "sine-b.wav"));
+    const removed = await scanLibrary();
+    expect(removed.tracks.map((track) => track.id)).not.toContain("sine-b.wav");
   });
 });

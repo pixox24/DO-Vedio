@@ -1,5 +1,5 @@
 import { countChars } from "../duration";
-import { BURNED_MEMES, findMemeUses, lostMemes, normalizeTerm, slangLevels, type MemeRef, type SlangLevel } from "../memes";
+import { BURNED_MEMES, findMemeUses, groundedLevels, lostMemes, normalizeTerm, slangLevels, type MemeRef, type SlangLevel } from "../memes";
 import { ruleById, rules, type RuleId } from "./rules";
 
 /**
@@ -10,8 +10,14 @@ import { ruleById, rules, type RuleId } from "./rules";
 
 export type Hit = { rule: RuleId; start: number; end: number; text: string };
 
-/** 用梗相关的检测上下文：本期选用的梗、梗库里已过气的梗、生效的网感档位 */
-export type ToneContext = { memes?: Pick<MemeRef, "term" | "variants">[]; stale?: string[]; slang?: SlangLevel };
+/** 表达检测上下文：所选词条、过气热梗、生效的网感与接地气力度 */
+export type ToneContext = {
+  memes?: (Pick<MemeRef, "term" | "variants"> & Partial<Pick<MemeRef, "category">>)[];
+  stale?: string[];
+  slang?: SlangLevel;
+  groundedEnabled?: boolean;
+  groundedLevel?: keyof typeof groundedLevels;
+};
 
 const P = "[^，。！？；\\n]"; // 分句内的字符
 const HARD_END = /[。！？!?]/;
@@ -89,7 +95,7 @@ function quoteRanges(text: string): [number, number][] {
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-/** 过气梗和超量用梗（规则 12） */
+/** 过气热梗、超量热梗和重复的接地气表达（规则 12） */
 function slangHits(text: string, ctx: ToneContext, push: (rule: RuleId, start: number, end: number) => void) {
   const picked = new Set((ctx.memes ?? []).flatMap((m) => [m.term, ...m.variants]).map(normalizeTerm));
   const burned = [...new Set([...BURNED_MEMES, ...(ctx.stale ?? [])])].filter((w) => w.length >= 2 && !picked.has(normalizeTerm(w)));
@@ -98,16 +104,26 @@ function slangHits(text: string, ctx: ToneContext, push: (rule: RuleId, start: n
     for (const m of text.matchAll(rx)) push("slang", m.index!, m.index! + m[0].length);
   }
   const level = ctx.slang;
-  if (!level || level === "off" || !ctx.memes?.length) return;
-  // 选用的梗：同一个梗一段只用一次，总量不超过档位允许的数量（至少允许 1 处）
-  const allowed = Math.max(1, Math.ceil(countChars(text) / slangLevels[level].charsPerMeme));
-  const occ = findMemeUses(text, ctx.memes);
-  const seen = new Set<string>();
-  let n = 0;
-  for (const o of occ) {
-    if (seen.has(o.term) || n >= allowed) push("slang", o.start, o.end);
-    else n++;
-    seen.add(o.term);
+  if (!ctx.memes?.length) return;
+  const checkQuota = (memes: typeof ctx.memes, allowed: number) => {
+    const occ = findMemeUses(text, memes ?? []);
+    const seen = new Set<string>();
+    let n = 0;
+    for (const o of occ) {
+      if (seen.has(o.term) || n >= allowed) push("slang", o.start, o.end);
+      else n++;
+      seen.add(o.term);
+    }
+  };
+  const hot = ctx.memes.filter((m) => (m.category ?? "hot") === "hot");
+  if (level && level !== "off" && hot.length) {
+    // 同一热梗一段只用一次，总量随网感档位变化。
+    checkQuota(hot, Math.max(1, Math.ceil(countChars(text) / slangLevels[level].charsPerMeme)));
+  }
+  const grounded = ctx.memes.filter((m) => m.category && m.category !== "hot");
+  if (ctx.groundedEnabled && grounded.length) {
+    const groundedLevel = ctx.groundedLevel ?? "medium";
+    checkQuota(grounded, Math.max(1, Math.ceil(countChars(text) / groundedLevels[groundedLevel].charsPerExpression)));
   }
 }
 

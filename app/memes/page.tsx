@@ -6,8 +6,8 @@ import { MemeImport } from "@/components/meme-import";
 import { Icon, Select, Spinner } from "@/components/ui";
 import { postJson } from "@/lib/client";
 import {
-  memeCircles, memeHeats, memeKinds, memeRisks, memeSources, memeTrusts, normalizeTerm, searchWindows, sinceBucket, sinceBuckets, STALE_DAYS,
-  type Meme, type MemeHeat, type MemeRisk, type MemeTrust, type SearchWindow, type SinceBucket,
+  memeCategories, memeCircles, memeHeats, memeKinds, memeRisks, memeSources, memeTrusts, normalizeTerm, searchWindows, sinceBucket, sinceBuckets, STALE_DAYS,
+  type Meme, type MemeCategory, type MemeHeat, type MemeRisk, type MemeTrust, type SearchWindow, type SinceBucket,
 } from "@/lib/memes";
 import type { FetchResult, RecheckResult } from "@/lib/server/meme-fetch";
 import type { MemeBlock, MemeFetch } from "@/lib/server/memes";
@@ -34,6 +34,7 @@ export default function MemesPage() {
   const [data, setData] = useState<Data | null>(null);
   const [fetching, setFetching] = useState(false);
   const [heat, setHeat] = useState<"all" | "live" | MemeHeat>("live");
+  const [category, setCategory] = useState<"all" | MemeCategory>("all");
   const [risk, setRisk] = useState<"all" | MemeRisk>("all");
   const [circle, setCircle] = useState<"all" | "none" | string>("all");
   const [onlyNew, setOnlyNew] = useState(false);
@@ -49,12 +50,13 @@ export default function MemesPage() {
   const { confirm, toast } = useFeedback();
   const [adding, setAdding] = useState(false);
   const [term, setTerm] = useState("");
+  const [manualCategory, setManualCategory] = useState<MemeCategory>("hot");
   const [working, setWorking] = useState<null | "term">(null);
 
   async function addTerm() {
     setWorking("term");
     try {
-      const r = await postJson<{ added: number; updated: number; online: boolean }>("/api/memes/manual", { term });
+      const r = await postJson<{ added: number; updated: number; online: boolean }>("/api/memes/manual", { term, category: manualCategory });
       toast(`${r.added ? "已添加" : "已更新"}「${term.trim()}」${r.online ? "（已联网核实）" : "（未联网核实，请自己确认含义）"}`, "success");
       setTerm("");
     } catch (e) {
@@ -117,7 +119,7 @@ export default function MemesPage() {
     await reload();
   }
 
-  async function patch(m: View, p: { risk?: MemeRisk; heat?: MemeHeat; say?: string }) {
+  async function patch(m: View, p: { category?: MemeCategory; risk?: MemeRisk; heat?: MemeHeat; say?: string }) {
     try {
       await postJson(`/api/memes/${m.id}`, p, "PATCH");
       await reload();
@@ -148,7 +150,8 @@ export default function MemesPage() {
   const list = (data?.memes ?? [])
     .filter(
       (m) =>
-        (heat === "all" || (heat === "live" ? m.heat === "rising" || m.heat === "peak" : m.heat === heat)) &&
+        (category === "all" || m.category === category) &&
+        (m.category !== "hot" || heat === "all" || (heat === "live" ? m.heat === "rising" || m.heat === "peak" : m.heat === heat)) &&
         (risk === "all" || m.risk === risk) &&
         (circle === "all" || (circle === "none" ? !m.circle : m.circle === circle)) &&
         (trust === "all" || m.trust === trust) &&
@@ -162,17 +165,17 @@ export default function MemesPage() {
         Number(b.isNew) - Number(a.isNew) ||
         (sort === "since" ? (b.sinceMonth || "0").localeCompare(a.sinceMonth || "0") : sort === "term" ? a.term.localeCompare(b.term, "zh-CN") : b.verifiedAt - a.verifiedAt),
     );
-  const doubtful = data?.memes.filter((m) => m.trust === "doubtful").length ?? 0;
-  const stale = data?.memes.filter((m) => m.heat === "fading" && m.storedHeat !== "fading").length ?? 0;
+  const doubtful = data?.memes.filter((m) => m.category === "hot" && m.trust === "doubtful").length ?? 0;
+  const stale = data?.memes.filter((m) => m.category === "hot" && m.heat === "fading" && m.storedHeat !== "fading").length ?? 0;
 
   return (
     <div className="pt-12">
       <div className="flex flex-wrap items-end justify-between gap-6">
         <div>
           <p className="label">梗库</p>
-          <h1 className="mt-3 text-5xl font-semibold tracking-[-0.03em]">热梗与流行表达</h1>
+            <h1 className="mt-3 text-5xl font-semibold tracking-[-0.03em]">热梗与口语词库</h1>
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/45">
-            联网搜索近 30 天 B站、抖音、微博、小红书上流行的梗。写轻松类视频时，先从这里挑出本期要用的梗，文案只用挑中的梗，并按网感档位控制用量。
+            热梗会联网刷新；日常口语、情绪表达和节奏句式由你维护。写稿时只会使用本期挑中的表达，并分别控制热梗和接地气表达的密度。
           </p>
         </div>
         <div className="flex flex-col items-end gap-1.5">
@@ -227,10 +230,13 @@ export default function MemesPage() {
               if (term.trim()) void addTerm();
             }}
           >
-            <p className="text-sm font-medium">添加一个梗</p>
-            <p className="text-xs text-white/40">输入你刷到的梗，AI 补全含义、用法和热度{data?.searchModel ? "（会联网核实）" : "（没有搜索模型，按模型知识补全，请自己确认）"}。</p>
-            <div className="flex max-w-md gap-2">
-              <input className="input h-9 py-0" value={term} maxLength={24} onChange={(e) => setTerm(e.target.value)} placeholder="例如：班味" />
+            <p className="text-sm font-medium">添加表达</p>
+            <p className="text-xs text-white/40">输入词条并选择类别，AI 会补全含义、用法和例句；只有热梗会联网查询。</p>
+            <div className="flex max-w-2xl flex-wrap gap-2">
+              <input className="input h-9 min-w-40 flex-1 py-0" value={term} maxLength={24} onChange={(e) => setTerm(e.target.value)} placeholder="例如：房租刺客" />
+              <Select value={manualCategory} onChange={(value) => setManualCategory(value as MemeCategory)} className="w-36" aria-label="表达类别">
+                {Object.entries(memeCategories).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+              </Select>
               <button className="btn btn-primary btn-sm h-9" disabled={!term.trim() || working !== null}>
                 {working === "term" ? <Spinner className="size-3.5" /> : <Icon name="plus" className="size-3.5" />} 添加
               </button>
@@ -271,7 +277,11 @@ export default function MemesPage() {
         </Select>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <Select value={heat} onChange={(v) => setHeat(v as typeof heat)} className="w-40">
+        <Select value={category} onChange={(v) => setCategory(v as typeof category)} className="w-36" aria-label="表达类别">
+          <option value="all">全部类别</option>
+          {Object.entries(memeCategories).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+        </Select>
+        <Select value={heat} onChange={(v) => setHeat(v as typeof heat)} className="w-40" aria-label="热梗热度">
           <option value="live">正在流行</option>
           <option value="all">全部热度</option>
           {Object.entries(memeHeats).map(([id, label]) => (
@@ -338,6 +348,7 @@ export default function MemesPage() {
           <button
             className="ml-1 cursor-pointer text-accent hover:underline"
             onClick={() => {
+              setCategory("all");
               setHeat("all");
               setCircle("all");
               setTrust("all");
@@ -362,18 +373,21 @@ export default function MemesPage() {
                   </h3>
                   {m.variants.length > 0 && <p className="mt-0.5 truncate text-[11px] text-white/35">也写作 {m.variants.join("、")}</p>}
                 </div>
-                <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] ${heatTone[m.heat]}`}>{memeHeats[m.heat]}</span>
+                    {m.category === "hot" && <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] ${heatTone[m.heat]}`}>{memeHeats[m.heat]}</span>}
               </div>
               <p className="mt-2 text-xs leading-relaxed text-white/65">{m.meaning}</p>
               {m.usage && <p className="mt-1.5 text-[11px] leading-relaxed text-white/40">用法：{m.usage}</p>}
               <p className="mt-2 border-l-2 border-white/15 pl-2 text-xs leading-relaxed text-white/50">{m.example}</p>
               <p className="mt-3 flex-1 text-[11px] text-white/30">
-                {m.circle || "未分类"} · {memeKinds[m.kind]} · {memeSources[m.source]}
+                {memeCategories[m.category]} · {m.circle || "未分类"} · {memeKinds[m.kind]} · {memeSources[m.source]}
                 {m.platform && ` · ${m.platform}`}
                 {sinceLabel(m) && ` · ${sinceLabel(m)}`} · 确认于 {date(m.verifiedAt)}
                 <span className={`ml-1.5 ${trustTone[m.trust]}`}>· {m.trust === "verified" ? "✓ " : ""}{memeTrusts[m.trust]}</span>
               </p>
               <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-white/[0.06] pt-3 text-[11px]">
+                <Select value={m.category} onChange={(value) => patch(m, { category: value as MemeCategory })} className="w-auto min-w-28 text-[11px]" aria-label="表达类别">
+                  {Object.entries(memeCategories).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+                </Select>
                 <Select value={m.risk} onChange={(value) => patch(m, { risk: value as MemeRisk })} className={`w-auto min-w-16 text-[11px] ${riskTone[m.risk]}`} aria-label="风险">
                   {Object.entries(memeRisks).map(([id, label]) => (
                     <option key={id} value={id}>{label}</option>

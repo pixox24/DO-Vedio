@@ -28,7 +28,6 @@ describe("自动分镜推进", () => {
     const doc = emptyDoc();
     doc.segments = [{ title: "开场", text: "一句测试文案。" }];
     doc.lines = [{ id: "line-1", segmentIndex: 0, text: "一句测试文案。", spans: [], keywords: [], locked: true }];
-    doc.settings.music.enabled = false;
     const project = createProject(doc);
     cachePut(ttsKey(lineSpeech(doc.lines[0], []).spoken, doc.settings.voice), "tts", { assetId: "test", speechStartMs: 0, speechEndMs: 1000, durationMs: 1000, chars: [], aligned: false, spokenChars: 7 });
     const goal: Parameters<typeof planPipeline>[2] = { until: "render", aspects: ["16:9"], quality: "draft" };
@@ -43,6 +42,8 @@ describe("自动分镜推进", () => {
     expect(plan.steps.some((step) => step.stage === "cast")).toBe(false);
     expect(plan.steps.find((step) => step.stage === "storyboard")?.input).toMatchObject({ modelId: listTextModels()[0].id });
     expect(plan.waiting).not.toContain("没有可用文本模型，请在模型中心配置并启用");
+    expect(plan.steps.some((step) => step.stage === "music")).toBe(false);
+    expect(plan.waiting.join(" ")).not.toContain("配乐");
   });
 
   it("仍有前置条件时保留已暂停的目标", async () => {

@@ -3,45 +3,45 @@ import { humanizePrompt, memeSearchPrompt, memeStructurePrompt, normalizeOutline
 import { builtinTemplates } from "../templates/builtin";
 import type { Brief } from "../types";
 
-const brief: Brief = { title: "测试", summary: "概要", minutes: 3, templateId: "serious", audience: "", perspective: "first", mustInclude: "", avoid: "", rate: "auto", slang: "auto", memes: null };
+const brief: Brief = { title: "测试", summary: "概要", minutes: 3, templateId: "serious", audience: "", perspective: "first", mustInclude: "", avoid: "", rate: "auto", slang: "auto", memes: null, groundedEnabled: false, groundedLevel: "medium" };
 const t = builtinTemplates[0];
 
-const memes = [{ term: "破防了", variants: [], meaning: "情绪被击中", usage: "当谓语", example: "看到这里我直接破防了", where: "结尾" }];
+const memes = [{ term: "破防了", category: "hot" as const, variants: [], meaning: "情绪被击中", usage: "当谓语", example: "看到这里我直接破防了", where: "结尾" }];
 
 describe("用梗提示词", () => {
   const sections = [{ title: "开场", points: "a", minutes: 2 }];
   it("网感开启且挑过梗时，写稿提示词只给挑中的梗并限定用量", () => {
     const { instructions } = sectionPrompt({ ...brief, templateId: "humor", slang: "medium", memes }, t, "medium", sections, 0, "");
-    expect(instructions).toContain("本章可用的流行梗");
+    expect(instructions).toContain("【本章可用表达】");
     expect(instructions).toContain("破防了");
-    expect(instructions).toContain("本章加起来最多用 1 处梗");
+    expect(instructions).toContain("本章最多使用 1 处表达");
     expect(instructions).toContain("列表外的网络流行语和梗一律不用");
   });
   it("网感关闭、没挑梗或梗已用够次数时不给梗", () => {
-    expect(sectionPrompt({ ...brief, slang: "off", memes }, t, "medium", sections, 0, "").instructions).not.toContain("可用的流行梗");
-    expect(sectionPrompt({ ...brief, slang: "medium", memes: [] }, t, "medium", sections, 0, "").instructions).not.toContain("流行梗");
-    expect(sectionPrompt({ ...brief, slang: "medium", memes }, t, "medium", sections, 0, "", { 破防了: 2 }).instructions).toContain("都已经用够次数了");
+    expect(sectionPrompt({ ...brief, slang: "off", memes }, t, "medium", sections, 0, "").instructions).not.toContain("【本章可用表达】");
+    expect(sectionPrompt({ ...brief, slang: "medium", memes: [] }, t, "medium", sections, 0, "").instructions).not.toContain("[热梗] 破防了");
+    expect(sectionPrompt({ ...brief, slang: "medium", memes }, t, "medium", sections, 0, "", { 破防了: 2 }).instructions).toContain("分配到本章的表达都已用够次数");
   });
   it("写稿只给大纲分给本章的梗", () => {
-    const two = [...memes, { term: "班味", variants: [], meaning: "职场习气", usage: "当结论", example: "", where: "" }];
+    const two = [...memes, { term: "班味", category: "hot" as const, variants: [], meaning: "职场习气", usage: "当结论", example: "", where: "" }];
     const b = { ...brief, templateId: "humor", slang: "heavy" as const, memes: two };
     const assigned = sectionPrompt(b, t, "medium", [{ title: "开场", points: "a", minutes: 2, memes: ["班味"] }], 0, "").instructions;
     expect(assigned).toContain("班味");
     expect(assigned).not.toContain("破防了");
-    expect(sectionPrompt(b, t, "medium", [{ title: "开场", points: "a", minutes: 2, memes: [] }], 0, "").instructions).toContain("大纲没有给本章分配梗");
+    expect(sectionPrompt(b, t, "medium", [{ title: "开场", points: "a", minutes: 2, memes: [] }], 0, "").instructions).toContain("大纲没有给本章分配表达");
   });
   it("大纲提示词让模型分配梗，返回后清洗", () => {
     const b = { ...brief, slang: "medium" as const, memes };
-    expect(outlinePrompt(b, t, "medium").prompt).toContain("memes：把下面这些用户选好的梗分配到最搭的章节");
+    expect(outlinePrompt(b, t, "medium").prompt).toContain("memes：把下面这些用户选好的表达分配到最搭的章节");
     expect(outlinePrompt({ ...b, slang: "off" }, t, "medium").prompt).not.toContain("memes：");
     expect(normalizeOutlineMemes([{ memes: ["破防了", "乱写的"] }, { memes: ["破防了"] }], b, t, "medium").map((s) => s.memes)).toEqual([["破防了"], []]);
   });
   it("加点梗、去掉梗", () => {
     const b = { ...brief, slang: "medium" as const, memes };
     const add = rewritePrompt(b, t, { action: "addMemes", text: "周一的地铁太挤了。", before: "", after: "" }).prompt;
-    expect(add).toContain("自然地用上下面的梗");
+    expect(add).toContain("自然地用上下面的表达");
     expect(add).toContain("破防了");
-    expect(rewritePrompt(b, t, { action: "addMemes", text: "周一。", before: "", after: "", memeUsage: { 破防了: 2 } }).prompt).toContain("本期没有可用的梗");
+    expect(rewritePrompt(b, t, { action: "addMemes", text: "周一。", before: "", after: "", memeUsage: { 破防了: 2 } }).prompt).toContain("本期没有可用的表达");
     const drop = rewritePrompt(b, t, { action: "dropMemes", text: "我直接破防了。", before: "", after: "" }).prompt;
     expect(drop).toContain("换成正常、朴素的说法");
     expect(drop).not.toContain("改写时保留");

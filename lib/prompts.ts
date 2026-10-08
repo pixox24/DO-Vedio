@@ -3,7 +3,7 @@ import { rewriteActions, speechRateLabels, type Brief, type RewriteAction, type 
 import type { Prompt } from "./llm";
 import { detectAiTone, groupHits } from "./humanize/detect";
 import { notAiTone, rules } from "./humanize/rules";
-import { assignMemes, countMemeUses, MAX_USES_PER_MEME, memeBudget, memeCircles, memeHeats, memeKinds, memesForSection, resolveSlang, slangLevels, type Meme, type MemeRef } from "./memes";
+import { assignMemes, countMemeUses, enabledMemeCategories, groundedBudget, groundedLevels, MAX_USES_PER_GROUNDED, MAX_USES_PER_MEME, memeBudget, memeCategories, memeCircles, memeHeats, memesForSection, resolveSlang, slangLevels, type Meme, type MemeRef } from "./memes";
 import type { ToneContext } from "./humanize/detect";
 
 const list = (items: string[]) => items.filter(Boolean).map((x) => `- ${x}`).join("\n");
@@ -87,22 +87,37 @@ ${exclude.length > 0 ? `- 不要和以下已经提出过的角度重复或相近
   };
 }
 
-/** 大纲阶段最多分配几个梗：按全片字数和档位，至少 1 个 */
-export function outlineMemeLimit(brief: Brief, t: StyleTemplate, rate: SpeechRate) {
+function categoriesFor(brief: Brief, t: StyleTemplate) {
+  return enabledMemeCategories(resolveSlang(brief.slang, t) !== "off", brief.groundedEnabled);
+}
+
+export function activeMemes(brief: Brief, t: StyleTemplate) {
+  const enabled = new Set(categoriesFor(brief, t));
+  return (brief.memes ?? []).filter((m) => enabled.has(m.category));
+}
+
+function expressionBudget(brief: Brief, t: StyleTemplate, chars: number) {
   const level = resolveSlang(brief.slang, t);
-  return level === "off" ? 0 : Math.max(1, memeBudget(charsFor(brief.minutes, rate), level));
+  const hot = level === "off" ? 0 : Math.max(1, memeBudget(chars, level));
+  const grounded = brief.groundedEnabled ? Math.max(1, groundedBudget(chars, brief.groundedLevel)) : 0;
+  return hot + grounded;
+}
+
+/** 大纲阶段的表达上限分别按网感和接地气力度计算。 */
+export function outlineMemeLimit(brief: Brief, t: StyleTemplate, rate: SpeechRate) {
+  return expressionBudget(brief, t, charsFor(brief.minutes, rate));
 }
 
 /** 大纲返回后清洗用梗分配（只留选中的梗、不重复、不超量） */
 export function normalizeOutlineMemes<T extends { memes?: string[] }>(sections: T[], brief: Brief, t: StyleTemplate, rate: SpeechRate) {
   const limit = outlineMemeLimit(brief, t, rate);
-  return assignMemes(sections, limit > 0 ? brief.memes : null, limit);
+  return assignMemes(sections, limit > 0 ? activeMemes(brief, t) : null, limit);
 }
 
 export function outlinePrompt(brief: Brief, t: StyleTemplate, rate: SpeechRate): Prompt {
   const total = charsFor(brief.minutes, rate);
   const memeLimit = outlineMemeLimit(brief, t, rate);
-  const memes = memeLimit > 0 ? (brief.memes ?? []) : [];
+  const memes = memeLimit > 0 ? activeMemes(brief, t) : [];
   const count = brief.minutes <= 3 ? "3-4" : brief.minutes <= 8 ? "4-6" : brief.minutes <= 15 ? "5-7" : "6-9";
   return {
     instructions: baseInstructions(t, brief),
@@ -117,8 +132,8 @@ export function outlinePrompt(brief: Brief, t: StyleTemplate, rate: SpeechRate):
 - minutes 为本章分钟数（可以是小数），所有章节加起来等于 ${brief.minutes}${
       memes.length
         ? `
-- memes：把下面这些用户选好的梗分配到最搭的章节，每章 0-2 个，填梗名原文。同一个梗只分给一章；全片最多分配 ${memeLimit} 个，搭不上的梗就不分；讲事实、数据或情绪沉重的章节不分；尽量分散，不要全挤在开场
-${memes.map((m) => `  · ${m.term}：${m.meaning}${m.where ? `（适合：${m.where}）` : ""}`).join("\n")}`
+- memes：把下面这些用户选好的表达分配到最搭的章节，每章最多 2 个，填表达原文。同一个表达只分给一章；全片最多分配 ${memeLimit} 个，搭不上的就不分；讲事实、数据或情绪沉重的章节不分；尽量分散，不要全挤在开场
+${memes.map((m) => `  · [${memeCategories[m.category]}] ${m.term}：${m.meaning}${m.where ? `（适合：${m.where}）` : ""}`).join("\n")}`
         : ""
     }`,
   };
@@ -129,23 +144,25 @@ const formsLabel = (m: MemeRef) => (m.variants.length ? `（也写作 ${m.varian
 /** 梗列表。实测模型会照抄例句的笑点（“当前剩余 3%”），有用法说明时就不给例句 */
 function memeList(memes: MemeRef[], usage: Record<string, number>) {
   return memes
-    .map((m) => `- ${m.term}${formsLabel(m)}：${m.meaning}。${m.usage ? `用法：${m.usage}` : `例：${m.example}`}${m.where ? `。这期适合：${m.where}` : ""}${usage[m.term] ? "（前文已经用过，尽量换别的）" : ""}`)
+    .map((m) => `- [${memeCategories[m.category]}] ${m.term}${formsLabel(m)}：${m.meaning}。${m.usage ? `用法：${m.usage}` : `例：${m.example}`}${m.where ? `。这期适合：${m.where}` : ""}${usage[m.term] ? "（前文已经用过，尽量换别的）" : ""}`)
     .join("\n");
 }
 
-function memeRules(budgetLine: string) {
+function memeRules(budgetLine: string, hotEnabled: boolean, groundedEnabled: boolean) {
   return list([
     budgetLine,
+    hotEnabled ? "热梗只能使用上面选中的词条，列表外的网络流行语和梗一律不用，也不要自造梗" : "",
+    groundedEnabled ? "接地气表达要像聊天时顺口带出，贴着具体生活细节或情绪点使用；同一条全片最多一次，不要平均撒，也不要句句加口头禅" : "",
+    groundedEnabled ? "亲昵式吐槽只对事情、自己或过去的自己，不攻击观众或现实中的群体；不用脏话和地域、群体歧视词" : "",
     "结合这里自己的内容说，不要照搬网上现成的段子和例句",
-    "只能用上面列出的梗。列表外的网络流行语和梗一律不用（模型记忆里的梗大多已经过时），也不要自造梗",
     "用对含义和语气，放在观点、吐槽、转折、共鸣、互动这类位置；陈述事实、数据、引用和严肃内容时不用",
-    "直接用，不要解释梗（不写“这里的……指的是……”“也就是网上说的……”），也不要加引号强调",
+    hotEnabled ? "直接用，不要解释梗（不写“这里的……指的是……”“也就是网上说的……”），也不要加引号强调" : "",
     "找不到自然的位置就不用，宁缺毋滥",
   ]);
 }
 
-/** 还能用的梗：全片用够次数的去掉 */
-const availableMemes = (memes: MemeRef[], usage: Record<string, number>) => memes.filter((m) => (usage[m.term] ?? 0) < MAX_USES_PER_MEME);
+/** 还能用的表达：热梗最多两次，接地气词条全片只用一次 */
+const availableMemes = (memes: MemeRef[], usage: Record<string, number>) => memes.filter((m) => (usage[m.term] ?? 0) < (m.category === "hot" ? MAX_USES_PER_MEME : MAX_USES_PER_GROUNDED));
 
 /**
  * 写稿时可用的流行梗。只给用户挑过、大纲分给本章的梗，并限定用量和位置：
@@ -153,21 +170,23 @@ const availableMemes = (memes: MemeRef[], usage: Record<string, number>) => meme
  */
 function memeBlock(brief: Brief, t: StyleTemplate, chars: number, usage: Record<string, number>, assigned?: string[]) {
   const level = resolveSlang(brief.slang, t);
-  const picked = brief.memes ?? [];
-  if (level === "off" || picked.length === 0) return "";
-  const noMemes = "这一章不要用梗，也不要用别的网络流行语。";
+  const categories = categoriesFor(brief, t);
+  if (categories.length === 0) return "";
+  const hotEnabled = categories.includes("hot");
+  const picked = activeMemes(brief, t);
+  if (picked.length === 0) return "【本期表达】尚未选中表达词条；保持自然口语，不要自行添加热梗或生造固定口头禅。";
+  const noMemes = "这一章不要使用梗库表达，也不要自行添加热梗或固定口头禅。";
   const mine = memesForSection(picked, assigned);
-  if (mine.length === 0) return `【流行梗】大纲没有给本章分配梗，${noMemes}`;
+  if (mine.length === 0) return `【本章表达】大纲没有给本章分配表达，${noMemes}`;
   const available = availableMemes(mine, usage);
-  if (available.length === 0) return `【流行梗】分给本章的梗都已经用够次数了，${noMemes}`;
-  const budget = Math.min(memeBudget(chars, level), available.length);
+  if (available.length === 0) return `【本章表达】分配到本章的表达都已用够次数，${noMemes}`;
+  const budget = Math.min((hotEnabled ? memeBudget(chars, level) : 0) + (brief.groundedEnabled ? groundedBudget(chars, brief.groundedLevel) : 0), available.length);
+  const budgetLine = budget > 0 ? `本章最多使用 ${budget} 处表达，同一条接地气表达全片只用一次` : "本章篇幅短，可以不用；只有特别贴切的位置才用，最多 1 处";
   return [
-    `【本章可用的流行梗】（网感：${slangLevels[level].label}）下面是用户挑过、近期正在流行的表达，用对了能让文案更接地气：`,
+    `【本章可用表达】${hotEnabled ? `（网感：${slangLevels[level].label}）` : ""}${brief.groundedEnabled ? `（接地气力度：${groundedLevels[brief.groundedLevel].label}）` : ""}下面是用户挑过的表达，只在自然的位置使用：`,
     memeList(available, usage),
-    "用梗规则：",
-    memeRules(
-      budget >= 1 ? `本章加起来最多用 ${budget} 处梗（这是上限，不是指标），同一个梗本章只用一次` : "本章篇幅短，可以不用；只有特别贴切的位置才用，最多 1 处",
-    ),
+    "使用规则：",
+    memeRules(budgetLine, hotEnabled, brief.groundedEnabled),
   ].join("\n");
 }
 
@@ -216,27 +235,32 @@ export type RewriteInput = {
 export function rewritePrompt(brief: Brief, t: StyleTemplate, input: RewriteInput): Prompt {
   if (input.action === "humanize") return humanizePrompt(brief, t, input);
   const len = input.text.length;
-  const level = resolveSlang(brief.slang, t);
-  const addable = availableMemes(brief.memes ?? [], input.memeUsage ?? {});
-  const addCount = Math.max(1, Math.min(memeBudget(countChars(input.text), level === "off" ? "light" : level), addable.length, 3));
+  const target = input.action === "restyle" && input.restyle ? input.restyle : t;
+  const level = resolveSlang(input.action === "restyle" && input.restyle ? input.restyle.slang : brief.slang, target);
+  const addable = availableMemes(activeMemes(brief, target), input.memeUsage ?? {});
+  const groundedAddable = availableMemes(addable.filter((m) => m.category !== "hot"), input.memeUsage ?? {});
+  const addCount = Math.max(1, Math.min(expressionBudget(brief, target, countChars(input.text)), addable.length, 3));
   const task: Record<Exclude<RewriteAction, "humanize">, string> = {
     expand: `扩写这一段，补充细节、例子或论据，扩展到约 ${Math.round(len * 1.5)} 字`,
     shrink: `精简这一段，保留核心信息，压缩到约 ${Math.round(len * 0.6)} 字`,
-    colloquial: "让这一段更口语化、更适合朗读：拆分长句，换掉书面词，增加自然的语气",
+    colloquial: `让这一段更口语化、更适合朗读：拆分长句，换掉书面词，语气贴近日常说话。${groundedAddable.length ? `\n只有确实贴切时，最多自然用 1 处下面已选的接地气表达；不要为了塞词改动事实：\n${memeList(groundedAddable, input.memeUsage ?? {})}\n${memeRules("最多 1 处", false, true)}` : ""}`,
     restyle: input.restyle ? `把这一段改写成下面这种风格，内容和信息量保持不变：\n\n${styleBlock(input.restyle)}` : "换一种表达方式重写这一段",
     custom: `按以下要求修改这一段：${input.instruction ?? ""}`,
     fit: `调整这一段的长度到约 ${input.targetChars} 字（上下浮动不超过 5%），风格和核心信息不变`,
     addMemes: addable.length
-      ? `在这一段里自然地用上下面的梗，最多 ${addCount} 处。只在合适的位置加梗或替换个别说法，其他内容、信息和字数基本不变：\n${memeList(addable, input.memeUsage ?? {})}\n\n用梗规则：\n${memeRules(`最多 ${addCount} 处，同一个梗只用一次`)}`
-      : "这一段保持原样输出（本期没有可用的梗）",
-    dropMemes: "把这一段里的网络梗和网络流行语换成正常、朴素的说法，其他内容一字不动",
+      ? `在这一段里自然地用上下面的表达，最多 ${addCount} 处。只在合适的位置加表达或替换个别说法，其他内容、信息和字数基本不变：\n${memeList(addable, input.memeUsage ?? {})}\n\n表达规则：\n${memeRules(`最多 ${addCount} 处`, level !== "off", brief.groundedEnabled)}`
+      : "这一段保持原样输出（本期没有可用的表达）",
+    dropMemes: "把这一段里的网络梗和选中的接地气表达换成正常、朴素的说法，其他内容一字不动",
   };
   const used = [...countMemeUses(input.text, brief.memes ?? []).keys()];
+  const usedHot = used.filter((term) => brief.memes?.find((m) => m.term === term)?.category === "hot");
+  const usedGrounded = used.filter((term) => brief.memes?.find((m) => m.term === term)?.category !== "hot");
+  const targetGrounded = brief.groundedEnabled ? `\n原段落里的接地气表达是用户选用的，改写时保留：${usedGrounded.join("、") || "无"}。不要新增其他固定口头禅。` : "";
   const memeNote = !used.length || input.action === "addMemes" || input.action === "dropMemes"
     ? ""
     : input.action === "restyle" && input.restyle?.slang === "off"
-      ? `\n目标风格不用网络梗，改写时去掉这些梗，换成正常说法：${used.join("、")}。`
-      : `\n原段落里的这些梗是用户特意选用的，改写时保留：${used.join("、")}。不要再加别的网络流行语。`;
+      ? `${usedHot.length ? `\n目标风格不用网络梗，改写时去掉这些梗，换成正常说法：${usedHot.join("、")}。` : ""}${targetGrounded}`
+      : `${usedHot.length ? `\n原段落里的这些热梗是用户特意选用的，改写时保留：${usedHot.join("、")}。不要再加别的网络流行语。` : ""}${targetGrounded}`;
   return {
     instructions: baseInstructions(input.action === "restyle" && input.restyle ? input.restyle : t, brief),
     prompt: `视频标题：${brief.title}
@@ -273,9 +297,11 @@ function rulebook() {
  * 这样视频制作里这些句子的配音缓存和镜头锚点都不会失效。
  */
 export function humanizePrompt(brief: Brief, t: StyleTemplate, input: Pick<RewriteInput, "text" | "before" | "after" | "staleMemes">): Prompt {
-  const ctx: ToneContext = { memes: brief.memes ?? [], stale: input.staleMemes, slang: resolveSlang(brief.slang, t) };
+  const ctx: ToneContext = { memes: brief.memes ?? [], stale: input.staleMemes, slang: resolveSlang(brief.slang, t), groundedEnabled: brief.groundedEnabled, groundedLevel: brief.groundedLevel };
   const hits = groupHits(detectAiTone(input.text, ctx));
   const used = [...countMemeUses(input.text, brief.memes ?? []).keys()];
+  const usedHot = used.filter((term) => brief.memes?.find((m) => m.term === term)?.category === "hot");
+  const usedGrounded = used.filter((term) => brief.memes?.find((m) => m.term === term)?.category !== "hot");
   return {
     instructions: `你是口播稿的终审编辑，负责去掉文案里的 AI 写作痕迹。这份稿子会交给配音朗读，观众是听，不是看。
 
@@ -291,7 +317,7 @@ export function humanizePrompt(brief: Brief, t: StyleTemplate, input: Pick<Rewri
 
 【风格参考】下面是这期视频的解说风格。风格参考和改写规则冲突时，以风格参考为准，那是这种风格本来的写法，不是 AI 痕迹：
 ${styleBlock(t)}
-叙述视角：${brief.perspective === "first" ? "第一人称 UP 主" : "第三人称旁白"}${used.length ? `\n本期选用的流行梗（风格的一部分，不是 AI 痕迹，必须原样保留）：${used.join("、")}` : ""}
+叙述视角：${brief.perspective === "first" ? "第一人称 UP 主" : "第三人称旁白"}${usedHot.length ? `\n本期选用的热梗（风格的一部分，不是 AI 痕迹，必须原样保留）：${usedHot.join("、")}` : ""}${brief.groundedEnabled && usedGrounded.length ? `\n本期选用的接地气表达（语气的一部分，不是 AI 痕迹，必须原样保留）：${usedGrounded.join("、")}` : ""}
 
 【改写规则】（按优先级排序；同一句命中多条时先按靠前的改，改完不再叠加。“例”都摘自别的文章，只示范改法，例句里的任何内容都不能写进这份稿子）
 ${rulebook()}
@@ -394,11 +420,12 @@ export function memeImportPrompt(text: string, today: string): Prompt {
   return {
     instructions: `你负责从用户粘贴的中文材料里整理出网络热梗和流行表达。只整理材料里真实出现过的词，绝不补充、绝不编造，也不要根据现象自己起名字。
 
-材料可能是一篇「热梗盘点」、别人的评论、弹幕，或者随手记的笔记。整理规则：
+材料可能是一篇「热梗盘点」、别人的评论、弹幕，或者用户整理的口语词库。整理规则：
 - term 写材料里最常见的写法，variants 写材料里出现的其他写法
 - kind：word 词汇；pattern 可以套用的句式（如“X 的尽头是 Y”）；catchphrase 口头禅；pun 谐音梗
 - meaning：含义。材料里解释了这个梗就照它写；材料只是用了它、没解释，就按上下文推测，并把 explained 填 false
 - usage：它在句子里怎么用、搭什么语气、适合放在什么位置；材料没说就按含义推测
+- category：从 hot / daily / emotion / rhythm 里选。近期依赖网络流行、过一段时间会退潮的词选 hot；生活场景里的口语选 daily；表达惊讶、无奈、开心等反应选 emotion；用于起话头、转折或收束的自然句式选 rhythm
 - example：必须是材料里原样出现过的句子，优先挑能看出用法的那句；材料里找不到合适的句子就留空，不要自己造句
 - platform：材料里提到就写；没提到就按内容判断指的是哪个平台，判断不了填空
 - since：材料里提到就写成“年-月”（如 2026-08）；没提到填空字符串
@@ -408,7 +435,7 @@ export function memeImportPrompt(text: string, today: string): Prompt {
 - circle：从这些里选一个——${memeCircles.join("、")}；都不合适填空
 - publishedAt：材料里能看出的发布时间，写成“年-月”；看不出填空
 
-只收网民在日常聊天、评论、弹幕里拿来用的网络用语和梗；普通词汇、政策术语、新闻事件名、品牌、产品和人名都不要整理进来。材料里如果没有像梗的表达，memes 给空数组。`,
+只收材料中明确出现、值得复用的表达，不要把普通连接词或所有普通词都塞进词库。政策术语、新闻事件名、品牌、产品和人名不要整理进来。材料里如果没有合适表达，memes 给空数组。`,
     prompt: `今天是 ${today}。用户粘贴的材料：
 """
 ${text}
@@ -478,18 +505,20 @@ ${notes}
 /** 选梗：从候选里挑和这期题材、风格搭得上的 */
 export function memePickPrompt(brief: Brief, t: StyleTemplate, candidates: Meme[]): Prompt {
   const level = resolveSlang(brief.slang, t);
+  const hotEnabled = level !== "off";
   return {
-    instructions: "你是 B站 UP 主的文案策划，负责为这期视频从梗库里挑选合适的流行梗。挑得准比挑得多重要：用错一个梗，比不用梗更掉价。",
+    instructions: "你是中文口播文案策划，负责从用户维护的表达库里挑选适合本期的表达。热梗看题材相关性，日常口语和情绪表达看语气是否自然；挑得准比挑得多重要。",
     prompt: `视频标题：${brief.title}
 ${brief.summary ? `内容概要：\n${brief.summary}\n` : ""}解说风格：${t.name}（${t.description}；语气：${t.tone}）
-网感档位：${slangLevels[level].label}
+${hotEnabled ? `网感档位：${slangLevels[level].label}\n` : ""}${brief.groundedEnabled ? `接地气力度：${groundedLevels[brief.groundedLevel].label}\n` : ""}
 
-候选梗（[序号] 梗（类型）：含义｜语气｜例句）：
-${candidates.map((m, i) => `[${i}] ${m.term}（${memeKinds[m.kind]}）：${m.meaning}｜${m.tone || "—"}｜${m.example}`).join("\n")}
+候选表达（[序号] 类别 · 词条：含义｜用法｜例句）：
+${candidates.map((m, i) => `[${i}] ${memeCategories[m.category]} · ${m.term}：${m.meaning}｜${m.usage}｜${m.example}`).join("\n")}
 
-挑出 5-12 个和这期题材、风格语气搭得上的梗；合适的不够就少挑，不要凑数。
-- 不选：和题材基调冲突的；要大量背景解释观众才听得懂的；可能冒犯这期涉及的人群的
-- index 填候选序号；where 用一句话说明这期里可以用在什么位置、什么语境（例如“吐槽房租涨价那段”“结尾引导评论”）`,
+从候选里挑最多 12 个，允许少挑或不挑，不要为了凑数硬塞。优先选择能贴合本期具体内容或情绪、观众听起来不突兀的表达；避免过气、语气不合或需要额外解释的词。
+- 日常口语、情绪表达和节奏句式无需为了题材强行关联，只有在对应场景确实自然时才选
+- 热梗和接地气表达分开看：热梗由网感档位控制，其他类别由接地气力度控制
+- index 填候选序号；where 用一句话说明适合的场景或语境；不适合使用时不要选`,
   };
 }
 

@@ -18,6 +18,8 @@ export function resolveSlang(slang: SlangLevel | "auto", template?: { slang?: Sl
 
 /** 同一个梗全片最多出现几次 */
 export const MAX_USES_PER_MEME = 2;
+/** 接地气表达强调点到为止，同一条全片最多出现一次 */
+export const MAX_USES_PER_GROUNDED = 1;
 
 /** 这段字数允许用几处梗；不足一处时返回 0，由提示词允许“特别贴切时最多 1 处” */
 export function memeBudget(chars: number, level: SlangLevel) {
@@ -37,12 +39,35 @@ export const memeRisks = { safe: "安全", caution: "慎用", banned: "禁用" }
 export type MemeHeat = keyof typeof memeHeats;
 export type MemeRisk = keyof typeof memeRisks;
 
+export const memeCategories = { hot: "热梗", daily: "日常口语", emotion: "情绪表达", rhythm: "节奏句式" } as const;
+export type MemeCategory = keyof typeof memeCategories;
+export const memeCategoryIds = Object.keys(memeCategories) as [MemeCategory, ...MemeCategory[]];
+
+export function enabledMemeCategories(hotEnabled: boolean, groundedEnabled: boolean): MemeCategory[] {
+  return [
+    ...(hotEnabled ? ["hot" as const] : []),
+    ...(groundedEnabled ? (["daily", "emotion", "rhythm"] as const) : []),
+  ];
+}
+
+export const groundedLevels = {
+  light: { label: "轻", charsPerExpression: 450 },
+  medium: { label: "适中", charsPerExpression: 300 },
+  strong: { label: "浓", charsPerExpression: 200 },
+} as const;
+export type GroundedLevel = keyof typeof groundedLevels;
+
+export function groundedBudget(chars: number, level: GroundedLevel) {
+  return Math.floor(chars / groundedLevels[level].charsPerExpression);
+}
+
 /** 模型整理出的一条梗（联网抓取的结构化结果） */
 export const memeInputSchema = z.object({
   term: z.string().trim().min(1).max(24).describe("梗本身，最常见的写法"),
   variants: z.array(z.string()).default([]).describe("其他常见写法"),
   // 模型偶尔给出列表外的值（实测有 "phrase"），单条兜底，避免整批作废
   kind: z.enum(["word", "pattern", "catchphrase", "pun"]).catch("word"),
+  category: z.enum(memeCategoryIds).catch("hot").default("hot").describe("表达类别：近期热梗、日常口语、情绪表达或节奏句式"),
   meaning: z.string().describe("含义，一句话"),
   usage: z.string().describe("怎么用：在句子里当什么成分、搭什么语气、适合放在哪"),
   example: z.string().describe("一个自然的例句"),
@@ -77,6 +102,7 @@ export type Meme = MemeInput & { id: string; source: MemeSource; trust: MemeTrus
 /** 本期选用的梗：快照进项目的 brief，梗库之后怎么改都不影响已有项目 */
 export const memeRefSchema = z.object({
   term: z.string(),
+  category: z.enum(memeCategoryIds).default("hot"),
   variants: z.array(z.string()).default([]),
   meaning: z.string(),
   usage: z.string(),
@@ -85,8 +111,9 @@ export const memeRefSchema = z.object({
 });
 export type MemeRef = z.infer<typeof memeRefSchema>;
 
-export const toRef = (m: Pick<Meme, "term" | "variants" | "meaning" | "usage" | "example">, where = ""): MemeRef => ({
+export const toRef = (m: Pick<Meme, "term" | "category" | "variants" | "meaning" | "usage" | "example">, where = ""): MemeRef => ({
   term: m.term,
+  category: m.category,
   variants: m.variants,
   meaning: m.meaning,
   usage: m.usage,
@@ -105,7 +132,8 @@ export function effectiveHeat(heat: MemeHeat, verifiedAt: number, now = Date.now
 }
 
 /** 可进入选梗候选：安全、仍在流行、没被核实判为存疑 */
-export function isCandidate(m: Pick<Meme, "risk" | "heat" | "verifiedAt"> & { trust?: MemeTrust }, now = Date.now()) {
+export function isCandidate(m: Pick<Meme, "risk" | "heat" | "verifiedAt"> & { category?: MemeCategory; trust?: MemeTrust }, now = Date.now()) {
+  if (m.category && m.category !== "hot") return m.risk === "safe" && m.trust !== "doubtful";
   const heat = effectiveHeat(m.heat, m.verifiedAt, now);
   return m.risk === "safe" && m.trust !== "doubtful" && (heat === "rising" || heat === "peak");
 }

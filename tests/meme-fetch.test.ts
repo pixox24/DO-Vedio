@@ -2,11 +2,14 @@ import { mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import path from "path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import type { MemeInput } from "@/lib/memes";
+import { builtinTemplates } from "@/lib/templates/builtin";
+import type { MemeCategory, MemeInput } from "@/lib/memes";
+import type { Brief } from "@/lib/types";
 
 /** 抓梗流程：模型调用用假数据代替，只验证搜索 → 整理 → 逐个核实 → 入库的编排 */
-const meme = (term: string): MemeInput => ({
-  term, variants: [], kind: "word", meaning: `${term}的含义`, usage: "", example: "", tone: "", platform: "B站", since: "2026年9月", heat: "peak", risk: "safe", say: "", circle: "职场",
+const searchModelMock = vi.hoisted(() => vi.fn(() => ({ id: "qwen", label: "通义千问 · qwen-plus" })));
+const meme = (term: string, category: MemeCategory = "hot"): MemeInput => ({
+  term, variants: [], kind: "word", category, meaning: `${term}的含义`, usage: "", example: "", tone: "", platform: "B站", since: "2026年9月", heat: "peak", risk: "safe", say: "", circle: "职场",
 });
 const replies: Record<string, string> = {
   真梗: "结论：真实\n独立来源：5\n流行起始：2026-07\n当前热度：刚起来\n原文：今天又是真梗的一天",
@@ -18,7 +21,7 @@ const replies: Record<string, string> = {
 const prompts: string[] = [];
 
 vi.mock("@/lib/llm", () => ({
-  searchModel: () => ({ id: "qwen", label: "通义千问 · qwen-plus" }),
+  searchModel: searchModelMock,
   listModels: () => [{ id: "qwen" }],
   errorMessage: (e: unknown) => String(e),
   generatePlain: async (_id: string, p: { prompt: string }) => {
@@ -27,7 +30,9 @@ vi.mock("@/lib/llm", () => ({
     return hit ? replies[hit] : "调研笔记";
   },
   generateJson: async (_id: string, _schema: unknown, p: { prompt: string }) =>
-    p.prompt.includes("用户粘贴的材料")
+    p.prompt.includes("候选表达")
+      ? { picks: [{ index: 0, where: "自然的场景" }] }
+      : p.prompt.includes("用户粘贴的材料")
       ? {
           publishedAt: "2024-05",
           memes: [
@@ -59,6 +64,22 @@ describe("fetchMemes", () => {
     // 搜索提示词带上时间窗口和圈层
     expect(prompts[0]).toContain("最近 3 个月");
     expect(prompts[0]).toContain("「职场」圈层");
+  });
+
+  it("只启用接地气表达时从本地词库挑选，不查找或刷新热梗", async () => {
+    const { saveFetched } = await import("@/lib/server/memes");
+    saveFetched([meme("日常表达", "daily")], Date.now(), "manual");
+    searchModelMock.mockClear();
+    const { pickMemes } = await import("@/lib/server/meme-fetch");
+    const brief: Brief = {
+      title: "生活话题", summary: "", minutes: 3, templateId: "serious", audience: "", perspective: "first",
+      mustInclude: "", avoid: "", rate: "auto", slang: "off", memes: null, groundedEnabled: true, groundedLevel: "medium",
+    };
+
+    const result = await pickMemes(brief, builtinTemplates[0], "qwen");
+
+    expect(searchModelMock).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ fetched: false, refreshing: false, candidates: [{ term: "日常表达", category: "daily" }] });
   });
 });
 

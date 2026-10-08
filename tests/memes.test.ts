@@ -9,7 +9,7 @@ beforeAll(() => { dir = mkdtempSync(path.join(tmpdir(), "dovedio-memes-")); proc
 afterAll(async () => { (await import("@/lib/server/db")).closeDb(); rmSync(dir, { recursive: true, force: true }); });
 
 const input = (term: string, extra: Partial<MemeInput> = {}): MemeInput => ({
-  term, variants: [], kind: "word", meaning: "含义", usage: "用法", example: "例句", tone: "", platform: "B站", since: "2026 年 8 月", heat: "rising", risk: "safe", say: "", circle: "", ...extra,
+  term, variants: [], kind: "word", category: "hot", meaning: "含义", usage: "用法", example: "例句", tone: "", platform: "B站", since: "2026 年 8 月", heat: "rising", risk: "safe", say: "", circle: "", ...extra,
 });
 
 describe("梗库", () => {

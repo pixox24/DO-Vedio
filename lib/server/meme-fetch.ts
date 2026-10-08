@@ -1,5 +1,5 @@
 import { errorMessage, generateJson, generatePlain, listModels, searchModel } from "../llm";
-import { classifyImport, groundCandidate, isCandidate, memeBatchSchema, memeImportSchema, memePickSchema, mergeFetched, normalizeTerm, parseSinceMonth, parseVerdict, toRef, type ImportCandidate, type MemeInput, type MemeRef, type Verdict } from "../memes";
+import { classifyImport, enabledMemeCategories, groundCandidate, isCandidate, memeBatchSchema, memeImportSchema, memePickSchema, mergeFetched, normalizeTerm, parseSinceMonth, parseVerdict, resolveSlang, toRef, type ImportCandidate, type MemeCategory, type MemeInput, type MemeRef, type Verdict } from "../memes";
 import { memeImportPrompt, memeLookupPrompt, memePickPrompt, memeSearchPrompt, memeStructurePrompt, memeVerifyPrompt } from "../prompts";
 import type { Brief, StyleTemplate } from "../types";
 import { applyVerdict, blockedKeys, knownTerms, lastFetch, listMemes, recheckTargets, recordFetch, saveFetched, unblockTerm, type Incoming, type MemeFetch } from "./memes";
@@ -94,7 +94,8 @@ async function runFetch(kind: MemeFetch["kind"], topic: string, circle: string, 
   try {
     // 近 30 天确认过的和屏蔽的不用再列，名额留给新梗；更早的允许再次搜到，以便续期
     const notes = await generatePlain(model.id, memeSearchPrompt(date, { topic: topic || undefined, circle: circle || undefined, exclude: knownTerms(), months }), { search: true });
-    const { memes } = await generateJson(model.id, memeBatchSchema, memeStructurePrompt(notes, date));
+    const { memes: rawMemes } = await generateJson(model.id, memeBatchSchema, memeStructurePrompt(notes, date));
+    const memes = rawMemes.map((m) => ({ ...m, category: "hot" as const }));
 
     // 先算出哪些是新梗，只核实新梗；再顺带复核几个最旧的老梗
     const { inserts } = mergeFetched(listMemes(), memes, { blocked: blockedKeys() });
@@ -158,12 +159,14 @@ export function needsRefresh(now = Date.now()) {
  * 梗库超过 7 天没刷新就在后台刷新，这次先用现有的梗，下次挑梗就能用上新的。
  */
 export async function pickMemes(brief: Brief, template: StyleTemplate, modelId: string): Promise<{ candidates: MemeRef[]; fetched: boolean; refreshing: boolean }> {
-  const pool = () => listMemes().filter((m) => isCandidate(m)).slice(0, MAX_POOL);
+  const hotEnabled = resolveSlang(brief.slang, template) !== "off";
+  const enabled = new Set(enabledMemeCategories(hotEnabled, brief.groundedEnabled));
+  const pool = () => listMemes().filter((m) => enabled.has(m.category) && isCandidate(m)).slice(0, MAX_POOL);
   let candidates = pool();
   let fetched = false;
   let refreshing = false;
-  if (searchModel()) {
-    if (candidates.length === 0) {
+  if (hotEnabled && searchModel()) {
+    if (!candidates.some((m) => m.category === "hot")) {
       await fetchMemes("trending");
       fetched = true;
       candidates = pool();
@@ -193,8 +196,9 @@ function helperModel() {
 }
 
 /** 手动添加一个梗：有搜索模型时联网查含义和热度，否则按模型知识补全 */
-export async function addMemeByTerm(term: string) {
-  const { id, online } = helperModel();
+export async function addMemeByTerm(term: string, category: MemeCategory = "hot") {
+  const { id, online: hasSearchModel } = helperModel();
+  const online = category === "hot" && hasSearchModel;
   const date = today();
   const notes = await generatePlain(id, memeLookupPrompt(term, date, online), { search: online });
   const { memes } = await generateJson(id, memeBatchSchema, memeStructurePrompt(notes, date));
@@ -203,7 +207,7 @@ export async function addMemeByTerm(term: string) {
   if (!hit) throw new Error(`没有查到「${term}」的用法`);
   // 用户主动添加，说明想要它：解除之前的屏蔽
   unblockTerm(term);
-  return { ...saveFetched([{ ...hit, term: term.trim() }], Date.now(), "manual"), online };
+  return { ...saveFetched([{ ...hit, term: term.trim(), category }], Date.now(), "manual"), online };
 }
 
 // ---------- 粘贴导入：抽取 → 预览 → 确认入库 ----------
@@ -239,14 +243,19 @@ export async function extractMemes(inputText: string) {
 export async function importCandidates(items: MemeInput[], { verify = true, at = Date.now() } = {}) {
   // 用户勾选了屏蔽过的梗，说明想要它：先解除屏蔽，否则入库时会被跳过
   for (const m of items) for (const f of [m.term, ...m.variants]) unblockTerm(f);
-  const model = searchModel();
-  const verdicts = verify && model ? await pool(items, VERIFY_CONCURRENCY, (m) => verifyOne(model.id, m, today())) : [];
+  const verifiable = items.map((m, index) => ({ m, index })).filter(({ m }) => m.category === "hot");
+  const model = verify && verifiable.length ? searchModel() : null;
+  const verdicts: (Verdict | undefined)[] = items.map(() => undefined);
+  if (model) {
+    const hotVerdicts = await pool(verifiable, VERIFY_CONCURRENCY, ({ m }) => verifyOne(model.id, m, today()));
+    verifiable.forEach(({ index }, i) => { verdicts[index] = hotVerdicts[i]; });
+  }
   const incoming: Incoming[] = items.map((m, i) => {
     const v = verdicts[i];
     return v ? { ...m, trust: "verified" as const, sinceMonth: v.sinceMonth || parseSinceMonth(m.since), heat: v.heat ?? m.heat } : m;
   });
   const result = saveFetched(incoming, at, "import");
-  const rechecked = verdicts.filter((v) => v.heat || v.sinceMonth).length;
-  recordFetch({ kind: "verify", query: "粘贴导入", model: model?.label ?? "", added: result.added, updated: result.updated, dropped: result.dropped, error: null, at });
+  const rechecked = verdicts.filter((v) => v?.heat || v?.sinceMonth).length;
+  if (model) recordFetch({ kind: "verify", query: "粘贴导入", model: model.label, added: result.added, updated: result.updated, dropped: result.dropped, error: null, at });
   return { ...result, rechecked };
 }

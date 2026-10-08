@@ -8,7 +8,6 @@ import { cacheHas, cacheMany, projectSpend } from "../server/cache";
 import { all, get, run } from "../server/db";
 import { enqueue, latestJobByKey } from "../server/jobs";
 import { effectiveLexicon } from "../server/lexicon";
-import { listUsableTracks } from "../server/music";
 import { getProject, mutateProject } from "../server/projects";
 import { lineTtsKeys, loadArtifacts, timelineFor } from "./artifacts";
 import { listTextModels } from "../providers/registry";
@@ -135,17 +134,8 @@ export function planPipeline(projectId: string, doc: ProjectDoc, goal: Goal): Pl
   }
   if (!shotsReady && voiced) waiting.push("等待分镜");
 
-  // 5) 配乐（只使用已核实授权的曲目；没有合格曲目时明确阻塞，不静默跳过）
-  const usableTracks = listUsableTracks();
-  const musicUnavailable = doc.settings.music.enabled && usableTracks.length === 0;
-  const musicReady = !doc.settings.music.enabled || (!musicUnavailable && doc.music.length > 0 && doc.music.every((c) => usableTracks.some((t) => t.id === c.trackId)));
-  if (voiced && musicUnavailable) waiting.push("曲库中没有已核实授权的可用曲目：请先导入许可明确的音乐（npm run library:fetch）");
-  if (voiced && !musicReady && !musicUnavailable) {
-    steps.push({ stage: "music", key: `music:${projectId}:${hashStr(JSON.stringify([doc.lines.map((l) => l.id + (l.mood ?? "")), doc.music, usableTracks.map((t) => t.id)]))}`, target: "情绪选曲", input: { projectId }, cost: 0, priority: 5 });
-    waiting.push("等待配乐");
-  }
-
-  const preview = voiced && shotsReady && musicReady;
+  // 配乐由用户在面板里选定，不选也不挡住预览和成片。
+  const preview = voiced && shotsReady;
 
   // 6) 渲染
   if (preview && (goal.until === "preview" || goal.until === "render")) {
@@ -172,9 +162,6 @@ export function planPipeline(projectId: string, doc: ProjectDoc, goal: Goal): Pl
   if (voiced && modelId) {
     const sig = JSON.stringify(doc.lines.map((line) => line.id + line.text)) + JSON.stringify(doc.shots.map((shot) => shot.id + shot.sourceHash + shot.locked));
     currentKeys.push(`storyboard:${projectId}:${hashStr(sig)}`);
-  }
-  if (voiced && doc.settings.music.enabled && usableTracks.length > 0) {
-    currentKeys.push(`music:${projectId}:${hashStr(JSON.stringify([doc.lines.map((line) => line.id + (line.mood ?? "")), doc.music, usableTracks.map((track) => track.id)]))}`);
   }
   if (preview) {
     const renderQuality = goal.until === "preview" ? "draft" : goal.quality;

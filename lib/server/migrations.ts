@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import type { DatabaseSync } from "node:sqlite";
 
 /**
@@ -422,6 +423,50 @@ CREATE TABLE IF NOT EXISTS app_meta (
       db.exec("CREATE INDEX IF NOT EXISTS music_tracks_normalized ON music_tracks(normalized_sha256)");
       // 旧数据没有授权证据，统一保守标记为待核实，避免继续作为已核实曲目参与生产选曲。
       db.exec("UPDATE music_tracks SET rights_status = 'pending' WHERE rights_status = '' OR rights_status IS NULL");
+    },
+  },
+  {
+    id: 17,
+    name: "grounded_expression_categories",
+    sql: "",
+    apply: (db) => {
+      const columns = db.prepare("PRAGMA table_info(memes)").all() as { name: string }[];
+      if (!columns.some((column) => column.name === "category")) db.exec("ALTER TABLE memes ADD COLUMN category TEXT NOT NULL DEFAULT 'hot'");
+
+      const insert = db.prepare(`
+        INSERT OR IGNORE INTO memes (id, term, variants, kind, meaning, usage, example, tone, platform, since, heat, risk, say, circle, trust, since_month, source, verified_at, created_at, updated_at, category)
+        VALUES (?, ?, '[]', 'word', ?, ?, ?, ?, '用户词库', '', 'peak', 'safe', '', '生活日常', 'verified', '', 'import', ?, ?, ?, ?)
+      `);
+      const now = Date.now();
+      const seeds: [string, string, string, string, string][] = [
+        ["打工人", "daily", "以普通上班族的身份自称，带一点自嘲。", "适合聊工作和城市生活，不用于贬低观众。", "对很多打工人来说，通勤本身就够耗一天了。"],
+        ["牛马", "daily", "对忙碌打工状态的自嘲说法。", "只对自己或工作状态自嘲，避免拿来称呼观众。", "活还没干完，牛马先得喘口气。"],
+        ["社畜", "daily", "形容工作忙、被工作牵着走的状态。", "适合自嘲，不把它当成对人的标签。", "忙到最后，社畜连晚饭都顾不上。"],
+        ["摆烂", "daily", "暂时不再硬撑或投入，常带无奈和自嘲。", "用于描述选择或状态，不鼓励放弃必要责任。", "今天先不跟自己较劲，别把摆烂说成解决方案。"],
+        ["躺平", "daily", "降低竞争和消耗，选择少折腾一点。", "适合讨论生活选择，不替别人下结论。", "有人想躺平，可能只是想把日子过慢一点。"],
+        ["内卷", "daily", "投入越来越多，结果却没有相应改善的竞争状态。", "用于描述现象，尽量说明具体场景。", "大家都在加班，最后只是把下班时间卷没了。"],
+        ["房租刺客", "daily", "对房租支出突然带来压力的调侃说法。", "接具体生活开销时使用。", "工资刚到账，房租刺客已经在门口等着了。"],
+        ["通勤地狱", "daily", "形容通勤耗时、拥挤或折腾。", "只用于确有长通勤的情境。", "每天两小时的通勤，确实有点通勤地狱。"],
+        ["钱包在流血", "daily", "夸张表达花钱带来的心疼。", "只用于轻松的消费吐槽。", "搬一次家，感觉钱包又在流血。"],
+        ["电量见底", "daily", "形容精力快耗尽。", "适合疲惫、忙碌后的口语表达。", "开完一整天的会，人已经电量见底。"],
+        ["精神内耗", "daily", "反复纠结、消耗精力的状态。", "适合描述感受，不用于替他人诊断。", "事情还没开始，先在脑子里内耗了半天。"],
+        ["我去", "emotion", "表达惊讶或意外，语气较轻。", "放在确有意外的反应处，少量使用。", "我去，最后一个细节居然把前面的事都串起来了。"],
+        ["天塌了", "emotion", "夸张表达突发打击或计划落空。", "用于轻松语境，不弱化真实灾难或伤痛。", "临出门发现钥匙没带，天塌了。"],
+        ["离谱", "emotion", "表达不合理、出乎意料或让人无语。", "最好紧跟具体原因，避免空泛重复。", "更离谱的是，改完之后问题还在。"],
+        ["绷不住了", "emotion", "表达忍不住笑、无奈或情绪失守。", "明确情绪来源，不要每段都用。", "看到这个结果，我是真有点绷不住了。"],
+        ["真的服了", "emotion", "表达无奈或被某件事弄得没脾气。", "对事不对人，避免攻击具体群体。", "来回改了三次，最后发现是开关没打开，真的服了。"],
+        ["人麻了", "emotion", "表达一时无奈、疲惫或反应不过来。", "用于轻微生活挫折，不描述严重身心状况。", "看到这张账单，我人都麻了。"],
+        ["气笑了", "emotion", "表达无奈到发笑。", "用于轻松吐槽，后面接清楚事情本身。", "这个安排把所有人时间都撞上了，真是气笑了。"],
+        ["说白了", "rhythm", "引出更直白的解释或观点。", "只在确实需要换成直白说法时使用。", "说白了，问题就是时间不够。"],
+        ["讲真", "rhythm", "引出个人判断或坦率表达。", "适合观点转折，不要句句起手都用。", "讲真，这个方案看着省事，后面反而更费劲。"],
+        ["你想啊", "rhythm", "邀请听众跟着看一个推理或生活场景。", "后面紧接具体推理，不单独填充句子。", "你想啊，早上少睡半小时，整天都得补回来。"],
+        ["但是吧", "rhythm", "引出让步或实际情况。", "后面补充真实的转折，不用来凑口语感。", "但是吧，搬走也不代表所有问题都解决了。"],
+        ["最离谱的是", "rhythm", "引出一个更出乎意料的细节。", "后面必须有具体事实或场景。", "最离谱的是，折腾半天还得回到原点。"],
+        ["更要命的是", "rhythm", "引出让问题变得更难的因素。", "用于轻松或评论语境，避免消费真实伤痛。", "更要命的是，第二天还得照常早起。"],
+        ["反正吧", "rhythm", "收束一段不确定或个人化的表达。", "只有确实在总结个人判断时使用。", "反正吧，这笔账最后还是得自己算清楚。"],
+        ["怎么说呢", "rhythm", "引出需要斟酌的个人感受或判断。", "后面尽快说具体内容，避免空转。", "怎么说呢，轻松了一点，但也没到彻底放心。"],
+      ];
+      for (const [term, category, meaning, usage, example] of seeds) insert.run(randomUUID(), term, meaning, usage, example, "", now, now, now, category);
     },
   },
 ];

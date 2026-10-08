@@ -4,7 +4,7 @@ import { briefSchema, styleTemplateSchema } from "./types";
 
 const DAY = 86_400_000;
 const input = (term: string, extra: Partial<MemeInput> = {}): MemeInput => ({
-  term, variants: [], kind: "word", meaning: "含义", usage: "用法", example: "例句", tone: "", platform: "B站", since: "2026 年 8 月", heat: "peak", risk: "safe", say: "", circle: "", ...extra,
+  term, variants: [], kind: "word", category: "hot", meaning: "含义", usage: "用法", example: "例句", tone: "", platform: "B站", since: "2026 年 8 月", heat: "peak", risk: "safe", say: "", circle: "", ...extra,
 });
 
 describe("网感档位", () => {
@@ -94,7 +94,7 @@ describe("用梗计数", () => {
 });
 
 describe("章节分配", () => {
-  const ref = (term: string, variants: string[] = []): MemeRef => ({ term, variants, meaning: "", usage: "", example: "", where: "" });
+  const ref = (term: string, variants: string[] = []): MemeRef => ({ term, category: "hot", variants, meaning: "", usage: "", example: "", where: "" });
   const picked = [ref("破防了", ["破大防"]), ref("显眼包"), ref("班味")];
   it("只留选中的梗（认变体），同一个梗只分一章，每章最多 2 个，总数不超限", () => {
     const out = assignMemes(

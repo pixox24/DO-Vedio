@@ -130,7 +130,7 @@ export async function inspectAudio(file: string, signal?: AbortSignal): Promise<
   } catch (e) {
     issues.push(`解码失败：${(e as Error).message}`);
   }
-  // 静音比例与峰值只作为测量结果返回，阈值判定由 core/music-import 的 audioQcIssues 负责。
+  // 静音比例与峰值只作为测量结果返回，调用方自己决定要不要当成问题。
   return { ...info, silenceRatio, peakDb, issues };
 }
 

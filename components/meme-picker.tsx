@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { postJson } from "@/lib/client";
-import type { MemeRef } from "@/lib/memes";
+import { memeCategories, type MemeRef } from "@/lib/memes";
 import type { Brief } from "@/lib/types";
 import { Icon, Spinner } from "./ui";
 
@@ -12,12 +12,15 @@ type Props = {
   modelId: string;
   styleName: string;
   levelLabel: string;
+  groundedLevelLabel: string;
+  hotEnabled: boolean;
+  groundedEnabled: boolean;
   /** null = 取消；[] = 这期不用梗 */
   onDone: (memes: MemeRef[] | null) => void;
 };
 
 /** 生成前挑梗：模型从梗库里挑出和这期搭得上的，用户勾掉不想要的 */
-export function MemePicker({ brief, modelId, styleName, levelLabel, onDone }: Props) {
+export function MemePicker({ brief, modelId, styleName, levelLabel, groundedLevelLabel, hotEnabled, groundedEnabled, onDone }: Props) {
   const [candidates, setCandidates] = useState<MemeRef[] | null>(null);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -69,17 +72,19 @@ export function MemePicker({ brief, modelId, styleName, levelLabel, onDone }: Pr
     <div className="animate-rise space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="label">Step 00 · 选梗</p>
+          <p className="label">Step 00 · 选表达</p>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight">
-            本期可用的梗 <span className="text-base font-normal text-white/40">· 「{styleName}」· 网感{levelLabel}</span>
+            本期可用表达 <span className="text-base font-normal text-white/40">· 「{styleName}」</span>
           </h2>
-          <p className="mt-2 text-sm text-white/45">只会用你勾选的梗，并按网感档位控制用量；勾选越少，用得越克制。</p>
+          <p className="mt-2 text-sm text-white/45">
+            {hotEnabled && `网感${levelLabel}`}{hotEnabled && groundedEnabled && " · "}{groundedEnabled && `接地气${groundedLevelLabel}`} · 只使用你勾选的表达，合适时才用。
+          </p>
         </div>
         <div className="flex gap-2">
-          <button className="btn btn-ghost btn-sm" disabled={searching || candidates === null} onClick={searchTopic} title="用视频标题联网搜相关的近期梗，大约需要两三分钟">
+          {hotEnabled && <button className="btn btn-ghost btn-sm" disabled={searching || candidates === null} onClick={searchTopic} title="用视频标题联网搜相关的近期热梗，大约需要两三分钟">
             {searching ? <Spinner className="size-3.5" /> : <Icon name="search" className="size-3.5" />}
-            {searching ? "正在按题材搜梗…" : "按本期题材再搜一轮"}
-          </button>
+            {searching ? "正在按题材搜梗…" : "按本期题材再搜热梗"}
+          </button>}
           <Link href="/memes" target="_blank" className="btn btn-ghost btn-sm">
             管理梗库
           </Link>
@@ -91,15 +96,15 @@ export function MemePicker({ brief, modelId, styleName, levelLabel, onDone }: Pr
         <p className="rounded-2xl border border-red-400/20 bg-red-400/[0.05] px-5 py-3.5 text-sm text-red-200/90">{error}</p>
       ) : candidates === null ? (
         <p className="panel flex items-center gap-2.5 p-6 text-sm text-white/50">
-          <Spinner className="size-4" /> 正在从梗库里挑选和这期搭得上的梗…（梗库为空时会先联网搜一轮，需要一两分钟）
+          <Spinner className="size-4" /> 正在从梗库里挑选和这期搭得上的表达…{hotEnabled ? "（没有近期热梗时会联网补充）" : ""}
         </p>
       ) : candidates.length === 0 ? (
         <p className="panel p-6 text-sm leading-relaxed text-white/55">
-          梗库里暂时没有适合这期的梗。可以去
+          梗库里暂时没有适合这期的表达。可以去
           <Link href="/memes" target="_blank" className="mx-1 text-accent hover:underline">
             梗库
           </Link>
-          刷新热梗后再挑，或者这期先不用梗。
+          {hotEnabled ? "刷新热梗后再挑，或者这期先不用表达。" : "添加一些日常口语或情绪表达后再挑，或者这期先不用表达。"}
         </p>
       ) : (
         <>
@@ -114,7 +119,10 @@ export function MemePicker({ brief, modelId, styleName, levelLabel, onDone }: Pr
                   className={`panel cursor-pointer p-4 text-left transition ${on ? "border-accent/50 bg-accent/[0.05]" : "opacity-50 hover:opacity-80"}`}
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <span className={`text-[15px] font-medium ${on ? "text-accent" : "text-white/80"}`}>{m.term}</span>
+                    <span>
+                      <span className={`block text-[15px] font-medium ${on ? "text-accent" : "text-white/80"}`}>{m.term}</span>
+                      <span className="mt-1 block text-[10px] text-white/35">{memeCategories[m.category]}</span>
+                    </span>
                     <span className={`flex size-4 shrink-0 items-center justify-center rounded border ${on ? "border-accent bg-accent text-black" : "border-white/25"}`}>
                       {on && <Icon name="check" className="size-3" />}
                     </span>
@@ -134,10 +142,10 @@ export function MemePicker({ brief, modelId, styleName, levelLabel, onDone }: Pr
           取消
         </button>
         <button className="btn btn-ghost btn-sm" onClick={() => onDone([])}>
-          这期不用梗
+          这期不用表达
         </button>
         <button className="btn btn-primary btn-sm" disabled={!chosen.length} onClick={() => onDone(chosen)}>
-          <Icon name="check" className="size-3.5" /> 用选中的 {chosen.length} 个梗
+          <Icon name="check" className="size-3.5" /> 用选中的 {chosen.length} 个表达
         </button>
       </div>
     </div>

@@ -1,8 +1,10 @@
 import { z } from "zod";
 import { fail, handle, parseBody } from "@/lib/api";
+import { memeCategoryIds } from "@/lib/memes";
 import { deleteMeme, updateMeme } from "@/lib/server/memes";
 
 const body = z.object({
+  category: z.enum(memeCategoryIds).optional(),
   risk: z.enum(["safe", "caution", "banned"]).optional(),
   heat: z.enum(["rising", "peak", "fading", "dead"]).optional(),
   say: z.string().max(40).refine((v) => !/[<>\x00-\x1f\x7f]/.test(v), "不能包含 HTML 或控制字符").optional(),

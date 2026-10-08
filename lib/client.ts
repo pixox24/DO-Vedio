@@ -437,7 +437,7 @@ export function useStaleMemes() {
   useEffect(() => {
     fetch("/api/memes", { cache: "no-store" })
       .then((r) => r.json())
-      .then((d: { memes?: { term: string; variants: string[]; heat: string }[] }) => setStale((d.memes ?? []).filter((m) => m.heat === "dead").flatMap((m) => [m.term, ...m.variants])))
+      .then((d: { memes?: { term: string; variants: string[]; heat: string; category?: string }[] }) => setStale((d.memes ?? []).filter((m) => m.category === "hot" && m.heat === "dead").flatMap((m) => [m.term, ...m.variants])))
       .catch(() => {});
   }, []);
   return stale;

@@ -10,7 +10,7 @@ import { ScriptView, type RewriteExtra } from "@/components/script-view";
 import { Icon, Spinner } from "@/components/ui";
 import { download, isAbort, postJson, postStream, useModels, usePersistent, useProject, useStaleMemes, useTemplates } from "@/lib/client";
 import { acceptHumanized, detectAiTone, type ToneContext } from "@/lib/humanize/detect";
-import { countMemeUses, resolveSlang, slangLevels, type MemeRef } from "@/lib/memes";
+import { countMemeUses, enabledMemeCategories, groundedLevels, resolveSlang, slangLevels, type MemeRef } from "@/lib/memes";
 import type { ProjectDoc } from "@/lib/core/types";
 import { ProjectBar } from "@/components/project-bar";
 import { charsFor, countChars, deviation, formatTime, resolveRate, timeline } from "@/lib/duration";
@@ -68,7 +68,7 @@ function WorkbenchInner({ id, store }: { id: string; store: Loaded }) {
   const slang = resolveSlang(brief.slang, template);
   const stale = useStaleMemes();
   /** 去 AI 味检测上下文：选用的梗不算痕迹，过气梗和超量用梗算 */
-  const toneCtx = (b: Brief): ToneContext => ({ memes: b.memes ?? [], stale, slang: resolveSlang(b.slang, template) });
+  const toneCtx = (b: Brief): ToneContext => ({ memes: b.memes ?? [], stale, slang: resolveSlang(b.slang, template), groundedEnabled: b.groundedEnabled, groundedLevel: b.groundedLevel });
   /** 全片已用过的梗及次数；except 为正在改写的段 */
   const memeUsage = (except?: number) => {
     const out: Record<string, number> = {};
@@ -78,6 +78,13 @@ function WorkbenchInner({ id, store }: { id: string; store: Loaded }) {
     return out;
   };
   const patch = (p: Partial<Draft>) => setDraft((d) => ({ ...d, ...p }));
+  const updateBrief = (changes: Partial<Brief>) => {
+    const categorySettingsChanged =
+      ("slang" in changes && changes.slang !== brief.slang) ||
+      ("groundedEnabled" in changes && changes.groundedEnabled !== brief.groundedEnabled) ||
+      ("templateId" in changes && changes.templateId !== brief.templateId);
+    patch({ brief: { ...brief, ...changes, ...(categorySettingsChanged ? { memes: null } : {}) } });
+  };
   const setSegment = (i: number, text: string) =>
     setDraft((d) => ({ ...d, segments: d.segments.map((s, j) => (j === i ? { ...s, text } : s)) }));
 
@@ -168,7 +175,7 @@ function WorkbenchInner({ id, store }: { id: string; store: Loaded }) {
    * 返回挑好梗的 brief；用户取消返回 null。
    */
   function ensureMemes(b: Brief): Promise<Brief | null> {
-    if (resolveSlang(b.slang, template) === "off" || b.memes !== null) return Promise.resolve(b);
+    if (enabledMemeCategories(resolveSlang(b.slang, template) !== "off", b.groundedEnabled).length === 0 || b.memes !== null) return Promise.resolve(b);
     return new Promise((resolve) =>
       setMemePick({
         brief: b,
@@ -383,7 +390,7 @@ function WorkbenchInner({ id, store }: { id: string; store: Loaded }) {
       <aside className="lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:self-start lg:overflow-y-auto lg:pb-4">
         <BriefForm
           brief={brief}
-          onChange={(p) => patch({ brief: { ...brief, ...p } })}
+          onChange={updateBrief}
           templates={templates}
           models={models}
           modelId={modelId}
@@ -434,7 +441,16 @@ function WorkbenchInner({ id, store }: { id: string; store: Loaded }) {
         {stage === "empty" && busy === null && <Hero />}
 
         {stage === "memes" && memePick && (
-          <MemePicker brief={memePick.brief} modelId={modelId} styleName={template?.name ?? ""} levelLabel={slangLevels[resolveSlang(memePick.brief.slang, template)].label} onDone={memePick.resolve} />
+          <MemePicker
+            brief={memePick.brief}
+            modelId={modelId}
+            styleName={template?.name ?? ""}
+            levelLabel={slangLevels[resolveSlang(memePick.brief.slang, template)].label}
+            groundedLevelLabel={groundedLevels[memePick.brief.groundedLevel].label}
+            hotEnabled={resolveSlang(memePick.brief.slang, template) !== "off"}
+            groundedEnabled={memePick.brief.groundedEnabled}
+            onDone={memePick.resolve}
+          />
         )}
 
         {stage === "angles" && (
@@ -459,7 +475,7 @@ function WorkbenchInner({ id, store }: { id: string; store: Loaded }) {
             busy={busy !== null}
             onWrite={onWrite}
             onRegenerate={onOutline}
-            memes={slang !== "off" ? (brief.memes ?? []) : []}
+            memes={enabledMemeCategories(slang !== "off", brief.groundedEnabled).length ? (brief.memes ?? []) : []}
           />
         )}
 

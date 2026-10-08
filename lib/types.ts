@@ -44,6 +44,9 @@ export const briefSchema = z.object({
   slang: z.enum(["auto", ...slangLevelIds]).default("auto"),
   /** 本期选用的梗（快照）；null = 还没挑过，[] = 这期不用梗 */
   memes: z.array(memeRefSchema).nullable().default(null),
+  /** 使用日常口语、情绪表达和节奏句式；旧项目默认关闭 */
+  groundedEnabled: z.boolean().default(false),
+  groundedLevel: z.enum(["light", "medium", "strong"]).default("medium"),
 });
 export type Brief = z.infer<typeof briefSchema>;
 

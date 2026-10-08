@@ -1,4 +1,5 @@
 import { rebuildLines } from "./lines";
+import { retargetMusic } from "./music";
 import { repairShots } from "./shots";
 import { stableStringify } from "./hash";
 import type { ProjectDoc } from "./types";
@@ -18,7 +19,7 @@ export function newId() {
 
 /**
  * 文案段落 → 句子（纯函数）。未改动句子保留 ID（配音缓存、镜头锚点都不动），
- * 并修复分镜锚点、清理失效的配乐片段。没有变化时返回原对象。
+ * 并修复分镜锚点。已选的一首配乐会重新铺到新的首尾句上。没有变化时返回原对象。
  */
 export function syncLines(doc: ProjectDoc, makeId: () => string = newId): ProjectDoc {
   if (!doc.segments.some((s) => s.text.trim())) return doc.lines.length ? { ...doc, lines: [], shots: [], music: [] } : doc;
@@ -26,9 +27,7 @@ export function syncLines(doc: ProjectDoc, makeId: () => string = newId): Projec
   const same = lines.length === doc.lines.length && lines.every((l, k) => l.id === doc.lines[k].id && l.segmentIndex === doc.lines[k].segmentIndex && l.text === doc.lines[k].text);
   if (same) return doc;
   const { shots } = repairShots(doc.shots, doc.lines, lines);
-  const alive = new Set(lines.map((l) => l.id));
-  const music = doc.music.filter((c) => alive.has(c.fromLineId) && alive.has(c.toLineId));
-  return { ...doc, lines, shots, music: music.length === doc.music.length ? music : [] };
+  return { ...doc, lines, shots, music: retargetMusic(doc.music, lines) };
 }
 
 const eq = (a: unknown, b: unknown) => stableStringify(a) === stableStringify(b);

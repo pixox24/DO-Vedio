@@ -1,7 +1,7 @@
 import { isTtsStage } from "../core/keys";
 import type { Job } from "../core/types";
 import { hasFfmpeg } from "../server/ffmpeg";
-import { ensureSfx, syncLibrary } from "../server/music";
+import { ensureSfx, scanLibrary } from "../server/music";
 import { run } from "../server/db";
 
 /** Worker 启动自检：FFmpeg、曲库、内置音效 */
@@ -17,7 +17,7 @@ export async function preflight() {
     console.warn("⚠ Chrome Headless Shell 检查失败：", e instanceof Error ? e.message : e);
   }
   try {
-    const r = await syncLibrary((...a) => console.log("  [曲库]", ...a));
+    const r = await scanLibrary((...a) => console.log("  [曲库]", ...a));
     console.log(`曲库：${r.count} 首`);
     for (const p of r.problems) console.warn(`  ⚠ ${p}`);
     await ensureSfx();

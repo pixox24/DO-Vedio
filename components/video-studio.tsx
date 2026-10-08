@@ -35,7 +35,6 @@ const steps = [
   { stage: "tts", stages: ["tts", "tts-block"], label: "配音" },
   { stage: "cast", label: "识别角色" },
   { stage: "storyboard", label: "分镜" },
-  { stage: "music", label: "配乐" },
   { stage: "render", label: "渲染" },
 ];
 

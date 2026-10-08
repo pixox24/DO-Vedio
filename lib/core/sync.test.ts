@@ -3,6 +3,14 @@ import { mergeDocs, newId, syncLines } from "./sync";
 import { emptyDoc } from "./types";
 
 describe("文档同步与合并", () => {
+  it("改句子后保留已选的那首配乐，并铺到新的首尾句", () => {
+    const base = syncLines({ ...emptyDoc(), segments: [{ title: "a", text: "第一句话。第二句话。" }] });
+    const withMusic = { ...base, music: [{ trackId: "warm.mp3", fromLineId: base.lines[0].id, toLineId: base.lines[1].id, offsetMs: 0, locked: true }] };
+    const next = syncLines({ ...withMusic, segments: [{ title: "a", text: "第一句话。第二句话改了。第三句。" }] });
+    expect(next.music).toEqual([{ trackId: "warm.mp3", fromLineId: next.lines[0].id, toLineId: next.lines[2].id, offsetMs: 0, locked: true }]);
+    expect(next.lines[0].id).toBe(base.lines[0].id);
+  });
+
   it("syncLines 稳定：同一文本不重复生成 ID", () => {
     const d = { ...emptyDoc(), segments: [{ title: "a", text: "第一句话。第二句话。" }] };
     const s1 = syncLines(d);

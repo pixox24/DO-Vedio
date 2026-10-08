@@ -41,7 +41,7 @@
 ```bash
 npm install
 cp .env.local.example .env.local   # 至少填一个 API Key
-npm run library:ingest              # 首次导入曲库并生成转场音效
+# 背景音乐放到 bgm/（mp3、m4a、wav、aac、ogg、flac、opus）。启动后自动扫描，在制作页选一首即可。
 ```
 
 之后**双击根目录的「启动.bat」**即可：网页和 Worker 一起在后台拉起，浏览器打开 http://localhost:3000 。

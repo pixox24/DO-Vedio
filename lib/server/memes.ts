@@ -9,6 +9,7 @@ type Row = {
   term: string;
   variants: string;
   kind: Meme["kind"];
+  category: Meme["category"];
   meaning: string;
   usage: string;
   example: string;
@@ -32,6 +33,7 @@ const toMeme = (r: Row): Meme => ({
   term: r.term,
   variants: JSON.parse(r.variants) as string[],
   kind: r.kind,
+  category: r.category,
   meaning: r.meaning,
   usage: r.usage,
   example: r.example,
@@ -69,9 +71,9 @@ export function saveFetched(incoming: Incoming[], now = Date.now(), source: Meme
   transaction(db(), () => {
     for (const m of inserts)
       run(
-        `INSERT INTO memes (id, term, variants, kind, meaning, usage, example, tone, platform, since, heat, risk, say, circle, trust, since_month, source, verified_at, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        randomUUID(), m.term.trim(), JSON.stringify(m.variants), m.kind, m.meaning, m.usage, m.example, m.tone, m.platform, m.since, m.heat, m.risk, m.say, toCircle(m.circle),
+        `INSERT INTO memes (id, term, variants, kind, category, meaning, usage, example, tone, platform, since, heat, risk, say, circle, trust, since_month, source, verified_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        randomUUID(), m.term.trim(), JSON.stringify(m.variants), m.kind, m.category, m.meaning, m.usage, m.example, m.tone, m.platform, m.since, m.heat, m.risk, m.say, toCircle(m.circle),
         (m as Incoming).trust ?? (source === "search" ? "unchecked" : "verified"), (m as Incoming).sinceMonth || parseSinceMonth(m.since), source, now, now, now,
       );
     // 续期：更新热度和确认时间；用户手动改过的风险等级、读法不覆盖（只在原来为空时补上读法和圈层）
@@ -79,8 +81,8 @@ export function saveFetched(incoming: Incoming[], now = Date.now(), source: Meme
       const old = byId.get(id)!;
       const variants = [...new Set([...old.variants, ...input.variants.filter((v) => v !== old.term)])];
       run(
-        "UPDATE memes SET heat = ?, variants = ?, say = ?, circle = ?, verified_at = ?, updated_at = ? WHERE id = ?",
-        input.heat, JSON.stringify(variants), old.say || input.say, old.circle || toCircle(input.circle), now, now, id,
+        "UPDATE memes SET heat = ?, variants = ?, say = ?, circle = ?, category = ?, verified_at = ?, updated_at = ? WHERE id = ?",
+        input.heat, JSON.stringify(variants), old.say || input.say, old.circle || toCircle(input.circle), source === "search" ? old.category : input.category, now, now, id,
       );
     }
   });
@@ -106,7 +108,7 @@ export function applyVerdict(id: string, v: Verdict, now = Date.now()) {
  */
 export function recheckTargets(limit: number, days = 30, now = Date.now()) {
   return listMemes()
-    .filter((m) => m.trust === "unchecked" || now - m.verifiedAt > days * 86_400_000)
+    .filter((m) => m.category === "hot" && (m.trust === "unchecked" || now - m.verifiedAt > days * 86_400_000))
     .sort((a, b) => Number(b.trust === "unchecked") - Number(a.trust === "unchecked") || a.verifiedAt - b.verifiedAt)
     .slice(0, limit);
 }
@@ -118,12 +120,12 @@ export function blockDoubtful() {
   return list.length;
 }
 
-export function updateMeme(id: string, patch: { risk?: MemeRisk; heat?: MemeHeat; say?: string }) {
+export function updateMeme(id: string, patch: { category?: Meme["category"]; risk?: MemeRisk; heat?: MemeHeat; say?: string }) {
   const cur = get<Row>("SELECT * FROM memes WHERE id = ?", id);
   if (!cur) return false;
   // 手动改热度等于人工确认过一次，顺带续期
   const verified = patch.heat ? Date.now() : cur.verified_at;
-  run("UPDATE memes SET risk = ?, heat = ?, say = ?, verified_at = ?, updated_at = ? WHERE id = ?", patch.risk ?? cur.risk, patch.heat ?? cur.heat, (patch.say ?? cur.say).trim(), verified, Date.now(), id);
+  run("UPDATE memes SET category = ?, risk = ?, heat = ?, say = ?, verified_at = ?, updated_at = ? WHERE id = ?", patch.category ?? cur.category, patch.risk ?? cur.risk, patch.heat ?? cur.heat, (patch.say ?? cur.say).trim(), verified, Date.now(), id);
   return true;
 }
 
