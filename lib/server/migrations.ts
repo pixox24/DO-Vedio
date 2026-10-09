@@ -478,4 +478,22 @@ CREATE TABLE IF NOT EXISTS app_meta (
       if (!columns.some((column) => column.name === "output_version")) db.exec("ALTER TABLE renders ADD COLUMN output_version INTEGER NOT NULL DEFAULT 0");
     },
   },
+  {
+    id: 19,
+    name: "custom_voices",
+    sql: `
+CREATE TABLE custom_voices (
+  id TEXT PRIMARY KEY,
+  provider TEXT NOT NULL,
+  model TEXT NOT NULL,
+  voice_id TEXT NOT NULL,
+  name TEXT NOT NULL DEFAULT '',
+  probe TEXT NOT NULL DEFAULT 'unknown',
+  timestamp_support TEXT NOT NULL DEFAULT 'unknown',
+  last_error TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL,
+  UNIQUE(provider, model, voice_id)
+);
+`,
+  },
 ];

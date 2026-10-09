@@ -58,6 +58,14 @@ const models: TtsModel[] = [
   { id: "qwen-audio-3.1-tts-flash", label: "Qwen-Audio 3.1 TTS Flash", transport: "http-sse", capabilities: ["word-timestamps", "instruct", "ssml", "emotion-tags"] },
 ];
 
+/** 这个模型能否现在就合成。未接入的模型 id 返回 known: false。 */
+export function dashscopeModelState(modelId: string): { known: boolean; configured: boolean; hint?: string } {
+  if (!models.some((model) => model.id === modelId)) return { known: false, configured: false };
+  if (!process.env.DASHSCOPE_API_KEY?.trim()) return { known: true, configured: false, hint: "需配置 DASHSCOPE_API_KEY" };
+  if (isQwenAudioModel(modelId) && !qwenAudioHttpUrl()) return { known: true, configured: false, hint: "需配置 Qwen TTS HTTP 地址" };
+  return { known: true, configured: true };
+}
+
 export class TtsError extends Error {
   constructor(
     message: string,

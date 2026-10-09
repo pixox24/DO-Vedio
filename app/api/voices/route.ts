@@ -1,20 +1,27 @@
-import { dashscopeTts, isQwenAudioModel, qwenAudioHttpUrl } from "@/lib/providers/tts/dashscope";
+import { dashscopeModelState, dashscopeTts } from "@/lib/providers/tts/dashscope";
 import { geminiApiKey, geminiTts, isGeminiTtsEnabled } from "@/lib/providers/tts/gemini";
+import { catalogVoice, listCustomVoices } from "@/lib/server/custom-voices";
 
 export async function GET() {
   const p = dashscopeTts();
   const g = geminiTts();
-  const apiKeyConfigured = !!process.env.DASHSCOPE_API_KEY?.trim();
+  const custom = listCustomVoices();
   const geminiConfigured = !!geminiApiKey() && isGeminiTtsEnabled();
   return Response.json({
-    configured: apiKeyConfigured || geminiConfigured,
+    configured: p.models.some((model) => dashscopeModelState(model.id).configured) || geminiConfigured,
     providers: [
-      { id: p.id, label: "阿里云百炼语音", models: p.models.map((m) => ({
-        ...m,
-        configured: apiKeyConfigured && (!isQwenAudioModel(m.id) || !!qwenAudioHttpUrl()),
-        configurationHint: !apiKeyConfigured ? "需配置 DASHSCOPE_API_KEY" : isQwenAudioModel(m.id) && !qwenAudioHttpUrl() ? "需配置 Qwen TTS HTTP 地址" : undefined,
-        voices: p.voices(m.id),
-      })) },
+      { id: p.id, label: "阿里云百炼语音", models: p.models.map((m) => {
+        const state = dashscopeModelState(m.id);
+        return {
+          ...m,
+          configured: state.configured,
+          configurationHint: state.hint,
+          voices: [
+            ...p.voices(m.id),
+            ...custom.filter((voice) => voice.provider === p.id && voice.model === m.id).map(catalogVoice),
+          ],
+        };
+      }) },
       { id: g.id, label: "Google Gemini TTS", models: g.models.map((m) => ({
         ...m,
         configured: geminiConfigured,

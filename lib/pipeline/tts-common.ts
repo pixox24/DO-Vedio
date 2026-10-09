@@ -5,6 +5,7 @@ import { ttsProviderOf, ttsRequestOf } from "../providers/tts/factory";
 import type { SynthResult, SynthWord } from "../providers/tts/types";
 import { beginGenerationRun, failGenerationRun, finishGenerationRun, noteGenerationRun } from "../providers/runs";
 import { cachePut } from "../server/cache";
+import { rememberCustomVoiceProbe } from "../server/custom-voices";
 import { get, parseJson, run, tx } from "../server/db";
 import { billedCharsOf, ttsBilling } from "./pricing";
 import type { StageContext } from "./stage";
@@ -38,6 +39,7 @@ export async function trackedSynthesis<T>(ctx: StageContext, o: Synthesis, store
   const generation = beginGenerationRun({ projectId: o.projectId, jobId: ctx.job.id, providerId: provider.id, modelId: v.model, kind: "tts", inputHash: o.inputHash, params: { voice: v.voiceId, voiceFingerprint: voiceKeyOf(v), rate: v.rate, pitch: v.pitch, volume: v.volume, ...o.params } });
   try {
     const res = await provider.synthesize(ttsRequestOf(v, o.text, o.textType), ctx.signal);
+    rememberCustomVoiceProbe(v.provider, v.model, v.voiceId, { words: res.words.length });
     assertCurrent(ctx);
     const billing = ttsBilling(provider.id, v.model, res.usage, res.billedChars || billedCharsOf(o.billText));
     const ledgerId = ctx.spend({ provider: provider.id, model: v.model, unit: billing.unit, quantity: billing.quantity, costYuan: billing.costYuan });
@@ -46,6 +48,7 @@ export async function trackedSynthesis<T>(ctx: StageContext, o: Synthesis, store
     finishGenerationRun(generation.id, { status: "succeeded", latencyMs: Date.now() - generation.startedAt, costYuan: billing.costYuan, outputAssets: out.outputAssets, ledgerId });
     return out.value;
   } catch (e) {
+    rememberCustomVoiceProbe(v.provider, v.model, v.voiceId, { error: e });
     failGenerationRun(generation, e, ctx.signal.aborted);
     throw e;
   }
