@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { Icon, RangeField, SegmentedControl, Spinner, Switch } from "@/components/ui";
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { Alert, Button, Icon, Spinner } from "@/components/ui";
 import { useFeedback } from "@/components/feedback";
 import type { ProjectDoc } from "@/lib/core/types";
 import {
-  fontsForScript,
   fontFamilyStack,
+  fontsForScript,
   isStudioFontReady,
   loadStudioFont,
   resolveSecondarySubtitleFontId,
   resolveSubtitleFontId,
+  resolveSubtitleTypeface,
   retryStudioFont,
   studioFontById,
   studioFontState,
@@ -20,13 +21,15 @@ import {
 } from "@/lib/core/subtitle/fonts";
 import { inferScriptLanguage } from "@/lib/core/subtitle/language";
 import { mergeSecondaryResults } from "@/lib/core/subtitle/merge";
-import { SUBTITLE_PRESETS, subtitlePresetMatches, subtitlePresetUpdates } from "@/lib/core/subtitle/presets";
+import { SUBTITLE_PRESETS, subtitlePresetMatches, subtitlePresetMeta, subtitlePresetUpdates } from "@/lib/core/subtitle/presets";
 import { secondaryCoverage, translateLinesSecondary } from "@/lib/core/subtitle/secondary";
 import { subtitleAnimationLabels, subtitleAnimations, type SubtitleConfig, type SubtitlePreset } from "@/lib/core/subtitle/types";
 
 /**
- * 字幕排版 & 动画面板 —— 从 AI-Video 字幕模块移植。
- * 预设、字体、字号、位置、动效、智能排版和双语翻译都在这里配置；
+ * 字幕样式面板 —— 从 AI-Video 字幕模块移植。
+ *
+ * 自上而下：样张（即时反馈，可重播动效）→ 样式预设 → 字体与字号 → 双语 → 位置与排版
+ * → 入场动效 → 外观 → 输出。每组只放一个主控件，说明压到一行以内。
  * 改动直接写回项目文档，预览和成片随之刷新。
  */
 
@@ -36,35 +39,311 @@ type SubtitlePanelProps = {
 };
 
 type TranslationLanguageMode = "auto" | "zh" | "en";
+type TranslateProgress = { done: number; total: number };
+
+const MAX_LINES_OPTIONS = [2, 3, 4] as const;
+const LANGUAGE_OPTIONS: { value: TranslationLanguageMode; label: string }[] = [
+  { value: "auto", label: "自动识别" },
+  { value: "zh", label: "统一中文" },
+  { value: "en", label: "统一英文" },
+];
+const ANIMATION_OPTIONS = subtitleAnimations.map((animation) => ({ value: animation, label: subtitleAnimationLabels[animation] }));
+
+/** 样张文案：双语时副行取另一种文字脚本，与真实成片的配对方式一致 */
+const SAMPLE_LINES: Record<StudioFontScript, { primary: string; keyword: string; secondary: string }> = {
+  cjk: { primary: "今天我们聊聊字幕设计", keyword: "字幕", secondary: "Let's talk about subtitle design" },
+  latin: { primary: "Let's talk about subtitle design", keyword: "subtitle", secondary: "今天我们聊聊字幕设计" },
+};
+
+/** 逐字高亮在样张里走完整段的时长（毫秒） */
+const KARAOKE_SPAN_MS = 1600;
+/** 样张与预设色块共用的画面底色：中间亮、四周暗，接近视频画面的明暗关系 */
+const FRAME_BACKGROUND = "radial-gradient(120% 90% at 50% 0%, #2a4450 0%, #17242c 55%, #0b1215 100%)";
+
+const FOCUS_RING = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white";
 
 function specimenText(script: StudioFontScript) {
   return script === "latin" ? "The quick brown fox" : "这是当前字幕字体";
 }
 
-const MAX_LINES_OPTIONS: number[] = [2, 3, 4];
+/** 高度过渡的折叠容器。收起时 inert 且 aria-hidden，焦点不会落到看不见的内容上。 */
+function Collapse({ open, children }: { open: boolean; children: ReactNode }) {
+  return (
+    <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+      {/* 展开时放宽裁切边界，让焦点环与选中光圈不被切掉；收起时必须严格裁掉，否则边框会从 0 高度里露出来 */}
+      <div className="min-h-0 overflow-clip" style={open ? { overflowClipMargin: "10px" } : undefined} aria-hidden={!open} inert={!open}>
+        {children}
+      </div>
+    </div>
+  );
+}
 
-function FontSpecimenCard({
-  font,
-  active = false,
-  pickerOpen = false,
-  onClick,
-  ariaExpanded,
-  ariaControls,
-  idPrefix = "subtitle-font",
-}: {
-  font: StudioFont;
-  active?: boolean;
-  pickerOpen?: boolean;
-  onClick: () => void;
-  ariaExpanded?: boolean;
-  ariaControls?: string;
-  idPrefix?: string;
-}) {
-  const cardRef = useRef<HTMLDivElement>(null);
+function Section({ title, meta, action, open = true, children }: { title: string; meta?: ReactNode; action?: ReactNode; open?: boolean; children: ReactNode }) {
+  return (
+    <section className="border-t border-hairline py-5">
+      <div className="flex min-h-7 items-center justify-between gap-3">
+        <div className="flex min-w-0 items-baseline gap-2">
+          <h3 className="label shrink-0">{title}</h3>
+          {meta && <span className="truncate text-2xs text-text-faint">{meta}</span>}
+        </div>
+        {action}
+      </div>
+      <Collapse open={open}>
+        <div className="space-y-4 pt-4">{children}</div>
+      </Collapse>
+    </section>
+  );
+}
+
+/** 开关。默认是整行可点的行内样式；compact 用于标题栏，只显示开启状态。 */
+function Toggle({ label, hint, checked, onChange, compact = false }: { label: string; hint?: string; checked: boolean; onChange: (next: boolean) => void; compact?: boolean }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={compact ? label : undefined}
+      onClick={() => onChange(!checked)}
+      className={`group flex cursor-pointer items-center gap-3 text-left transition ${compact ? "rounded-full" : "w-full justify-between py-3"} ${FOCUS_RING}`}
+    >
+      {compact ? (
+        <span className={`text-xs transition ${checked ? "text-white" : "text-text-muted group-hover:text-white"}`}>{checked ? "已开启" : "已关闭"}</span>
+      ) : (
+        <span className="min-w-0">
+          <span className="block text-sm text-text transition group-hover:text-white">{label}</span>
+          {hint && <span className="mt-0.5 block text-2xs leading-relaxed text-text-faint">{hint}</span>}
+        </span>
+      )}
+      <span className="switch pointer-events-none shrink-0" data-checked={checked} aria-hidden="true">
+        <span className="switch-thumb" />
+      </span>
+    </button>
+  );
+}
+
+type SegmentOption<T extends string | number> = { value: T; label: string };
+
+/**
+ * 分段控件：白色滑块在选项之间平移，方向键切换并移动焦点（radiogroup 语义）。
+ * 原来的 SegmentedControl 只有按钮，没有单选语义也没有键盘移动。
+ */
+function Segmented<T extends string | number>({ label, value, options, onChange }: { label: string; value: T; options: readonly SegmentOption<T>[]; onChange: (value: T) => void }) {
+  const count = options.length;
+  const index = Math.max(0, options.findIndex((option) => option.value === value));
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    let next: number | null = null;
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") next = (index + 1) % count;
+    else if (event.key === "ArrowLeft" || event.key === "ArrowUp") next = (index - 1 + count) % count;
+    else if (event.key === "Home") next = 0;
+    else if (event.key === "End") next = count - 1;
+    if (next === null) return;
+    event.preventDefault();
+    onChange(options[next].value);
+    itemRefs.current[next]?.focus();
+  };
+
+  return (
+    <div role="radiogroup" aria-label={label} onKeyDown={onKeyDown} className="relative grid rounded-control border border-line bg-white/[0.02] p-1" style={{ gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))` }}>
+      <span
+        aria-hidden="true"
+        className="absolute inset-y-1 left-1 rounded-[calc(var(--radius-control)-0.25rem)] bg-white shadow-[0_6px_18px_-8px_rgb(255_255_255/0.7)] transition-transform duration-300 ease-out"
+        style={{ width: `calc((100% - 0.5rem) / ${count})`, transform: `translateX(${index * 100}%)` }}
+      />
+      {options.map((option, i) => {
+        const active = option.value === value;
+        return (
+          <button
+            key={String(option.value)}
+            ref={(element) => {
+              itemRefs.current[i] = element;
+            }}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            tabIndex={active ? 0 : -1}
+            onClick={() => onChange(option.value)}
+            className={`relative z-10 h-8 cursor-pointer rounded-[calc(var(--radius-control)-0.25rem)] px-2 text-xs transition-colors duration-200 ${FOCUS_RING} ${active ? "font-medium text-black" : "text-text-muted hover:text-white"}`}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** 滑杆：数值在标题行右侧，填充色随值变化。说明紧跟在名称后面，不再单独占一行。 */
+function SliderRow({ label, note, valueText, value, min, max, step = 1, onChange }: { label: string; note?: string; valueText: string; value: number; min: number; max: number; step?: number; onChange: (value: number) => void }) {
+  const id = useId();
+  const percent = ((value - min) / (max - min)) * 100;
+  return (
+    <div className="space-y-2.5">
+      <div className="flex items-baseline justify-between gap-3">
+        <label htmlFor={id} className="min-w-0 text-sm text-text">
+          {label}
+          {note && <span className="ml-2 text-2xs text-text-faint">{note}</span>}
+        </label>
+        <output htmlFor={id} className="shrink-0 font-mono text-sm tabular-nums text-white">
+          {valueText}
+        </output>
+      </div>
+      <input
+        id={id}
+        type="range"
+        className="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value))}
+        style={{ background: `linear-gradient(to right, var(--color-accent) ${percent}%, rgb(255 255 255 / 0.15) ${percent}%)` }}
+      />
+    </div>
+  );
+}
+
+/** 预设色块：用预设的真实配色画一小段文字，比文字描述更容易比较 */
+function PresetSwatch({ look }: { look: Partial<SubtitleConfig> }) {
+  return (
+    <span className="flex h-16 flex-col items-center justify-center gap-1 rounded-[calc(var(--radius-control)-0.25rem)] leading-none" style={{ background: FRAME_BACKGROUND }} aria-hidden="true">
+      <span
+        className="inline-flex items-center rounded-full px-2.5 py-1.5 text-sm font-bold"
+        style={{
+          color: look.primaryColor,
+          background: look.showBackground ? look.backgroundColor : undefined,
+          WebkitTextStroke: look.showStroke ? `0.6px ${look.strokeColor ?? "#000000"}` : undefined,
+          paintOrder: "stroke fill",
+        }}
+      >
+        这是<span style={{ color: look.highlightColor }}>重点</span>
+      </span>
+      {look.bilingual && (
+        <span className="text-2xs" style={{ color: look.highlightColor }}>
+          Key point
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** 按字符渲染样张文本；关键词用强调色，逐字高亮时每个字符各自延迟过渡 */
+function SampleText({ text, keyword, highlight, highlightColor, karaoke }: { text: string; keyword: string; highlight: boolean; highlightColor: string; karaoke: boolean }) {
+  const chars = Array.from(text);
+  const start = highlight && keyword ? text.indexOf(keyword) : -1;
+  const end = start + keyword.length;
+  if (!karaoke && start < 0) return <>{text}</>;
+  return (
+    <>
+      {chars.map((char, i) => {
+        if (start >= 0 && i >= start && i < end) {
+          return (
+            <span key={i} style={{ color: highlightColor }}>
+              {char}
+            </span>
+          );
+        }
+        if (karaoke) {
+          return (
+            <span key={i} className="animate-sub-kara" style={{ animationDelay: `${Math.round((i / chars.length) * KARAOKE_SPAN_MS)}ms` }}>
+              {char}
+            </span>
+          );
+        }
+        return <span key={i}>{char}</span>;
+      })}
+    </>
+  );
+}
+
+/**
+ * 样张：按 Remotion 字幕层的同一套参数绘制（字号按 950px 基准换算为容器宽度的百分比，
+ * 描边、阴影、胶囊内边距都以字号为单位），所以在面板里看到的比例与成片一致。
+ * 样式变化即时生效；动效在入场时播放一次，点「重播」可再看。
+ */
+function SubtitleStage({ config, script, playKey, onReplay }: { config: SubtitleConfig; script: StudioFontScript; playKey: number; onReplay: () => void }) {
+  const sample = SAMPLE_LINES[script];
+  const typeface = resolveSubtitleTypeface(config);
+  const animated = config.animation !== "none";
+  const karaoke = config.animation === "karaoke";
+  const sizeCqw = (config.fontSize / 950) * 100;
+  const widthCqw = (config.maxWidthRatio || 0.84) * 100;
+  const animationClass = config.animation === "pop" ? "animate-sub-pop" : config.animation === "fade" ? "animate-sub-fade" : "";
+  const fontName = studioFontById(resolveSubtitleFontId(config)).name;
+  const cssVars = { "--sub-base": config.primaryColor, "--sub-hl": config.highlightColor } as CSSProperties;
+
+  return (
+    <div className="relative overflow-hidden rounded-xl border border-line" style={{ aspectRatio: "16 / 9", containerType: "inline-size", background: FRAME_BACKGROUND }}>
+      <div className="absolute inset-x-0 flex justify-center px-[6%]" style={{ top: `${config.positionY}%`, transform: "translateY(-50%)" }}>
+        <div
+          key={`${config.animation}-${playKey}`}
+          role="img"
+          aria-label={`字幕样张：${fontName}，基准字号 ${config.fontSize}，位于画面 ${config.positionY}% 处`}
+          className={`flex flex-col items-center text-center ${animationClass}`}
+          style={{
+            ...cssVars,
+            fontSize: `${sizeCqw}cqw`,
+            padding: config.showBackground ? "0.55em 0.85em" : undefined,
+            borderRadius: config.showBackground ? "0.5em" : undefined,
+            background: config.showBackground ? config.backgroundColor : undefined,
+          }}
+        >
+          <div
+            className="leading-[1.32]"
+            style={{
+              maxWidth: `${widthCqw}cqw`,
+              fontFamily: typeface.primaryFamily,
+              fontWeight: Number(typeface.primaryWeight) || typeface.primaryWeight,
+              color: config.primaryColor,
+              WebkitTextStroke: config.showStroke ? `max(2px, 0.16em) ${config.strokeColor || "#000000"}` : undefined,
+              paintOrder: "stroke fill",
+              textShadow: config.showShadow ? "0 0.08em 0.32em rgb(0 0 0 / 0.55)" : undefined,
+            }}
+          >
+            <SampleText text={sample.primary} keyword={sample.keyword} highlight={config.highlight} highlightColor={config.highlightColor} karaoke={karaoke} />
+          </div>
+          {config.bilingual && (
+            <div
+              className="leading-[1.28]"
+              style={{
+                maxWidth: `${widthCqw}cqw`,
+                marginTop: "0.4em",
+                fontSize: "0.62em",
+                fontFamily: typeface.secondaryFamily,
+                fontWeight: Number(typeface.secondaryWeight) || typeface.secondaryWeight,
+                color: config.highlightColor,
+                WebkitTextStroke: config.showStroke ? "max(1.5px, 0.15em) rgb(0 0 0 / 0.8)" : undefined,
+                paintOrder: "stroke fill",
+                textShadow: config.showShadow ? "0 0.13em 0.52em rgb(0 0 0 / 0.55)" : undefined,
+              }}
+            >
+              {sample.secondary}
+            </div>
+          )}
+        </div>
+      </div>
+      {animated && (
+        <button
+          type="button"
+          onClick={onReplay}
+          className={`absolute top-2.5 right-2.5 inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full border border-white/15 bg-black/35 px-3 text-2xs text-white/80 backdrop-blur-md transition hover:border-white/30 hover:bg-black/55 hover:text-white ${FOCUS_RING}`}
+        >
+          <Icon name="play" className="size-3" />
+          重播
+        </button>
+      )}
+    </div>
+  );
+}
+
+function FontOption({ font, selected, onSelect }: { font: StudioFont; selected: boolean; onSelect: () => void }) {
+  const ref = useRef<HTMLButtonElement>(null);
   const state = studioFontState(font.id);
 
+  // 字体文件按可见性懒加载：收起的列表高度为 0，不会请求；展开并滚动到才加载
   useEffect(() => {
-    const element = cardRef.current;
+    const element = ref.current;
     if (!element || !font.url) return;
     if (typeof IntersectionObserver === "undefined") {
       void loadStudioFont(font.id);
@@ -83,79 +362,33 @@ function FontSpecimenCard({
   }, [font.id, font.url]);
 
   return (
-    <div
-      ref={cardRef}
-      className={`overflow-hidden rounded-xl border transition-all ${
-        active ? "border-accent/60 bg-white/[0.06] ring-1 ring-accent/30" : "border-white/10 bg-white/[0.03] hover:border-white/25 hover:bg-white/[0.05]"
-      }`}
+    <button
+      ref={ref}
+      type="button"
+      aria-current={selected || undefined}
+      onClick={onSelect}
+      className={`flex w-full cursor-pointer items-center gap-3 rounded-control px-3 py-2.5 text-left transition-colors ${FOCUS_RING} ${selected ? "bg-white/[0.07]" : "hover:bg-white/[0.04]"}`}
     >
-      <button
-        id={`${idPrefix}-${font.id}`}
-        type="button"
-        onClick={onClick}
-        aria-expanded={ariaExpanded}
-        aria-controls={ariaControls}
-        className="block w-full cursor-pointer text-left"
-      >
-        <div className="flex items-start justify-between gap-2 px-2.5 pt-2 pb-1.5">
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <span className="truncate text-[11px] font-medium text-white/85">{font.name}</span>
-              {active && <span className="shrink-0 rounded border border-emerald-400/30 bg-emerald-400/15 px-1.5 py-px text-[9px] font-semibold text-emerald-300">当前使用</span>}
-            </div>
-            <p className="mt-0.5 truncate text-[10px] text-white/40">{font.desc}</p>
-          </div>
-          {active && (
-            <span className="flex shrink-0 items-center gap-1 pt-0.5 text-[10px] text-accent">
-              {pickerOpen ? "收起" : "更换"}
-              <Icon name="chevron" className={`size-3.5 transition-transform ${pickerOpen ? "rotate-180" : ""}`} />
-            </span>
-          )}
-        </div>
-        <div className="mx-2 mb-2 space-y-1 rounded-lg border border-white/5 bg-black/40 px-3 py-3">
-          {state === "ready" && (
-            <>
-              <p className={`leading-relaxed text-white ${active ? "text-[22px]" : "text-[20px]"}`} style={{ fontFamily: fontFamilyStack(font) }}>
-                {specimenText(font.script)}
-              </p>
-              <p className="text-[11px] leading-relaxed text-white/45" style={{ fontFamily: fontFamilyStack(font) }}>
-                {font.script === "latin" ? "字幕 Aa 123" : "Subtitle Aa 123"}
-              </p>
-            </>
-          )}
-          {state === "loading" && (
-            <p className="flex items-center gap-1.5 text-[11px] leading-relaxed text-white/50" role="status">
-              <Spinner className="size-3.5" />
-              正在载入字体…
-            </p>
-          )}
-          {state === "unloaded" && <p className="text-[11px] leading-relaxed text-white/35">滚动到此处自动载入</p>}
-          {state === "error" && (
-            <p className="text-[11px] leading-relaxed text-amber-300/90" role="status">
-              载入失败，将使用系统字体
-            </p>
-          )}
-        </div>
-      </button>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm text-white" style={{ fontFamily: fontFamilyStack(font) }}>
+          {font.name}
+        </span>
+        <span className="block truncate text-2xs text-text-faint">{font.desc}</span>
+      </span>
+      {state === "loading" && <Spinner className="size-3 shrink-0 text-text-faint" />}
       {state === "error" && (
-        <div className="flex justify-end px-2.5 pb-2">
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              void retryStudioFont(font.id);
-            }}
-            className="cursor-pointer rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] font-medium text-amber-200 transition-colors hover:bg-amber-400/20"
-          >
-            重试
-          </button>
-        </div>
+        <>
+          <span className="size-1.5 shrink-0 rounded-full bg-amber-300" aria-hidden="true" />
+          <span className="sr-only">载入失败</span>
+        </>
       )}
-    </div>
+      {selected && <Icon name="check" className="size-3.5 shrink-0 animate-check-in text-accent" />}
+    </button>
   );
 }
 
-function FontPicker({
+function FontSelect({
+  idPrefix,
   label,
   hint,
   selectedId,
@@ -163,8 +396,8 @@ function FontPicker({
   open,
   onToggle,
   onSelect,
-  idPrefix,
 }: {
+  idPrefix: string;
   label: string;
   hint: string;
   selectedId: string;
@@ -172,33 +405,61 @@ function FontPicker({
   open: boolean;
   onToggle: () => void;
   onSelect: (fontId: string) => void;
-  idPrefix: string;
 }) {
   const fonts = fontsForScript(script);
   const selected = studioFontById(selectedId);
-  const others = fonts.filter((font) => font.id !== selected.id);
+  const state = studioFontState(selected.id);
+  const listId = `${idPrefix}-list`;
+
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        <span className="label">{label}</span>
-        <span className="text-[10px] text-white/35">{hint}</span>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-sm text-text">{label}</span>
+        <span className="text-2xs text-text-faint">{hint}</span>
       </div>
-      <FontSpecimenCard font={selected} active pickerOpen={open} onClick={onToggle} ariaExpanded={open} ariaControls={`${idPrefix}-list`} idPrefix={idPrefix} />
-      {studioFontState(selected.id) === "error" && (
-        <p className="text-[10px] leading-relaxed text-amber-300">当前字体载入失败，预览与成片将使用系统回退字体</p>
+      <button
+        id={`${idPrefix}-trigger`}
+        type="button"
+        aria-expanded={open}
+        aria-controls={listId}
+        onClick={onToggle}
+        className={`group w-full cursor-pointer rounded-surface border px-4 py-3 text-left transition-colors ${FOCUS_RING} ${open ? "border-accent/50 bg-white/[0.04]" : "border-line bg-white/[0.02] hover:border-line-strong hover:bg-white/[0.04]"}`}
+      >
+        <span className="flex items-center justify-between gap-3">
+          <span className="flex min-w-0 items-baseline gap-2">
+            <span className="truncate text-sm font-medium text-white">{selected.name}</span>
+            <span className="truncate text-2xs text-text-faint">{selected.desc}</span>
+          </span>
+          <span className="flex shrink-0 items-center gap-1 text-2xs text-text-muted transition group-hover:text-white">
+            {state === "loading" && <Spinner className="mr-1 size-3" />}
+            {open ? "收起" : "更换"}
+            <Icon name="chevron" className={`size-3.5 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+          </span>
+        </span>
+        <span className="mt-2 block truncate text-lg leading-snug text-white" style={{ fontFamily: fontFamilyStack(selected) }}>
+          {specimenText(script)}
+        </span>
+      </button>
+      {state === "error" && (
+        <Alert
+          tone="warn"
+          size="sm"
+          actions={
+            <Button size="sm" onClick={() => void retryStudioFont(selected.id)}>
+              重试
+            </Button>
+          }
+        >
+          载入失败，预览与成片暂用系统字体
+        </Alert>
       )}
-      <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
-        <div className="overflow-hidden" aria-hidden={!open} inert={!open}>
-          <div className="space-y-1.5 pt-0.5">
-            <p className="px-0.5 text-[10px] text-white/35">点选即用，选完自动收起</p>
-            <div id={`${idPrefix}-list`} className="max-h-72 space-y-2 overflow-y-auto pr-0.5">
-              {others.map((font) => (
-                <FontSpecimenCard key={font.id} font={font} onClick={() => onSelect(font.id)} idPrefix={idPrefix} />
-              ))}
-            </div>
-          </div>
+      <Collapse open={open}>
+        <div id={listId} role="group" aria-label={label} className="max-h-72 space-y-0.5 overflow-y-auto rounded-surface border border-line bg-black/25 p-1.5">
+          {fonts.map((font) => (
+            <FontOption key={font.id} font={font} selected={font.id === selected.id} onSelect={() => onSelect(font.id)} />
+          ))}
         </div>
-      </div>
+      </Collapse>
     </div>
   );
 }
@@ -209,9 +470,10 @@ export function SubtitlePanel({ doc, setDoc }: SubtitlePanelProps) {
   const [, setFontTick] = useState(0);
   const [fontPickerOpen, setFontPickerOpen] = useState(false);
   const [secondaryPickerOpen, setSecondaryPickerOpen] = useState(false);
-  const [translating, setTranslating] = useState<{ done: number; total: number } | null>(null);
+  const [translating, setTranslating] = useState<TranslateProgress | null>(null);
   const [stopping, setStopping] = useState(false);
   const [languageMode, setLanguageMode] = useState<TranslationLanguageMode>("auto");
+  const [playKey, setPlayKey] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
   const genRef = useRef(0);
 
@@ -222,31 +484,20 @@ export function SubtitlePanel({ doc, setDoc }: SubtitlePanelProps) {
   const secondaryFontId = resolveSecondarySubtitleFontId(config);
   const coverage = useMemo(() => secondaryCoverage(doc.lines), [doc.lines]);
   const maxLinesValue = config.maxLines || 3;
-  const maxLinesRefs = useRef(new Map<number, HTMLButtonElement>());
+  const maxWidthPercent = Math.round((config.maxWidthRatio || 0.84) * 100);
+  const presetMeta = subtitlePresetMeta(config.preset);
+  const presetModified = !subtitlePresetMatches(config, config.preset);
 
   const update = (patch: Partial<SubtitleConfig>) => {
     setDoc((current) => ({ ...current, settings: { ...current.settings, subtitle: { ...current.settings.subtitle, ...patch } } }));
   };
 
-  const handleMaxLinesKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    const index = MAX_LINES_OPTIONS.indexOf(maxLinesValue);
-    let nextIndex: number | null = null;
-    if (event.key === "ArrowRight" || event.key === "ArrowDown") nextIndex = (index + 1) % MAX_LINES_OPTIONS.length;
-    else if (event.key === "ArrowLeft" || event.key === "ArrowUp") nextIndex = (index - 1 + MAX_LINES_OPTIONS.length) % MAX_LINES_OPTIONS.length;
-    else if (event.key === "Home") nextIndex = 0;
-    else if (event.key === "End") nextIndex = MAX_LINES_OPTIONS.length - 1;
-    if (nextIndex === null) return;
-    event.preventDefault();
-    const next = MAX_LINES_OPTIONS[nextIndex];
-    update({ maxLines: next });
-    maxLinesRefs.current.get(next)?.focus();
-  };
-
   useEffect(() => subscribeStudioFonts(() => setFontTick((tick) => tick + 1)), []);
   useEffect(() => {
     void loadStudioFont(selectedFontId);
-    void loadStudioFont(secondaryFontId);
-  }, [selectedFontId, secondaryFontId]);
+    // 副字体只在双语开启时才需要，关闭时不去下载
+    if (config.bilingual) void loadStudioFont(secondaryFontId);
+  }, [selectedFontId, secondaryFontId, config.bilingual]);
   useEffect(() => {
     if (!fontPickerOpen && !secondaryPickerOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -278,13 +529,11 @@ export function SubtitlePanel({ doc, setDoc }: SubtitlePanelProps) {
       if (font.id === secondaryFontId) return;
       update({ secondaryFontId: font.id });
     }
+    // 切换成功时列表项的对勾与触发器名称已经更新，不再弹 toast；只在载入失败时提示
+    if (!font.url || isStudioFontReady(font.id)) return;
     const label = slot === "primary" ? "口播字体" : "翻译字体";
-    if (!font.url || isStudioFontReady(font.id)) {
-      toast(`已切换${label}：${font.name}`, "success");
-      return;
-    }
     void loadStudioFont(font.id).then((ok) => {
-      toast(ok ? `已切换${label}：${font.name}` : `${label}载入失败：${font.name}，预览暂用系统字体`, ok ? "success" : "error");
+      if (!ok) toast(`${label}载入失败：${font.name}，预览暂用系统字体`, "error");
     });
   };
 
@@ -351,213 +600,191 @@ export function SubtitlePanel({ doc, setDoc }: SubtitlePanelProps) {
     }
   };
 
+  // 进度条：翻译中按本批进度；总数未知时用脉冲表示「正在进行」；空闲时表示已确认的译文占比
+  const translatingIndeterminate = translating !== null && translating.total === 0;
+  const barPercent = translating
+    ? translating.total > 0
+      ? (translating.done / translating.total) * 100
+      : 30
+    : coverage.total > 0
+      ? (coverage.fresh / coverage.total) * 100
+      : 0;
+
   return (
-    <div className="space-y-5 text-sm text-white/75">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="flex items-center gap-1.5 text-sm font-medium text-white/90"><Icon name="edit" className="size-4 text-accent" />字幕排版 & 动画动效</p>
-          <p className="mt-1 text-xs text-white/40">预览与成片使用同一份配置，改完立即生效</p>
+    <div className="text-sm text-text-secondary">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="flex items-center gap-2 text-sm font-medium text-white">
+            <Icon name="edit" className="size-4 text-accent" />
+            字幕样式
+          </h2>
+          <p className="mt-1 text-2xs text-text-faint">预览与成片共用同一份配置</p>
         </div>
-        <Switch checked={config.enabled} onChange={(enabled) => update({ enabled })} label="字幕总开关" />
+        <Toggle compact label="启用字幕" checked={config.enabled} onChange={(enabled) => update({ enabled })} />
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2.5 hover:bg-white/[0.05]">
-          <input type="checkbox" className="size-3.5 accent-[var(--accent)]" checked={config.burnIn} onChange={(event) => update({ burnIn: event.target.checked })} />
-          <span className="text-[11px] text-white/70">烤录进成片</span>
-        </label>
-        <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2.5 hover:bg-white/[0.05]">
-          <input type="checkbox" className="size-3.5 accent-[var(--accent)]" checked={config.highlight} onChange={(event) => update({ highlight: event.target.checked })} />
-          <span className="text-[11px] text-white/70">关键词强调</span>
-        </label>
-      </div>
-
-      <div className="space-y-2">
-        <p className="label">推荐字幕样式预设</p>
-        <div className="grid grid-cols-2 gap-2">
-          {SUBTITLE_PRESETS.map((preset) => {
-            const selected = config.preset === preset.id;
-            const matches = subtitlePresetMatches(config, preset.id);
-            return (
-              <button
-                key={preset.id}
-                type="button"
-                onClick={() => handlePresetSelect(preset.id)}
-                className={`cursor-pointer rounded-xl border p-2.5 text-left transition-all ${
-                  selected ? "border-accent/60 bg-white/[0.06] ring-1 ring-accent/30" : "border-white/10 bg-white/[0.03] hover:border-white/25 hover:bg-white/[0.05]"
-                }`}
-              >
-                <div className="mb-0.5 flex items-start justify-between gap-1.5">
-                  <span className={`truncate text-xs font-semibold ${preset.sampleClass}`}>{preset.name}</span>
-                  {selected &&
-                    (matches ? (
-                      <span className="shrink-0 rounded border border-emerald-400/30 bg-emerald-400/15 px-1.5 py-px text-[9px] font-semibold text-emerald-300">已应用</span>
-                    ) : (
-                      <span className="shrink-0 rounded border border-amber-400/30 bg-amber-400/15 px-1.5 py-px text-[9px] font-semibold text-amber-300">自定义组合</span>
-                    ))}
-                </div>
-                <div className="line-clamp-1 text-[10px] leading-snug text-white/40">{preset.desc}</div>
-                {selected && !matches && <div className="mt-1 text-[9px] leading-snug text-amber-300/90">已手动调整样式，点击卡片重置为该预设</div>}
-              </button>
-            );
-          })}
+      <div className={`transition-opacity duration-200 ${config.enabled ? "" : "opacity-40"}`} aria-disabled={!config.enabled} inert={!config.enabled}>
+        <div className="pt-4">
+          <SubtitleStage config={config} script={primaryScript} playKey={playKey} onReplay={() => setPlayKey((key) => key + 1)} />
         </div>
-      </div>
 
-      <FontPicker
-        label="口播字体"
-        hint={primaryScript === "latin" ? "西文" : "中文"}
-        selectedId={selectedFontId}
-        script={primaryScript}
-        open={fontPickerOpen}
-        onToggle={() => {
-          setFontPickerOpen((open) => !open);
-          setSecondaryPickerOpen(false);
-        }}
-        onSelect={(fontId) => applyFont("primary", fontId)}
-        idPrefix="subtitle-font"
-      />
-      {config.bilingual && (
-        <FontPicker
-          label="翻译字体"
-          hint={secondaryFontScript === "latin" ? "西文副行" : "中文副行"}
-          selectedId={secondaryFontId}
-          script={secondaryFontScript}
-          open={secondaryPickerOpen}
-          onToggle={() => {
-            setSecondaryPickerOpen((open) => !open);
-            setFontPickerOpen(false);
-          }}
-          onSelect={(fontId) => applyFont("secondary", fontId)}
-          idPrefix="subtitle-font-secondary"
-        />
-      )}
-
-      <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-3">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <span className="block text-xs font-medium text-white/85">双语字幕显示</span>
-            <span className="text-[10px] text-white/40">主行是口播语言，副行是翻译</span>
-          </div>
-          <input type="checkbox" className="size-4 cursor-pointer accent-[var(--accent)]" checked={config.bilingual} onChange={(event) => update({ bilingual: event.target.checked })} />
-        </div>
-        {config.bilingual && (
-          <div className="space-y-1.5 border-t border-white/10 pt-2">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[10px] text-white/45">原文语言方向</span>
-              <span className="text-[10px] text-white/30">仅影响翻译请求</span>
-            </div>
-            <SegmentedControl
-              value={languageMode}
-              options={[
-                { value: "auto", label: "自动按句识别" },
-                { value: "zh", label: "统一中文源文" },
-                { value: "en", label: "统一英文源文" },
-              ]}
-              onChange={setLanguageMode}
-              label="原文语言方向"
-            />
-            <p className="text-[10px] leading-relaxed text-white/35">自动模式会逐句识别语言，低置信度句子会被跳过；整稿单一语言时可手动指定方向。</p>
-          </div>
-        )}
-        {config.bilingual && (coverage.total > 0 || translating) && (
-          <div className="space-y-1.5 border-t border-white/10 pt-2">
-            {coverage.total > 0 && (
-              <div className="flex items-center justify-between text-[10px]">
-                <span className="text-white/45">
-                  已确认 <span className="font-mono text-white/80">{coverage.fresh}/{coverage.total}</span> 句
-                </span>
-                {coverage.stale > 0 && <span className="text-amber-300">{coverage.stale} 句待更新</span>}
-              </div>
-            )}
-            {translating ? (
-              <div className="flex items-center gap-2">
-                <span className="flex min-w-0 flex-1 items-center gap-1.5 text-[11px] text-white/60">
-                  <Spinner className="size-3.5" />
-                  <span className="truncate">正在生成翻译… {translating.done}/{translating.total} 句</span>
-                </span>
-                <button type="button" className="btn btn-ghost btn-sm shrink-0" disabled={stopping} onClick={handleStopTranslate}>
-                  <Icon name="stop" className="size-3.5" />
-                  {stopping ? "正在停止…" : "停止"}
-                </button>
-              </div>
-            ) : coverage.stale > 0 ? (
-              <>
-                <p className="text-[10px] text-white/35">无哈希的旧译文会被标记为待更新</p>
-                <button type="button" className="btn btn-ghost btn-sm w-full" onClick={() => void handleBackfill()}>
-                  <Icon name="wand" className="size-3.5" />
-                  补齐翻译（{coverage.stale} 句）
-                </button>
-              </>
-            ) : null}
-          </div>
-        )}
-      </div>
-
-      <div className="space-y-3 pt-1">
-        <div className="space-y-1">
-          <RangeField label="基准字号" value={config.fontSize} min={18} max={48} step={1} suffix="px" onChange={(fontSize) => update({ fontSize })} />
-          <p className="text-[10px] leading-relaxed text-white/35">以 950px 宽画面为基准，渲染时按实际画幅等比缩放</p>
-        </div>
-        <RangeField label="垂直位置" value={config.positionY} min={20} max={90} step={1} suffix="%" onChange={(positionY) => update({ positionY })} />
-
-        <p className="label">文字出场动效</p>
-        <SegmentedControl
-          value={config.animation}
-          options={subtitleAnimations.map((animation) => ({ value: animation, label: subtitleAnimationLabels[animation] }))}
-          onChange={(animation) => update({ animation })}
-          label="文字出场动效"
-        />
-
-        <div className="space-y-2.5 rounded-xl border border-white/10 bg-white/[0.03] p-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="flex items-center gap-1.5 text-xs font-medium text-white/85"><Icon name="sparkle" className="size-3.5 text-amber-400" />智能多行排版 & 防截断</span>
-              <span className="text-[10px] text-white/40">过长长句自动自然折行与字号自适应</span>
-            </div>
-            <span className="rounded border border-emerald-400/30 bg-emerald-400/10 px-1.5 py-0.5 font-mono text-[10px] text-emerald-300">已激活</span>
-          </div>
-          <RangeField label="安全排版宽度" value={Math.round((config.maxWidthRatio || 0.84) * 100)} min={70} max={92} step={1} suffix="%" onChange={(value) => update({ maxWidthRatio: value / 100 })} />
-          <div className="flex items-center justify-between text-[11px]">
-            <span className="text-white/60">最大允许行数</span>
-            <div className="flex gap-1" role="radiogroup" aria-label="最大允许行数" onKeyDown={handleMaxLinesKeyDown}>
-              {MAX_LINES_OPTIONS.map((lines) => (
+        <Section title="样式预设">
+          <div role="group" aria-label="样式预设" className="grid grid-cols-3 gap-2">
+            {SUBTITLE_PRESETS.map((preset) => {
+              const selected = config.preset === preset.id;
+              return (
                 <button
-                  key={lines}
-                  ref={(element) => {
-                    if (element) maxLinesRefs.current.set(lines, element);
-                    else maxLinesRefs.current.delete(lines);
-                  }}
+                  key={preset.id}
                   type="button"
-                  role="radio"
-                  aria-checked={maxLinesValue === lines}
-                  tabIndex={maxLinesValue === lines ? 0 : -1}
-                  onClick={() => update({ maxLines: lines })}
-                  className={`cursor-pointer rounded px-2 py-0.5 text-[10px] font-medium transition-all ${
-                    maxLinesValue === lines ? "bg-accent text-black" : "bg-white/[0.06] text-white/55 hover:bg-white/[0.1]"
+                  aria-pressed={selected}
+                  title={preset.desc}
+                  onClick={() => handlePresetSelect(preset.id)}
+                  className={`group cursor-pointer rounded-control border p-1.5 text-left transition-all duration-200 ease-out hover:-translate-y-0.5 ${FOCUS_RING} ${
+                    selected ? "border-accent/60 bg-accent/[0.06] ring-1 ring-accent/30" : "border-line bg-white/[0.02] hover:border-line-strong hover:bg-white/[0.04]"
                   }`}
                 >
-                  {lines} 行
+                  <PresetSwatch look={subtitlePresetUpdates(preset.id)} />
+                  <span className="mt-2 flex items-center justify-between gap-1 px-1 pb-0.5">
+                    <span className={`truncate text-xs transition ${selected ? "text-white" : "text-text-secondary group-hover:text-white"}`}>{preset.name}</span>
+                    {selected && <Icon name="check" className="size-3.5 shrink-0 animate-check-in text-accent" />}
+                  </span>
                 </button>
-              ))}
-            </div>
+              );
+            })}
           </div>
-        </div>
+          <p className={`text-2xs leading-relaxed ${presetModified ? "text-amber-300" : "text-text-faint"}`}>
+            {presetModified ? `已手动调整「${presetMeta.name}」，点击卡片恢复预设` : presetMeta.desc}
+          </p>
+        </Section>
 
-        <div className="grid grid-cols-2 gap-2">
-          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2.5 hover:bg-white/[0.05]">
-            <input type="checkbox" className="size-3.5 accent-[var(--accent)]" checked={config.showBackground} onChange={(event) => update({ showBackground: event.target.checked })} />
-            <span className="text-[11px] text-white/70">半透明胶囊背景</span>
-          </label>
-          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2.5 hover:bg-white/[0.05]">
-            <input type="checkbox" className="size-3.5 accent-[var(--accent)]" checked={config.showStroke} onChange={(event) => update({ showStroke: event.target.checked })} />
-            <span className="text-[11px] text-white/70">文字描边</span>
-          </label>
-          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2.5 hover:bg-white/[0.05]">
-            <input type="checkbox" className="size-3.5 accent-[var(--accent)]" checked={config.showShadow} onChange={(event) => update({ showShadow: event.target.checked })} />
-            <span className="text-[11px] text-white/70">文字阴影</span>
-          </label>
-        </div>
+        <Section title="字体与字号">
+          <FontSelect
+            idPrefix="subtitle-font"
+            label="口播字体"
+            hint={primaryScript === "latin" ? "西文" : "中文"}
+            selectedId={selectedFontId}
+            script={primaryScript}
+            open={fontPickerOpen}
+            onToggle={() => {
+              setFontPickerOpen((open) => !open);
+              setSecondaryPickerOpen(false);
+            }}
+            onSelect={(fontId) => applyFont("primary", fontId)}
+          />
+          <SliderRow
+            label="基准字号"
+            note="以 950px 宽画面为基准"
+            valueText={`${config.fontSize}px`}
+            value={config.fontSize}
+            min={18}
+            max={48}
+            onChange={(fontSize) => update({ fontSize })}
+          />
+        </Section>
+
+        <Section
+          title="双语字幕"
+          meta={config.bilingual ? undefined : "主行口播，副行翻译"}
+          open={config.bilingual}
+          action={<Toggle compact label="双语字幕" checked={config.bilingual} onChange={(bilingual) => update({ bilingual })} />}
+        >
+          <FontSelect
+            idPrefix="subtitle-font-secondary"
+            label="翻译字体"
+            hint={secondaryFontScript === "latin" ? "西文" : "中文"}
+            selectedId={secondaryFontId}
+            script={secondaryFontScript}
+            open={secondaryPickerOpen}
+            onToggle={() => {
+              setSecondaryPickerOpen((open) => !open);
+              setFontPickerOpen(false);
+            }}
+            onSelect={(fontId) => applyFont("secondary", fontId)}
+          />
+
+          <div className="space-y-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-sm text-text">原文语言</span>
+              <span className="text-2xs text-text-faint">仅影响翻译请求</span>
+            </div>
+            <Segmented label="原文语言方向" value={languageMode} options={LANGUAGE_OPTIONS} onChange={setLanguageMode} />
+            <p className="text-2xs text-text-faint">逐句识别，低置信度的句子会跳过；整稿只有一种语言时可手动指定</p>
+          </div>
+
+          {(coverage.total > 0 || translating) && (
+            <div className="space-y-3 rounded-surface border border-line bg-white/[0.02] p-3.5">
+              <div className="flex items-center justify-between gap-3 text-2xs">
+                <span className="text-text-muted">
+                  已确认 <span className="font-mono text-white">{coverage.fresh}/{coverage.total}</span> 句
+                </span>
+                {!translating && coverage.stale > 0 && (
+                  <span className="text-amber-300" title="旧译文没有校验哈希，补齐后才会生效">
+                    {coverage.stale} 句待更新
+                  </span>
+                )}
+              </div>
+              <div className="h-1 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className={`h-full rounded-full bg-accent transition-[width] duration-500 ease-out ${translatingIndeterminate ? "animate-pulse" : ""}`}
+                  style={{ width: `${barPercent}%` }}
+                />
+              </div>
+              {translating ? (
+                <div className="flex items-center justify-between gap-3">
+                  <span className="flex min-w-0 items-center gap-2 text-xs text-text-secondary">
+                    <Spinner className="size-3.5 shrink-0" />
+                    <span className="truncate">
+                      正在翻译 <span className="font-mono">{translating.done}/{translating.total}</span> 句
+                    </span>
+                  </span>
+                  <Button size="sm" disabled={stopping} icon={<Icon name="stop" className="size-3" />} onClick={handleStopTranslate}>
+                    {stopping ? "正在停止" : "停止"}
+                  </Button>
+                </div>
+              ) : coverage.stale > 0 ? (
+                <Button className="w-full border-accent/40 text-accent hover:border-accent hover:bg-accent/10 hover:text-accent" icon={<Icon name="wand" className="size-3.5" />} onClick={() => void handleBackfill()}>
+                  补齐翻译 · {coverage.stale} 句
+                </Button>
+              ) : null}
+            </div>
+          )}
+        </Section>
+
+        <Section title="位置与排版" meta="长句自动折行、缩小字号">
+          <SliderRow label="垂直位置" note="字幕中心距顶部" valueText={`${config.positionY}%`} value={config.positionY} min={20} max={90} onChange={(positionY) => update({ positionY })} />
+          <SliderRow
+            label="排版宽度"
+            note="占画面宽度"
+            valueText={`${maxWidthPercent}%`}
+            value={maxWidthPercent}
+            min={70}
+            max={92}
+            onChange={(value) => update({ maxWidthRatio: value / 100 })}
+          />
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm text-text">最多行数</span>
+            <Segmented label="最多行数" value={maxLinesValue} options={MAX_LINES_OPTIONS.map((lines) => ({ value: lines, label: `${lines} 行` }))} onChange={(maxLines) => update({ maxLines })} />
+          </div>
+        </Section>
+
+        <Section title="入场动效" meta={config.animation === "none" ? undefined : "点样张右上角可重播"}>
+          <Segmented label="入场动效" value={config.animation} options={ANIMATION_OPTIONS} onChange={(animation) => update({ animation })} />
+        </Section>
+
+        <Section title="外观">
+          <div className="divide-y divide-hairline rounded-surface border border-line bg-white/[0.02] px-4">
+            <Toggle label="半透明胶囊底" checked={config.showBackground} onChange={(showBackground) => update({ showBackground })} />
+            <Toggle label="文字描边" checked={config.showStroke} onChange={(showStroke) => update({ showStroke })} />
+            <Toggle label="文字阴影" checked={config.showShadow} onChange={(showShadow) => update({ showShadow })} />
+            <Toggle label="关键词强调" hint="命中的关键词使用强调色" checked={config.highlight} onChange={(highlight) => update({ highlight })} />
+          </div>
+        </Section>
+
+        <Section title="输出">
+          <div className="rounded-surface border border-line bg-white/[0.02] px-4">
+            <Toggle label="烤录进成片" hint="关闭后画面不显示字幕，SRT 仍可下载" checked={config.burnIn} onChange={(burnIn) => update({ burnIn })} />
+          </div>
+        </Section>
       </div>
     </div>
   );
