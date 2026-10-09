@@ -13,20 +13,20 @@ import { motions, type Line, type Motion, type Shot } from "./types";
 
 export const SHOT_RULES = { minMs: 1500, maxMs: 6000, openingMs: 15000, openingMaxMs: 3500 };
 
-/** 信息卡属于高密度镜头；相邻信息卡会让观众没有消化时间。 */
+/** 文字画面属于高密度镜头；连续出现会让观众没有消化时间。 */
 export function isMotionCardShot(shot: Shot): boolean {
-  return shot.kind === "placeholder" && shot.mode === "motion";
+  return (shot.kind === "placeholder" && shot.mode === "motion") || shot.kind === "title" || shot.kind === "quote";
 }
 
 /** 将连续信息卡交替为生成画面，保留卡片的时间位置并让下游重新生成素材。 */
-export function distributeMotionCards(shots: Shot[]): Shot[] {
+export function distributeMotionCards(shots: Shot[], editableIds?: ReadonlySet<string>): Shot[] {
   let previousWasCard = false;
   return shots.map((shot) => {
     if (!isMotionCardShot(shot)) {
       previousWasCard = false;
       return shot;
     }
-    if (!previousWasCard || shot.locked) {
+    if (!previousWasCard || shot.locked || (editableIds && !editableIds.has(shot.id))) {
       previousWasCard = true;
       return shot;
     }
@@ -34,7 +34,10 @@ export function distributeMotionCards(shots: Shot[]): Shot[] {
     return {
       ...shot,
       mode: "generate",
+      kind: "placeholder",
       card: undefined,
+      focusText: undefined,
+      animation: undefined,
       shotSize: shot.shotSize ?? "medium",
       description: shot.description || "围绕这段旁白设计具象画面",
       onScreenText: undefined,
@@ -206,7 +209,7 @@ export function normalizeShots(shots: Shot[], lines: Line[], times: Map<string, 
       const best = ok.reduce((a, b) => (Math.abs(b.ms - target) - (b.at.char === 0 ? 400 : 0) < Math.abs(a.ms - target) - (a.at.char === 0 ? 400 : 0) ? b : a));
       // 拆出来的镜头：同一主体换景别；信息卡数据属于原镜头，新镜头按自己覆盖的旁白兜底
       const k2 = ++splitK;
-      const child: Shot = { ...s, id: newId(), at: best.at, motion: pickMotion(s.motion, k2), locked: false, kind: s.kind === "upload" && !s.assetId ? "placeholder" : s.kind, onScreenText: s.kind === "quote" ? undefined : s.onScreenText, card: undefined };
+      const child: Shot = { ...s, id: newId(), at: best.at, motion: pickMotion(s.motion, k2), locked: false, kind: s.kind === "upload" && !s.assetId ? "placeholder" : s.kind, onScreenText: s.kind === "quote" ? undefined : s.onScreenText, card: undefined, focusText: undefined };
       if (s.kind === "quote") Object.assign(child, { kind: "placeholder", mode: "motion" });
       if (child.mode !== "motion") child.shotSize = splitShotSize(s.shotSize, k2);
       out.push(child);

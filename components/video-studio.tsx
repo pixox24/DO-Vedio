@@ -15,9 +15,10 @@ import { CastPanel } from "@/components/cast-panel";
 import { Icon, SegmentedControl, Spinner } from "@/components/ui";
 import { postJson, useProject, useProjectEvents, useVoiceChange } from "@/lib/client";
 import type { Timeline } from "@/lib/core/timeline";
-import { isTtsStage } from "@/lib/core/keys";
+import { isTtsStage, RENDER_OUTPUT_VERSION } from "@/lib/core/keys";
 import { mediaUrl, type Aspect, type ProjectDoc, type VoiceSettings } from "@/lib/core/types";
-import { outputSpecIdForAspect, outputSpecsFor } from "@/lib/core/output-spec";
+import { outputSpecsFor } from "@/lib/core/output-spec";
+import { subtitlePresetMeta } from "@/lib/core/subtitle/presets";
 import { quickHash } from "@/lib/core/hash";
 import { jobBelongsToGoal, setupConfirmationMatches, setupFingerprintForDoc } from "@/lib/core/production";
 import { useFeedback } from "@/components/feedback";
@@ -38,15 +39,15 @@ const steps = [
   { stage: "render", label: "渲染" },
 ];
 
-type Render = { id: string; aspect: Aspect; quality: string; timelineHash: string; contentHash?: string; animationHash?: string; videoHash: string; srtHash: string | null; durationMs: number; loudness: number | null; createdAt: number };
+type Render = { id: string; aspect: Aspect; quality: string; timelineHash: string; contentHash?: string; animationHash?: string; videoHash: string; srtHash: string | null; durationMs: number; loudness: number | null; createdAt: number; outputVersion?: number };
 type TimelineHashes = { contentHash: string; animationHash: string; timelineHash: string };
 type PlanInfo = { plan: { steps: { stage: string; key: string; target: string; cost: number }[]; currentKeys: string[]; waiting: string[]; costYuan: number; ready: { preview: boolean } }; goal: { goal: { goalId?: string }; blocked: string | null } | null; blocked?: string; spentYuan: number };
 type Panel = "sentences" | "style" | "cast" | "storyboard" | "subtitle" | "music" | "settings";
 
 const panelGroups: { label: string; items: Panel[] }[] = [
+  { label: "", items: ["settings"] },
   { label: "内容", items: ["sentences", "cast", "storyboard"] },
   { label: "画面", items: ["style", "subtitle", "music"] },
-  { label: "输出", items: ["settings"] },
 ];
 const allPanels = panelGroups.flatMap((group) => group.items);
 
@@ -405,15 +406,6 @@ export function VideoStudio({ id }: { id: string }) {
     } catch {}
   }
 
-  function toggleOutputAspect(value: Aspect) {
-    if (!store.doc) return;
-    store.setDoc((doc) => {
-      const next = doc.settings.aspects.includes(value) ? doc.settings.aspects.filter((item) => item !== value) : [...doc.settings.aspects, value];
-      const aspects = next.length ? next : [value];
-      return { ...doc, settings: { ...doc.settings, aspects, outputSpecIds: aspects.map(outputSpecIdForAspect), previewAspect: aspects.includes(doc.settings.previewAspect ?? "16:9") ? doc.settings.previewAspect : aspects[0] } };
-    });
-  }
-
   function selectPreview(value: Aspect) {
     setAspect(value);
     store.setDoc((doc) => ({ ...doc, settings: { ...doc.settings, previewAspect: value } }));
@@ -459,35 +451,7 @@ export function VideoStudio({ id }: { id: string }) {
 
       {hasScript && (
         <>
-          {!setupConfirmed && (
-            <section className="panel space-y-5 border-accent/20 bg-accent/[0.035] p-5 sm:p-6">
-              <div>
-                <p className="label text-accent/70">开工确认</p>
-                <h2 className="mt-1 text-xl font-semibold">先确认制作设置，再开始花费</h2>
-                <p className="mt-2 text-sm leading-relaxed text-white/55">音色、输出画幅和预算会影响后续配音与渲染。确认后才会显示生成按钮。</p>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <SetupItem label="音色" value={`${doc.settings.voice.model} · ${doc.settings.voice.voiceId}`} />
-                <div className="rounded-xl border border-white/[0.07] bg-black/20 p-3">
-                  <p className="text-xs text-white/40">输出规格</p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {(["16:9", "9:16"] as const).map((value) => <button key={value} className={`chip h-8 px-3 ${doc.settings.aspects.includes(value) ? "chip-on" : ""}`} onClick={() => toggleOutputAspect(value)}>{value} · 1080p</button>)}
-                  </div>
-                </div>
-                <div className="rounded-xl border border-white/[0.07] bg-black/20 p-3">
-                  <p className="text-xs text-white/40">素材策略</p>
-                  <select className="input mt-2 h-8 py-1.5 text-xs" value={doc.settings.assetFraming} onChange={(event) => store.setDoc((current) => ({ ...current, settings: { ...current.settings, assetFraming: event.target.value as ProjectDoc["settings"]["assetFraming"] } }))}>
-                    <option value="smart-dual">智能双版</option><option value="per-output">全部分别生成</option><option value="shared">全部共享素材</option>
-                  </select>
-                </div>
-                <SetupItem label="预算" value={doc.settings.budgetYuan == null ? "不设上限" : `¥${doc.settings.budgetYuan.toFixed(2)}`} />
-              </div>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <button className="btn btn-ghost btn-sm" onClick={() => changePanel("settings")}>编辑制作设置</button>
-                <button className="btn btn-primary" onClick={confirmSetup}><Icon name="check" className="size-4" />确认开工</button>
-              </div>
-            </section>
-          )}
+          {!setupConfirmed && <SetupConfirm doc={doc} onOpen={changePanel} onConfirm={confirmSetup} />}
 
           {setupConfirmed && (
             <div className="panel space-y-3 p-4 sm:p-5">
@@ -502,7 +466,7 @@ export function VideoStudio({ id }: { id: string }) {
                   {running && <button className="btn btn-ghost" disabled={stopBusy} onClick={stop}>{stopBusy ? <Spinner className="size-3.5" /> : <Icon name="stop" className="size-3.5" />} 停止</button>}
                 </div>
                 <div className="flex flex-wrap items-center gap-3 text-xs text-white/50">
-                  <span>样片：低清，用来确认节奏</span>
+                  <span>样片与成片都按当前输出规格渲染完整时长</span>
                   <span>已花费 ¥{spend.toFixed(2)}</span>
                 </div>
               </div>
@@ -535,11 +499,15 @@ export function VideoStudio({ id }: { id: string }) {
             </div>
             <div className="min-w-0">
               <div className="sticky top-0 z-10 border-b border-white/[0.08] bg-ink/95 backdrop-blur-xl" role="tablist" aria-label="制作面板">
-                <div className="flex gap-1 border-b border-white/[0.06] px-1 pt-1">
-                  {panelGroups.map((group) => <span key={group.label} className="px-3 pb-1 text-[10px] font-medium tracking-wide text-white/30">{group.label}</span>)}
-                </div>
                 <div className="flex overflow-x-auto" role="presentation">
-                  {panelGroups.flatMap((group) => group.items).map((key) => <button key={key} id={`tab-${key}`} role="tab" aria-selected={panel === key} aria-controls={`panel-${key}`} tabIndex={panel === key ? 0 : -1} className={`shrink-0 border-b-2 px-3.5 py-3 text-sm transition ${panel === key ? "border-white text-white" : "border-transparent text-white/45 hover:text-white"}`} onClick={() => changePanel(key)} onKeyDown={(event) => { const index = allPanels.indexOf(key); const next = event.key === "ArrowRight" ? allPanels[(index + 1) % allPanels.length] : event.key === "ArrowLeft" ? allPanels[(index - 1 + allPanels.length) % allPanels.length] : event.key === "Home" ? allPanels[0] : event.key === "End" ? allPanels.at(-1)! : null; if (next) { event.preventDefault(); changePanel(next); document.getElementById(`tab-${next}`)?.focus(); } }}>{panelLabels[key]}</button>)}
+                  {panelGroups.map((group, groupIndex) => (
+                    <div key={group.items[0]} className={`shrink-0 ${groupIndex > 0 ? "border-l border-hairline" : ""}`}>
+                      <p className={`px-3.5 pt-2 text-3xs text-text-faint ${group.label ? "" : "invisible"}`} aria-hidden="true">{group.label || "分组"}</p>
+                      <div className="flex">
+                        {group.items.map((key) => <button key={key} id={`tab-${key}`} role="tab" aria-selected={panel === key} aria-controls={`panel-${key}`} tabIndex={panel === key ? 0 : -1} className={`shrink-0 border-b-2 px-3.5 py-3 text-sm transition ${panel === key ? "border-white text-white" : "border-transparent text-white/45 hover:text-white"}`} onClick={() => changePanel(key)} onKeyDown={(event) => { const index = allPanels.indexOf(key); const next = event.key === "ArrowRight" ? allPanels[(index + 1) % allPanels.length] : event.key === "ArrowLeft" ? allPanels[(index - 1 + allPanels.length) % allPanels.length] : event.key === "Home" ? allPanels[0] : event.key === "End" ? allPanels.at(-1)! : null; if (next) { event.preventDefault(); changePanel(next); document.getElementById(`tab-${next}`)?.focus(); } }}>{panelLabels[key]}</button>)}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
               <div id={`panel-${panel}`} role="tabpanel" aria-labelledby={`tab-${panel}`} className="min-w-0 pt-4">
@@ -563,8 +531,68 @@ export function VideoStudio({ id }: { id: string }) {
 
 const panelLabels: Record<Panel, string> = { sentences: "句子", style: "画面风格", cast: "角色", storyboard: "镜头", subtitle: "字幕", music: "配乐", settings: "设置" };
 
-function SetupItem({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-xl border border-white/[0.07] bg-black/20 p-3"><p className="text-xs text-white/40">{label}</p><p className="mt-2 truncate text-sm text-white/85" title={value}>{value}</p></div>;
+const assetFramingLabels: Record<ProjectDoc["settings"]["assetFraming"], string> = {
+  "smart-dual": "智能双版",
+  "per-output": "分别生成",
+  shared: "共享素材",
+};
+
+type SetupFact = { label: string; value: string; panel: Panel };
+
+function setupFacts(doc: ProjectDoc, voiceName: string): SetupFact[] {
+  const voice = doc.settings.voice;
+  const rate = `${voice.rate}x`;
+  const voiceValue = voice.granularity === "paragraph" ? `${voiceName} · ${rate} · 段落` : `${voiceName} · ${rate}`;
+  const aspects = (["16:9", "9:16"] as const).filter((aspect) => doc.settings.aspects.includes(aspect));
+  const subtitle = doc.settings.subtitle;
+  return [
+    { label: "配音", value: voiceValue, panel: "settings" },
+    { label: "画幅", value: aspects.join("、") || "16:9", panel: "settings" },
+    { label: "素材策略", value: assetFramingLabels[doc.settings.assetFraming], panel: "settings" },
+    { label: "预算", value: doc.settings.budgetYuan == null ? "不设上限" : `¥${doc.settings.budgetYuan.toFixed(2)}`, panel: "settings" },
+    { label: "画面风格", value: doc.visualStyle?.name.trim() || "推荐", panel: "style" },
+    { label: "字幕", value: subtitle.enabled ? subtitlePresetMeta(subtitle.preset).name : "关闭", panel: "subtitle" },
+    { label: "配乐", value: doc.settings.music.enabled ? "开启" : "关闭", panel: "music" },
+  ];
+}
+
+function useVoiceLabel(voice: VoiceSettings) {
+  const [name, setName] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/voices")
+      .then((response) => response.json())
+      .then((catalog: { providers?: { id: string; models?: { id: string; voices?: { id: string; name: string }[] }[] }[] }) => {
+        if (!alive) return;
+        const provider = catalog.providers?.find((item) => item.id === voice.provider);
+        const model = provider?.models?.find((item) => item.id === voice.model);
+        setName(model?.voices?.find((item) => item.id === voice.voiceId)?.name ?? null);
+      })
+      .catch(() => { if (alive) setName(null); });
+    return () => { alive = false; };
+  }, [voice.provider, voice.model, voice.voiceId]);
+  return name ?? voice.voiceId;
+}
+
+function SetupConfirm({ doc, onOpen, onConfirm }: { doc: ProjectDoc; onOpen: (panel: Panel) => void; onConfirm: () => void }) {
+  const voiceName = useVoiceLabel(doc.settings.voice);
+  const facts = setupFacts(doc, voiceName);
+  return (
+    <section className="panel px-5 py-4 sm:px-6" aria-labelledby="setup-confirm-title">
+      <div className="flex items-center justify-between gap-4">
+        <h2 id="setup-confirm-title" className="text-sm font-medium text-text">开工确认</h2>
+        <button className="btn btn-primary btn-sm" onClick={onConfirm}><Icon name="check" className="size-3.5" />确认开工</button>
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-hairline pt-4 md:grid-cols-4 xl:grid-cols-7">
+        {facts.map((fact) => (
+          <button key={fact.label} type="button" className="min-w-0 rounded-control px-1 py-0.5 text-left transition hover:bg-white/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white" onClick={() => onOpen(fact.panel)} aria-label={`${fact.label}：${fact.value}`}>
+            <span className="block text-2xs text-text-faint">{fact.label}</span>
+            <span className="mt-1 block truncate text-sm text-text" title={fact.value}>{fact.value}</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 function TimelineStrip({ timeline, onSeek }: { timeline: Timeline; onSeek: (ms: number) => void }) {
@@ -578,7 +606,7 @@ function TimelineRow({ label, color, children }: { label: string; color: string;
 }
 
 function isRenderFresh(render: Render, current?: TimelineHashes) {
-  if (!current) return false;
+  if (!current || render.outputVersion !== RENDER_OUTPUT_VERSION) return false;
   if (render.animationHash) {
     return current.contentHash === (render.contentHash ?? render.timelineHash) && current.animationHash === render.animationHash;
   }

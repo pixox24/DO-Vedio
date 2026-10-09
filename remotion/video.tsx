@@ -1,7 +1,7 @@
 import { AbsoluteFill, Sequence, useVideoConfig } from "remotion";
 import type { Timeline, TimelineShot } from "@/lib/core/timeline";
 import type { VideoTheme } from "@/lib/core/theme";
-import { isCodeCardShot } from "@/lib/core/ui2v";
+import { isCodeCardShot } from "@/lib/core/legacy-templates";
 import { ensureFonts } from "./fonts";
 import { AiLabel } from "./layers/ai-label";
 import { AudioLayer } from "./layers/audio";
@@ -14,7 +14,8 @@ import { VideoShot } from "./shots/video";
 import { ChartShot, StockShot, UnsupportedModeShot } from "./shots/special";
 import { ThemeContext } from "./theme";
 import { TransitionLayer } from "./layers/transitions";
-import { renderUi2vTemplate } from "./animation/ui2v";
+import { renderLegacyTemplate } from "./animation/legacy-templates";
+import { FocusTextShot, isFocusTextShot } from "./animation/focus-text";
 
 ensureFonts();
 
@@ -22,10 +23,14 @@ export type VideoProps = { timeline: Timeline };
 
 export function ShotView({ shot, durationInFrames, theme }: { shot: TimelineShot; durationInFrames: number; theme?: VideoTheme }) {
   if (shot.mode === "real" && !shot.imageSrc && !shot.videoSrc) return <UnsupportedModeShot shot={shot} durationInFrames={durationInFrames} />;
-  const ui2vView = isCodeCardShot(shot) && shot.animation?.templateId
-    ? renderUi2vTemplate(shot, durationInFrames)
+  if (isFocusTextShot(shot)) {
+    const view = <FocusTextShot shot={shot} durationInFrames={durationInFrames} />;
+    return theme ? <ThemeContext.Provider value={theme}>{view}</ThemeContext.Provider> : view;
+  }
+  const legacyView = isCodeCardShot(shot) && shot.animation?.templateId
+    ? renderLegacyTemplate(shot, durationInFrames)
     : null;
-  const view = ui2vView ?? (() => {
+  const view = legacyView ?? (() => {
     switch (shot.kind) {
       case "title":
         return <TitleShot shot={shot} durationInFrames={durationInFrames} />;

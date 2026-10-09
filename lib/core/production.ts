@@ -4,6 +4,7 @@ import type { Job, ProjectDoc, Settings } from "./types";
  * Settings that can change the cost or the bytes submitted by a production run.
  * Keep this deliberately explicit: adding a production-affecting setting should
  * require deciding whether an existing confirmation remains valid.
+ * previewAspect is omitted: it only chooses which output is on screen.
  */
 export function setupFingerprint(settings: Settings): string {
   return JSON.stringify({
@@ -27,7 +28,6 @@ export function setupFingerprint(settings: Settings): string {
     },
     aspects: [...settings.aspects],
     outputSpecIds: [...(settings.outputSpecIds ?? [])],
-    previewAspect: settings.previewAspect ?? null,
     assetFraming: settings.assetFraming,
     budgetYuan: settings.budgetYuan,
     pauseAfterPreview: settings.pauseAfterPreview,

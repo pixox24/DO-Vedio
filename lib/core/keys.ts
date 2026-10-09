@@ -11,7 +11,10 @@ import type { GenerationFrame } from "./output-spec";
  * 改了某步骤的算法就把版本号加 1，旧缓存自然失效。
  */
 
-export const STAGE_VERSION = { annotate: 1, tts: 3, ttsBlock: 1, storyboard: 3, music: 1, render: 2, shotGeneration: 4, cast: 3, characterSheet: 1 } as const;
+export const STAGE_VERSION = { annotate: 1, tts: 3, ttsBlock: 1, storyboard: 4, music: 1, render: 3, shotGeneration: 4, cast: 3, characterSheet: 1 } as const;
+
+/** 1 表示成片时长和像素都跟随时间轴。0 是只渲染了 3 秒的旧文件，不能复用。 */
+export const RENDER_OUTPUT_VERSION = 1;
 
 /** 标注：输入是一个段落的全部句子 */
 export function annotateKey(lines: Pick<Line, "id" | "text">[], lex: LexEntry[], modelId: string, projectId: string) {

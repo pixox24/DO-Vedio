@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { annotateKey, renderKey } from "../core/keys";
+import { annotateKey, RENDER_OUTPUT_VERSION, renderKey } from "../core/keys";
 import { stampShots } from "../core/shots";
 import { contentHash, timelineHash } from "../core/timeline";
 import type { Aspect, Job, ProjectDoc } from "../core/types";
@@ -146,7 +146,7 @@ export function planPipeline(projectId: string, doc: ProjectDoc, goal: Goal): Pl
       const t = timelineFor(doc, projectId, spec.id);
       const th = timelineHash(t);
       const ch = contentHash(t);
-      const done = get<{ id: string }>("SELECT id FROM renders WHERE project_id = ? AND content_hash = ? AND quality = ?", projectId, ch, renderQuality);
+      const done = get<{ id: string }>("SELECT id FROM renders WHERE project_id = ? AND content_hash = ? AND quality = ? AND output_version = ?", projectId, ch, renderQuality, RENDER_OUTPUT_VERSION);
       if (done) continue;
       steps.push({ stage: "render", key: `${renderKey(th, renderQuality, spec)}:${spec.id}`, target: `${aspect} ${renderQuality === "final" ? "成片" : "样片"}`, input: { projectId, aspect, outputSpecId: spec.id, quality: renderQuality }, cost: 0, priority: 7 });
     }
@@ -167,7 +167,8 @@ export function planPipeline(projectId: string, doc: ProjectDoc, goal: Goal): Pl
     const renderQuality = goal.until === "preview" ? "draft" : goal.quality;
     for (const aspect of goal.aspects) {
       const spec = outputSpecForRequest(doc.settings, undefined, aspect);
-      currentKeys.push(`${renderKey(contentHash(timelineFor(doc, projectId, spec.id)), renderQuality, spec)}:${spec.id}`);
+      // 与上面的入队键相同，用时间轴哈希。内容哈希不含动效，对不上正在跑的渲染，进度会把它当成旧任务。
+      currentKeys.push(`${renderKey(timelineHash(timelineFor(doc, projectId, spec.id)), renderQuality, spec)}:${spec.id}`);
     }
   }
   return { steps, currentKeys, waiting, ready: { preview, render: preview && goal.until === "render" }, costYuan: steps.reduce((s, x) => s + x.cost, 0) };
@@ -185,6 +186,16 @@ function goalJobKey(key: string, goalId?: string) {
   return goalId ? `${key}:goal:${goalId}` : key;
 }
 
+/** 页面读取的计划和真正入队的任务必须使用同一套键，否则当前任务会被当成旧任务。 */
+function planForGoal(plan: Plan, goalId?: string): Plan {
+  if (!goalId) return plan;
+  return {
+    ...plan,
+    steps: plan.steps.map((step) => ({ ...step, key: goalJobKey(step.key, goalId) })),
+    currentKeys: plan.currentKeys.map((key) => goalJobKey(key, goalId)),
+  };
+}
+
 /**
  * 执行对账。dryRun 只返回计划；超过预算且未确认时不提交。
  * 同一个 key 失败过的任务不会自动重提（避免反复扣费），需要用户点重试。
@@ -196,7 +207,7 @@ export function produce(projectId: string, goal: Goal, opts: { dryRun?: boolean;
   const synced = syncLines(p.doc);
   if (synced !== p.doc && !opts.dryRun) p = mutateProject(projectId, (d) => syncLines(d))!;
   const doc = opts.dryRun ? synced : p.doc;
-  const plan = planPipeline(projectId, doc, goal);
+  const plan = planForGoal(planPipeline(projectId, doc, goal), opts.goalId);
   const spent = projectSpend(projectId).costYuan;
   if (opts.dryRun) return { plan, enqueued: [], spentYuan: spent };
   const budget = doc.settings.budgetYuan;
@@ -204,10 +215,7 @@ export function produce(projectId: string, goal: Goal, opts: { dryRun?: boolean;
     return { plan, enqueued: [], blocked: `预计再花 ¥${plan.costYuan.toFixed(2)}，将超出项目预算 ¥${budget}（已花 ¥${spent.toFixed(2)}）`, spentYuan: spent };
   }
   const enqueued: Job[] = [];
-  const effectiveSteps = plan.steps.map((step) => ({ ...step, key: goalJobKey(step.key, opts.goalId) }));
-  const effectiveKeys = plan.currentKeys.map((key) => goalJobKey(key, opts.goalId));
-  const effectivePlan = opts.goalId ? { ...plan, steps: effectiveSteps, currentKeys: effectiveKeys } : plan;
-  for (const s of effectiveSteps) {
+  for (const s of plan.steps) {
     const last = latestJobByKey(s.key, projectId);
     // 自动推进时不重提失败过的任务（避免反复扣费）；用户主动点开始时重试
     if (last && (last.status === "failed" || last.status === "canceled") && !opts.retryFailed) continue;
@@ -216,7 +224,7 @@ export function produce(projectId: string, goal: Goal, opts: { dryRun?: boolean;
       : s.input;
     enqueued.push(enqueue({ projectId, stage: s.stage, key: s.key, target: s.target, input, priority: s.priority, costEstimate: s.cost }));
   }
-  return { plan: effectivePlan, enqueued, spentYuan: spent };
+  return { plan, enqueued, spentYuan: spent };
 }
 
 // ---------- 自动推进 ----------

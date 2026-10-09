@@ -102,7 +102,7 @@ export type Motion = (typeof motions)[number];
  */
 export const animationFamilies = ["none", "editorial", "kinetic", "stat", "compare", "process", "callout", "timeline", "collage", "hud", "ink"] as const;
 export type AnimationFamily = (typeof animationFamilies)[number];
-export const ui2vTemplateIds = [
+export const legacyTemplateIds = [
   "creator-cinema-editorial-quote",
   "hero-spotlight-stage",
   "hero-split-wipe",
@@ -115,7 +115,7 @@ export const ui2vTemplateIds = [
   "card-timeline",
   "card-profile",
 ] as const;
-export type Ui2vTemplateId = (typeof ui2vTemplateIds)[number];
+export type LegacyTemplateId = (typeof legacyTemplateIds)[number];
 export const anchorRoles = ["enter", "emphasis", "exit"] as const;
 export type AnchorRole = (typeof anchorRoles)[number];
 export const animationAnchorSchema = z.object({
@@ -127,7 +127,7 @@ export const animationAnchorSchema = z.object({
 export type AnimationAnchor = z.infer<typeof animationAnchorSchema>;
 export const animationSpecSchema = z.object({
   family: z.enum(animationFamilies).default("none"),
-  templateId: z.enum(ui2vTemplateIds).optional(),
+  templateId: z.enum(legacyTemplateIds).optional(),
   intensity: z.union([z.literal(1), z.literal(2), z.literal(3)]).default(1),
   anchors: z.array(animationAnchorSchema).default([]),
   params: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).default({}),
@@ -171,6 +171,23 @@ export const cardSchema = z.object({
 });
 export type Card = z.infer<typeof cardSchema>;
 
+/** 统一重点文字：不再按业务卡片分类，按字数与视觉结构匹配排版。 */
+export const focusLayoutModes = ["auto", "shuffle", "manual"] as const;
+export type FocusLayoutMode = (typeof focusLayoutModes)[number];
+export const focusPresetIds = [
+  "embedded-type", "number-space", "masked-slice", "vertical-arc", "offset-fade", "time-scale", "tilt-vertical", "solid-outline",
+  "order", "diamond", "pill", "three-dots", "steps", "four-dots", "cross-space", "chapter", "serif-contrast", "focus",
+] as const;
+export type FocusPresetId = (typeof focusPresetIds)[number];
+export const focusTextSchema = z.object({
+  text: z.string().trim().min(1),
+  emphasis: z.string().trim().optional(),
+  support: z.string().trim().optional(),
+  layoutMode: z.enum(focusLayoutModes).default("auto"),
+  presetId: z.enum(focusPresetIds).optional(),
+}).strict();
+export type FocusText = z.infer<typeof focusTextSchema>;
+
 export const shotAssetVariantSchema = z.object({
   assetId: z.string(), promptHash: z.string(), aspect: z.enum(aspects), width: z.number().int().positive().optional(), height: z.number().int().positive().optional(),
   source: z.enum(["generated", "shared", "legacy"]).default("generated"), sourceAspect: z.enum(aspects).optional(), generatedAt: z.string().optional(),
@@ -187,6 +204,8 @@ export const shotSchema = z.object({
   mode: z.enum(shotModes).optional(),
   shotSize: z.enum(shotSizes).optional(),
   card: cardSchema.optional(),
+  /** 新重点文字契约；card 仅为旧项目读取兼容。 */
+  focusText: focusTextSchema.optional(),
   description: z.string().default(""),
   prompt: z.string().optional(),
   onScreenText: z.string().optional(),

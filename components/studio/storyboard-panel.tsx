@@ -7,12 +7,12 @@ import Image from "next/image";
 import dynamic from "next/dynamic";
 import { AutoTextarea, Icon, Select, Spinner } from "@/components/ui";
 import { jobAction } from "@/lib/client";
-import { mediaUrl, p1ShotKinds, shotKindLabels, shotSizeLabels, shotSizes, type CardVariant, type Job, type Shot } from "@/lib/core/types";
+import { mediaUrl, focusPresetIds, shotKindLabels, shotSizeLabels, shotSizes, type Job, type Shot } from "@/lib/core/types";
 import { newId } from "@/lib/core/sync";
 import { stampShots } from "@/lib/core/shots";
 import { assetStale, compileShotPrompt, MAX_SHOT_CHARACTERS, needsGeneratedImage, type CompiledPrompt } from "@/lib/core/prompt-compiler";
 import { needsConfirm } from "@/lib/core/interaction";
-import { activeUi2vTemplateOptions, defaultUi2vTemplateForShot, isCodeCardShot, ui2vTemplates } from "@/lib/core/ui2v";
+import { focusPresetLabels, focusTextFromLegacy, focusVisualWidth } from "@/lib/core/focus";
 import type { Timeline, TimelineShot } from "@/lib/core/timeline";
 import { useFeedback } from "@/components/feedback";
 import { jobBatchId, type ProjectStore } from "./shared";
@@ -216,7 +216,7 @@ export function StoryboardPanel({ id, store, timeline, jobs, onSeek }: { id: str
     const index = lineIndex.get(shot.at.lineId) ?? 0;
     const next = lines[index + 1];
     if (!next || ordered.some((s) => s.at.lineId === next.id && s.at.char === 0)) return;
-    store.setDoc((d) => ({ ...d, shots: stampShots([...d.shots, { ...shot, id: newId(), at: { lineId: next.id, char: 0 }, locked: false }], d.lines) }));
+    store.setDoc((d) => ({ ...d, shots: stampShots([...d.shots, { ...shot, id: newId(), at: { lineId: next.id, char: 0 }, focusText: undefined, card: undefined, onScreenText: undefined, locked: false }], d.lines) }));
     toast("已拆分镜头，现有成片需要重新渲染", "info");
   }
 
@@ -397,9 +397,14 @@ function ShotCard({ shot, timed, timeline, index, lineIndex, lineIds, estimated,
   const compiled = wantsImage && store.doc ? compileShotPrompt(store.doc, shot) : null;
   const stale = !!store.doc && assetStale(store.doc, shot);
   const hasImage = !!shot.assetId;
-  const codeCard = isCodeCardShot(shot);
-  const resolvedTemplateId = shot.animation?.templateId ?? timed?.animation?.templateId ?? defaultUi2vTemplateForShot({ ...shot, card: timed?.card ?? shot.card });
-  const updateAnimation = (patch: Partial<NonNullable<Shot["animation"]>>) => shotUpdate(store, shot.id, (s) => ({ ...s, animation: { family: "none", intensity: 1, anchors: [], params: {}, ...s.animation, ...patch } }));
+  const isTextShot = shot.mode === "motion" || shot.kind === "title" || shot.kind === "quote";
+  const focus = shot.focusText ?? timed?.focusText ?? focusTextFromLegacy(shot, timed?.keywords, timed?.caption);
+  const focusWidth = focusVisualWidth(focus?.text ?? "");
+  const updateFocus = (patch: Partial<NonNullable<Shot["focusText"]>>) => shotUpdate(store, shot.id, (s) => ({
+    ...s, kind: "placeholder", mode: "motion", card: undefined, onScreenText: undefined,
+    animation: s.animation ? { ...s.animation, templateId: undefined } : undefined,
+    focusText: { text: focus?.text ?? "重点", layoutMode: focus?.layoutMode ?? "auto", support: focus?.support, emphasis: focus?.emphasis, presetId: focus?.presetId, ...patch },
+  }));
   /**
    * 状态以服务端裁决为准：客户端按 target 字符串找任务在多任务并存时不可靠。
    * 服务端没返回（例如刚提交、还没来得及刷新）时退回本地 job，保证按钮立刻有反馈。
@@ -433,7 +438,7 @@ function ShotCard({ shot, timed, timeline, index, lineIndex, lineIds, estimated,
     {status === "canceled" && <p className="mt-2 text-xs text-white/45">任务已取消，可重新生成</p>}
     {wantsImage && !shot.assetId && !generating && <p className="mt-2 text-xs text-amber-200/70">暂无素材，使用占位画面</p>}
     {stale && <p className="mt-2 text-xs text-amber-200/80">画面描述或风格已改，图片已过期</p>}
-    <AutoTextarea value={shot.description} onChange={(e) => shotUpdate(store, shot.id, (s) => ({ ...s, description: e.target.value }))} onBlur={() => { if (descriptionRef.current !== shot.description) { descriptionRef.current = shot.description; toast("已修改画面描述，现有成片需要重新渲染", "info"); } }} className="input mt-2 min-h-16 text-xs" placeholder="画面描述" />
+    {!isTextShot && <AutoTextarea value={shot.description} onChange={(e) => shotUpdate(store, shot.id, (s) => ({ ...s, description: e.target.value }))} onBlur={() => { if (descriptionRef.current !== shot.description) { descriptionRef.current = shot.description; toast("已修改画面描述，现有成片需要重新渲染", "info"); } }} className="input mt-2 min-h-16 text-xs" placeholder="画面描述" />}
     {wantsImage && <button className="btn btn-ghost btn-sm mt-2" disabled={generating || shot.locked || !imageReady || runningJob} title={`${shot.assetId ? "重新生成" : "生成"} ${candidateCount} 张候选图`} onClick={onGenerate}>{generating ? <Spinner className="size-3" /> : <Icon name="sparkle" className="size-3.5" />}{shot.assetId ? "重新生成图片" : "生成图片"} · {candidateCount} 张</button>}
     {(shot.kind === "image" || shot.kind === "video") && <>
       {shot.candidates.length > 0 && <div className="mt-3" aria-label="候选素材历史">
@@ -483,32 +488,43 @@ function ShotCard({ shot, timed, timeline, index, lineIndex, lineIds, estimated,
       </div>}
     </>}
     <div className="mt-3 flex flex-wrap items-center gap-2"><label className="chip h-7 cursor-pointer px-2.5">{uploading ? <Spinner className="size-3" /> : "上传图片"}<input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])} /></label><button className="chip h-7 px-2.5" onClick={onSplit}>拆分</button><button className="chip h-7 px-2.5" disabled={!canMerge} onClick={onMerge}>合并下一镜</button></div>
-    {codeCard && <div className="mt-2"><Select value={shot.animation?.templateId ?? ""} onChange={(v) => updateAnimation({ family: "none", templateId: v ? v as NonNullable<Shot["animation"]>["templateId"] : undefined })} aria-label="卡片模板"><option value="">自动匹配{!shot.animation?.templateId && resolvedTemplateId ? `（${ui2vTemplates[resolvedTemplateId].label}）` : ""}</option>{activeUi2vTemplateOptions.map((template) => <option key={template.id} value={template.id}>{template.label}</option>)}</Select></div>}
-    <details className="mt-3 border-t border-white/10 pt-2 text-xs text-white/50"><summary className="cursor-pointer">高级</summary><div className="mt-2 grid gap-2"><p className="text-[11px] leading-4 text-white/45">转场、镜头类型等修改会自动保存并刷新左侧预览；已有样片或成片不会自动重渲染，请点击上方“生成样片”或“生成成片”。</p><Select value={shot.kind} onChange={(v) => shotUpdate(store, shot.id, (s) => ({ ...s, kind: v as Shot["kind"] }))}>{[...p1ShotKinds, "image", "video", "stock", "chart"].map((kind) => <option key={kind} value={kind}>{shotKindLabels[kind as Shot["kind"]]}</option>)}</Select>{!codeCard && <Select value={shot.motion} onChange={(v) => shotUpdate(store, shot.id, (s) => ({ ...s, motion: v as Shot["motion"] }))}><option value="zoom-in">推进</option><option value="zoom-out">拉远</option><option value="pan-left">左移</option><option value="pan-right">右移</option><option value="none">静止</option></Select>}<Select value={shot.transitionIn ?? "cut"} onChange={(v) => shotUpdate(store, shot.id, (s) => ({ ...s, transitionIn: v as NonNullable<Shot["transitionIn"]> }))}><option value="cut">切镜</option><option value="fade">淡入</option><option value="wipe">擦除</option><option value="whip">甩镜</option><option value="push">推入</option><option value="dissolve">溶解</option></Select><Select value={shot.mode === "motion" ? "motion" : shot.mode === "composite" ? "composite" : shot.mode === "real" ? "real" : "generate"} onChange={(v) => shotUpdate(store, shot.id, (s) => ({ ...s, mode: v as Shot["mode"], shotSize: v === "generate" ? (s.shotSize ?? "medium") : s.shotSize }))}><option value="generate">生成画面</option><option value="motion">信息卡（代码动画）</option><option value="composite">画面 + 动画层</option><option value="real">真实素材</option></Select>{shot.mode !== "motion" && <Select value={shot.shotSize ?? "medium"} onChange={(v) => shotUpdate(store, shot.id, (s) => ({ ...s, shotSize: v as Shot["shotSize"] }))}>{shotSizes.map((size) => <option key={size} value={size}>{shotSizeLabels[size]}</option>)}</Select>}<input className="input h-8 py-1.5 text-xs" value={shot.onScreenText ?? ""} onChange={(e) => shotUpdate(store, shot.id, (s) => ({ ...s, onScreenText: e.target.value || undefined }))} placeholder="屏幕文字" />{wantsImage && <><AutoTextarea value={shot.prompt ?? ""} onChange={(e) => shotUpdate(store, shot.id, (s) => ({ ...s, prompt: e.target.value || undefined }))} className="input min-h-12 text-xs" placeholder="自定义画面内容（留空用画面描述；画面风格仍会自动加上）" /><input className="input h-8 py-1.5 text-xs" type="number" min={0} value={shot.seed ?? ""} onChange={(e) => shotUpdate(store, shot.id, (s) => ({ ...s, seed: e.target.value === "" ? undefined : Number(e.target.value) }))} placeholder="seed" />{store.doc && store.doc.characters.some((c) => !c.absent) && <div className="space-y-1"><p className="text-[11px] text-white/40">画面里的角色（最多 {MAX_SHOT_CHARACTERS} 个；外貌自动从角色卡加入）</p><div className="flex flex-wrap gap-1.5">{store.doc.characters.filter((c) => !c.absent || shot.characterIds.includes(c.id)).map((c) => { const on = shot.characterIds.includes(c.id); return <button key={c.id} type="button" className={`chip h-7 px-2.5 ${on ? "chip-on" : ""}`} disabled={!on && shot.characterIds.length >= MAX_SHOT_CHARACTERS} onClick={() => shotUpdate(store, shot.id, (s) => ({ ...s, characterIds: on ? s.characterIds.filter((x) => x !== c.id) : [...s.characterIds, c.id] }))}>{c.name}</button>; })}</div></div>}{compiled && <PromptSlots compiled={compiled} />}</>}</div></details>
+    {isTextShot && <div className="mt-3 space-y-2 border-t border-white/10 pt-3">
+      <div className="flex items-center justify-between text-[11px] text-white/50"><span>重点文字</span><span className={focusWidth > 8 ? "text-amber-200" : ""}>{focusWidth.toFixed(1)} / 8 字宽</span></div>
+      <input className="input h-9 w-full text-sm" value={focus?.text ?? ""} onChange={(e) => updateFocus({ text: e.target.value })} placeholder="核心关键词或短句" aria-label="核心文字" />
+      {focusWidth > 8 && <p className="text-[11px] text-amber-200">请概括为 8 字以内；预览会按空间收缩字号。</p>}
+      <div className="grid grid-cols-2 gap-2"><input className="input h-8 min-w-0 text-xs" value={focus?.support ?? ""} onChange={(e) => updateFocus({ support: e.target.value || undefined })} placeholder="辅助小字（可选）" aria-label="辅助文字" /><input className="input h-8 min-w-0 text-xs" value={focus?.emphasis ?? ""} onChange={(e) => updateFocus({ emphasis: e.target.value || undefined })} placeholder="强调片段（可选）" aria-label="强调片段" /></div>
+      {focusVisualWidth(focus?.support ?? "") > 8 && <p className="text-[11px] text-amber-200">辅助字也请压缩到 8 字以内，原文会完整保留。</p>}
+      <div className="grid grid-cols-2 gap-2"><Select value={focus?.layoutMode ?? "auto"} onChange={(v) => updateFocus({ layoutMode: v as NonNullable<Shot["focusText"]>["layoutMode"], presetId: v === "manual" ? (focus?.presetId ?? timed?.focusText?.presetId ?? "focus") : undefined })} aria-label="排版模式"><option value="auto">智能匹配</option><option value="shuffle">探索变化</option><option value="manual">手动锁定</option></Select><Select value={focus?.layoutMode === "manual" ? focus.presetId ?? "focus" : timed?.focusText?.presetId ?? "focus"} onChange={(v) => updateFocus({ layoutMode: "manual", presetId: v as NonNullable<Shot["focusText"]>["presetId"] })} aria-label="排版方案">{focusPresetIds.map((id) => <option key={id} value={id}>{focusPresetLabels[id]}</option>)}</Select></div>
+      {focus?.layoutMode === "shuffle" && <button className="chip h-7 px-2.5 text-xs" type="button" onClick={() => shotUpdate(store, shot.id, (s) => ({ ...s, seed: (s.seed ?? timed?.seed ?? 0) + 1 }))}>换一个排版</button>}
+    </div>}
+    <details className="mt-3 border-t border-white/10 pt-2 text-xs text-white/50">
+      <summary className="cursor-pointer">高级</summary>
+      <div className="mt-2 grid gap-2">
+        <p className="text-[11px] leading-4 text-white/45">修改会自动保存并刷新预览。已有成片需要重新渲染。</p>
+        <Select value={isTextShot ? "placeholder" : shot.kind} onChange={(v) => shotUpdate(store, shot.id, (s) => ({ ...s, kind: v as Shot["kind"], focusText: v === "placeholder" ? s.focusText : undefined }))} aria-label="镜头类型">
+          {(["placeholder", "upload", "image", "video", "stock", "chart"] as Shot["kind"][]).map((kind) => <option key={kind} value={kind}>{shotKindLabels[kind]}</option>)}
+        </Select>
+        <Select value={shot.mode === "motion" ? "motion" : shot.mode === "composite" ? "composite" : shot.mode === "real" ? "real" : "generate"} onChange={(v) => shotUpdate(store, shot.id, (s) => ({
+          ...s, kind: "placeholder", mode: v as Shot["mode"], shotSize: v === "generate" ? (s.shotSize ?? "medium") : s.shotSize,
+          focusText: v === "motion" ? (focus ?? { text: timed?.keywords[0] ?? "重点", layoutMode: "auto" }) : undefined,
+          card: v === "motion" ? undefined : s.card, onScreenText: v === "motion" ? undefined : s.onScreenText,
+        }))} aria-label="表达方式"><option value="generate">生成画面</option><option value="motion">重点文字</option><option value="composite">画面 + 动画层</option><option value="real">真实素材</option></Select>
+        {!isTextShot && <Select value={shot.motion} onChange={(v) => shotUpdate(store, shot.id, (s) => ({ ...s, motion: v as Shot["motion"] }))} aria-label="运镜"><option value="zoom-in">推进</option><option value="zoom-out">拉远</option><option value="pan-left">左移</option><option value="pan-right">右移</option><option value="none">静止</option></Select>}
+        <Select value={shot.transitionIn ?? "cut"} onChange={(v) => shotUpdate(store, shot.id, (s) => ({ ...s, transitionIn: v as NonNullable<Shot["transitionIn"]> }))} aria-label="转场"><option value="cut">切镜</option><option value="fade">淡入</option><option value="wipe">擦除</option><option value="whip">甩镜</option><option value="push">推入</option><option value="dissolve">溶解</option></Select>
+        {!isTextShot && <Select value={shot.shotSize ?? "medium"} onChange={(v) => shotUpdate(store, shot.id, (s) => ({ ...s, shotSize: v as Shot["shotSize"] }))} aria-label="景别">{shotSizes.map((size) => <option key={size} value={size}>{shotSizeLabels[size]}</option>)}</Select>}
+        {wantsImage && <><AutoTextarea value={shot.prompt ?? ""} onChange={(e) => shotUpdate(store, shot.id, (s) => ({ ...s, prompt: e.target.value || undefined }))} className="input min-h-12 text-xs" placeholder="自定义画面内容" /><input className="input h-8 py-1.5 text-xs" type="number" min={0} value={shot.seed ?? ""} onChange={(e) => shotUpdate(store, shot.id, (s) => ({ ...s, seed: e.target.value === "" ? undefined : Number(e.target.value) }))} placeholder="seed" />{store.doc && store.doc.characters.some((c) => !c.absent) && <div className="space-y-1"><p className="text-[11px] text-white/40">画面里的角色（最多 {MAX_SHOT_CHARACTERS} 个）</p><div className="flex flex-wrap gap-1.5">{store.doc.characters.filter((c) => !c.absent || shot.characterIds.includes(c.id)).map((c) => { const on = shot.characterIds.includes(c.id); return <button key={c.id} type="button" className={`chip h-7 px-2.5 ${on ? "chip-on" : ""}`} disabled={!on && shot.characterIds.length >= MAX_SHOT_CHARACTERS} onClick={() => shotUpdate(store, shot.id, (s) => ({ ...s, characterIds: on ? s.characterIds.filter((x) => x !== c.id) : [...s.characterIds, c.id] }))}>{c.name}</button>; })}</div></div>}{compiled && <PromptSlots compiled={compiled} />}</>}
+      </div>
+    </details>
   </div>;
 }
 
 
-const cardVariantLabels: Record<CardVariant, string> = {
-  headline: "标题",
-  stat: "数据",
-  list: "要点",
-  split: "对比",
-  quote: "引语",
-  qa: "问答",
-  cta: "号召",
-  alert: "提示",
-  definition: "定义",
-  timeline: "时间线",
-  profile: "人物"
-};
-
-/** 镜头卡上的表达方式：生成画面 · 景别 / 信息卡 · 模板 · 版式 */
+/** 镜头卡上的表达方式。 */
 function shotExpression(shot: Shot, timed: TimelineShot | undefined) {
-  const templateId = shot.animation?.templateId ?? timed?.animation?.templateId ?? defaultUi2vTemplateForShot({ ...shot, card: timed?.card ?? shot.card });
-  const templateLabel = templateId ? ui2vTemplates[templateId].label : "未匹配";
-  if (shot.kind === "title" || shot.kind === "quote") return `${shotKindLabels[shot.kind]} · ${templateLabel}`;
-  if (isCodeCardShot(shot)) return `信息卡 · ${templateLabel} · ${cardVariantLabels[(timed?.card ?? shot.card)?.variant ?? "headline"]}`;
+  if (shot.mode === "motion" || shot.kind === "title" || shot.kind === "quote") {
+    const focus = timed?.focusText ?? shot.focusText;
+    return `重点文字 · ${focus?.text ?? "待填写"} · ${focus?.presetId ? focusPresetLabels[focus.presetId] : "智能匹配"}`;
+  }
   if (shot.mode === "composite") return `复合画面 · 两层视差${shot.shotSize ? ` · ${shotSizeLabels[shot.shotSize]}` : ""}`;
   return `生成画面${shot.shotSize ? ` · ${shotSizeLabels[shot.shotSize]}` : ""}`;
 }

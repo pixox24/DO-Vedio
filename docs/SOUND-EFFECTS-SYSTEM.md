@@ -59,7 +59,7 @@ public/sfx/                 # 音效文件存储
     └── split/              # 对比卡音效
 
 remotion/animation/
-└── ui2v-with-sfx.tsx      # 带音效的卡片模板（可选，或直接在 ui2v.tsx 中集成）
+└── legacy-templates-with-sfx.tsx      # 带音效的卡片模板（可选，或直接在 legacy-templates.tsx 中集成）
 
 components/
 └── video-controls.tsx      # 添加音效控制 UI
@@ -574,7 +574,7 @@ export const defaultSFXManager = new SFXManager();
 
 ### 方法 A：在现有模板中添加音效（推荐）
 
-修改 `remotion/animation/ui2v.tsx` 中的每个模板，添加音效层：
+修改 `remotion/animation/legacy-templates.tsx` 中的每个模板，添加音效层：
 
 ```typescript
 import { Audio, Sequence } from "remotion";

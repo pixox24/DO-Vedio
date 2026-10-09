@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { interpolate } from "remotion";
-import { ui2vTemplateIds } from "@/lib/core/types";
-import { cardTemplateRenderers, particleOpacityRange } from "./ui2v";
+import { legacyTemplateIds } from "@/lib/core/types";
+import { cardTemplateRenderers, particleOpacityRange } from "./legacy-templates";
 
 describe("卡片模板渲染器", () => {
   it("每一张登记过的模板都有渲染器", () => {
-    expect(Object.keys(cardTemplateRenderers).sort()).toEqual([...ui2vTemplateIds].sort());
-    for (const id of ui2vTemplateIds) expect(cardTemplateRenderers[id]).toBeTypeOf("function");
+    expect(Object.keys(cardTemplateRenderers).sort()).toEqual([...legacyTemplateIds].sort());
+    for (const id of legacyTemplateIds) expect(cardTemplateRenderers[id]).toBeTypeOf("function");
   });
 
   it("短镜头的粒子透明度区间严格递增", () => {

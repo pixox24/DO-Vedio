@@ -1,7 +1,7 @@
-import type { Card, Shot, ShotKind, ShotMode, Ui2vTemplateId } from "./types";
+import type { Card, Shot, ShotKind, ShotMode, LegacyTemplateId } from "./types";
 
-export type Ui2vTemplateMeta = {
-  id: Ui2vTemplateId;
+export type LegacyTemplateMeta = {
+  id: LegacyTemplateId;
   label: string;
   family: "quote" | "hero" | "compare" | "stat" | "list" | "qa" | "cta" | "alert" | "definition" | "timeline" | "profile";
   durationMs: number;
@@ -11,7 +11,7 @@ export type Ui2vTemplateMeta = {
 };
 
 /** 成片用的卡片模板。旧版问答/号召模板保留在目录里，仅用于读取历史项目。 */
-export const ui2vTemplates: Record<Ui2vTemplateId, Ui2vTemplateMeta> = {
+export const legacyTemplates: Record<LegacyTemplateId, LegacyTemplateMeta> = {
   "creator-cinema-editorial-quote": {
     id: "creator-cinema-editorial-quote",
     label: "观点金句 · 暖纸编辑",
@@ -45,7 +45,7 @@ export const ui2vTemplates: Record<Ui2vTemplateId, Ui2vTemplateMeta> = {
     family: "stat",
     durationMs: 4000,
     supportedAspects: ["16:9", "9:16"],
-    sourcePath: "remotion/animation/ui2v.tsx",
+    sourcePath: "remotion/animation/legacy-templates.tsx",
     licenseStatus: "original",
   },
   "card-list": {
@@ -54,7 +54,7 @@ export const ui2vTemplates: Record<Ui2vTemplateId, Ui2vTemplateMeta> = {
     family: "list",
     durationMs: 4000,
     supportedAspects: ["16:9", "9:16"],
-    sourcePath: "remotion/animation/ui2v.tsx",
+    sourcePath: "remotion/animation/legacy-templates.tsx",
     licenseStatus: "original",
   },
   "card-qa": {
@@ -63,7 +63,7 @@ export const ui2vTemplates: Record<Ui2vTemplateId, Ui2vTemplateMeta> = {
     family: "qa",
     durationMs: 4000,
     supportedAspects: ["16:9", "9:16"],
-    sourcePath: "remotion/animation/ui2v.tsx",
+    sourcePath: "remotion/animation/legacy-templates.tsx",
     licenseStatus: "original",
   },
   "card-cta": {
@@ -72,7 +72,7 @@ export const ui2vTemplates: Record<Ui2vTemplateId, Ui2vTemplateMeta> = {
     family: "cta",
     durationMs: 4000,
     supportedAspects: ["16:9", "9:16"],
-    sourcePath: "remotion/animation/ui2v.tsx",
+    sourcePath: "remotion/animation/legacy-templates.tsx",
     licenseStatus: "original",
   },
   "card-alert": {
@@ -81,7 +81,7 @@ export const ui2vTemplates: Record<Ui2vTemplateId, Ui2vTemplateMeta> = {
     family: "alert",
     durationMs: 4000,
     supportedAspects: ["16:9", "9:16"],
-    sourcePath: "remotion/animation/ui2v.tsx",
+    sourcePath: "remotion/animation/legacy-templates.tsx",
     licenseStatus: "original",
   },
   "card-definition": {
@@ -90,7 +90,7 @@ export const ui2vTemplates: Record<Ui2vTemplateId, Ui2vTemplateMeta> = {
     family: "definition",
     durationMs: 4000,
     supportedAspects: ["16:9", "9:16"],
-    sourcePath: "remotion/animation/ui2v.tsx",
+    sourcePath: "remotion/animation/legacy-templates.tsx",
     licenseStatus: "original",
   },
   "card-timeline": {
@@ -99,7 +99,7 @@ export const ui2vTemplates: Record<Ui2vTemplateId, Ui2vTemplateMeta> = {
     family: "timeline",
     durationMs: 4000,
     supportedAspects: ["16:9", "9:16"],
-    sourcePath: "remotion/animation/ui2v.tsx",
+    sourcePath: "remotion/animation/legacy-templates.tsx",
     licenseStatus: "original",
   },
   "card-profile": {
@@ -108,19 +108,19 @@ export const ui2vTemplates: Record<Ui2vTemplateId, Ui2vTemplateMeta> = {
     family: "profile",
     durationMs: 4000,
     supportedAspects: ["16:9", "9:16"],
-    sourcePath: "remotion/animation/ui2v.tsx",
+    sourcePath: "remotion/animation/legacy-templates.tsx",
     licenseStatus: "original",
   },
 };
 
-export const ui2vTemplateOptions = Object.values(ui2vTemplates);
+export const legacyTemplateOptions = Object.values(legacyTemplates);
 
 /** 旧项目仍可读取问答/号召模板，但新分镜和手动选择不再提供它们。 */
-export const removedUi2vTemplateIds = new Set<Ui2vTemplateId>(["card-qa", "card-cta"]);
-export const activeUi2vTemplateOptions = ui2vTemplateOptions.filter((template) => !removedUi2vTemplateIds.has(template.id));
+export const removedLegacyTemplateIds = new Set<LegacyTemplateId>(["card-qa", "card-cta"]);
+export const activeLegacyTemplateOptions = legacyTemplateOptions.filter((template) => !removedLegacyTemplateIds.has(template.id));
 
-export function isActiveUi2vTemplate(id: Ui2vTemplateId | undefined): id is Ui2vTemplateId {
-  return !!id && !removedUi2vTemplateIds.has(id);
+export function isActiveLegacyTemplate(id: LegacyTemplateId | undefined): id is LegacyTemplateId {
+  return !!id && !removedLegacyTemplateIds.has(id);
 }
 
 const pictureKinds = new Set<ShotKind>(["image", "video", "upload", "stock", "chart"]);
@@ -133,7 +133,7 @@ export function isCodeCardShot(shot: { kind: ShotKind; mode?: ShotMode }): boole
   return shot.kind === "placeholder" || shot.mode === "motion";
 }
 
-function templateForCard(card: Card | undefined): Ui2vTemplateId | undefined {
+function templateForCard(card: Card | undefined): LegacyTemplateId | undefined {
   if (!card) return undefined;
   switch (card.variant) {
     case "stat":
@@ -166,7 +166,7 @@ function templateForCard(card: Card | undefined): Ui2vTemplateId | undefined {
  * 按镜头类型和卡片内容选择模板。
  * 标题和金句优先于卡片版式；普通标题卡使用片头聚光；字段不齐时也回到片头聚光，避免掉回旧占位。
  */
-export function inferCardTemplate(shot: Pick<Shot, "kind" | "mode" | "card">): Ui2vTemplateId | undefined {
+export function inferCardTemplate(shot: Pick<Shot, "kind" | "mode" | "card">): LegacyTemplateId | undefined {
   if (!isCodeCardShot(shot)) return undefined;
   if (shot.kind === "title") return "hero-spotlight-stage";
   if (shot.kind === "quote") return "creator-cinema-editorial-quote";
@@ -176,8 +176,8 @@ export function inferCardTemplate(shot: Pick<Shot, "kind" | "mode" | "card">): U
 }
 
 /** 手动指定的模板优先；清空后回到 inferCardTemplate。 */
-export function defaultUi2vTemplateForShot(shot: Pick<Shot, "kind" | "mode" | "card" | "animation">): Ui2vTemplateId | undefined {
+export function defaultLegacyTemplateForShot(shot: Pick<Shot, "kind" | "mode" | "card" | "animation">): LegacyTemplateId | undefined {
   if (!isCodeCardShot(shot)) return undefined;
-  if (isActiveUi2vTemplate(shot.animation?.templateId)) return shot.animation.templateId;
+  if (isActiveLegacyTemplate(shot.animation?.templateId)) return shot.animation.templateId;
   return inferCardTemplate(shot);
 }

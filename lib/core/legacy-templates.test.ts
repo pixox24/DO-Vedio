@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { ui2vTemplateIds } from "./types";
-import { activeUi2vTemplateOptions, defaultUi2vTemplateForShot, inferCardTemplate, ui2vTemplates } from "./ui2v";
+import { legacyTemplateIds } from "./types";
+import { activeLegacyTemplateOptions, defaultLegacyTemplateForShot, inferCardTemplate, legacyTemplates } from "./legacy-templates";
 
 const animation = { family: "none" as const, intensity: 1 as const, anchors: [], params: {} };
 
 describe("卡片模板目录", () => {
   it("登记全部 11 张模板，外部样例仍待许可审计", () => {
-    expect(Object.keys(ui2vTemplates).sort()).toEqual([...ui2vTemplateIds].sort());
-    expect(ui2vTemplates["hero-spotlight-stage"].licenseStatus).toBe("pending");
-    expect(ui2vTemplates["card-stat"].licenseStatus).toBe("original");
-    expect(activeUi2vTemplateOptions.map((template) => template.id)).not.toEqual(expect.arrayContaining(["card-qa", "card-cta"]));
+    expect(Object.keys(legacyTemplates).sort()).toEqual([...legacyTemplateIds].sort());
+    expect(legacyTemplates["hero-spotlight-stage"].licenseStatus).toBe("pending");
+    expect(legacyTemplates["card-stat"].licenseStatus).toBe("original");
+    expect(activeLegacyTemplateOptions.map((template) => template.id)).not.toEqual(expect.arrayContaining(["card-qa", "card-cta"]));
   });
 
   it("按镜头类型和卡片内容自动匹配", () => {
@@ -29,8 +29,8 @@ describe("卡片模板目录", () => {
 
   it("生成画面不套全屏卡片，手动指定只在信息卡上生效", () => {
     expect(inferCardTemplate({ kind: "image", mode: "generate", card: { variant: "stat", stat: { value: "1", label: "" } } })).toBeUndefined();
-    expect(defaultUi2vTemplateForShot({ kind: "placeholder", mode: "generate", card: { variant: "stat", stat: { value: "1", label: "" } }, animation })).toBeUndefined();
-    expect(defaultUi2vTemplateForShot({ kind: "title", card: undefined, animation: { ...animation, templateId: "hero-split-wipe" } })).toBe("hero-split-wipe");
-    expect(defaultUi2vTemplateForShot({ kind: "placeholder", mode: "motion", card: { variant: "stat", stat: { value: "十三亿", label: "粮食" } }, animation })).toBe("card-stat");
+    expect(defaultLegacyTemplateForShot({ kind: "placeholder", mode: "generate", card: { variant: "stat", stat: { value: "1", label: "" } }, animation })).toBeUndefined();
+    expect(defaultLegacyTemplateForShot({ kind: "title", card: undefined, animation: { ...animation, templateId: "hero-split-wipe" } })).toBe("hero-split-wipe");
+    expect(defaultLegacyTemplateForShot({ kind: "placeholder", mode: "motion", card: { variant: "stat", stat: { value: "十三亿", label: "粮食" } }, animation })).toBe("card-stat");
   });
 });

@@ -1,7 +1,7 @@
 import { AbsoluteFill, Sequence } from "remotion";
 import {
   CinematicCardTemplate,
-} from "../animation/ui2v";
+} from "../animation/legacy-templates";
 import type { Shot } from "@/lib/core/types";
 import type { TimelineShot } from "@/lib/core/timeline";
 

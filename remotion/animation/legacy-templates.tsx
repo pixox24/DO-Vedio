@@ -1,7 +1,7 @@
 import { AbsoluteFill, Easing, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import type { ReactNode } from "react";
 import type { TimelineShot } from "@/lib/core/timeline";
-import type { Ui2vTemplateId } from "@/lib/core/types";
+import type { LegacyTemplateId } from "@/lib/core/types";
 import { FONT } from "../fonts";
 import { useLayout } from "../layout";
 import { useTheme } from "../theme";
@@ -66,6 +66,73 @@ function hexToRgba(hex: string, alpha: number): string {
 
 function TemplateFrame({ children, background, color = "#f4f0e8" }: { children: ReactNode; background: string; color?: string }) {
   return <AbsoluteFill style={{ background, color, overflow: "hidden", fontFamily: FONT }}>{children}</AbsoluteFill>;
+}
+
+type BackdropGlyph = {
+  kind: "text" | "circle" | "square" | "diamond" | "triangle" | "pill" | "line";
+  left: string;
+  top: string;
+  size: number;
+  rotate?: number;
+  symbol?: string;
+};
+
+const backdropGlyphSets: BackdropGlyph[][] = [
+  [
+    { kind: "text", symbol: "+", left: "11%", top: "19%", size: 1.7, rotate: -12 },
+    { kind: "circle", left: "82%", top: "17%", size: 3.4, rotate: 0 },
+    { kind: "diamond", left: "88%", top: "73%", size: 2.3, rotate: 18 },
+    { kind: "line", left: "9%", top: "78%", size: 8, rotate: -18 },
+  ],
+  [
+    { kind: "text", symbol: "x", left: "84%", top: "22%", size: 1.8, rotate: 16 },
+    { kind: "square", left: "13%", top: "71%", size: 2.5, rotate: 0 },
+    { kind: "pill", left: "76%", top: "81%", size: 5.5, rotate: -20 },
+    { kind: "line", left: "18%", top: "16%", size: 6, rotate: 25 },
+  ],
+  [
+    { kind: "text", symbol: "-", left: "15%", top: "28%", size: 2.2, rotate: 0 },
+    { kind: "triangle", left: "87%", top: "63%", size: 3.2, rotate: 18 },
+    { kind: "circle", left: "74%", top: "13%", size: 2.4, rotate: 0 },
+    { kind: "line", left: "10%", top: "84%", size: 7, rotate: 14 },
+  ],
+];
+
+function CinematicBackdrop({ variant, chapter, frame, u }: { variant: string; chapter: number; frame: number; u: number }) {
+  const set = backdropGlyphSets[(chapter - 1) % backdropGlyphSets.length];
+  const showGlyphs = variant !== "list" && variant !== "definition" && chapter % 3 !== 0;
+  const showGrid = variant !== "quote" && variant !== "alert";
+  const panelX = 25 + ((chapter * 11) % 34);
+  const panelY = 31 + ((chapter * 7) % 25);
+  const drift = interpolate(frame, [0, 90], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.inOut(Easing.sin) });
+  const layers = [
+    "linear-gradient(116deg, rgba(244,240,232,.045) 0%, rgba(244,240,232,.012) 28%, transparent 54%, rgba(244,240,232,.02) 100%)",
+    `linear-gradient(90deg, transparent 0 ${panelX}%, rgba(244,240,232,.038) ${panelX}%, rgba(244,240,232,.038) calc(${panelX}% + 1px), transparent calc(${panelX}% + 1px))`,
+    `linear-gradient(180deg, transparent 0 ${panelY}%, rgba(244,240,232,.028) ${panelY}%, rgba(244,240,232,.028) calc(${panelY}% + 1px), transparent calc(${panelY}% + 1px))`,
+  ];
+  if (showGrid) {
+    layers.push("repeating-linear-gradient(90deg, transparent 0 128px, rgba(244,240,232,.012) 128px 129px, transparent 129px 256px)");
+  }
+
+  return <AbsoluteFill style={{ backgroundColor: "#080808", backgroundImage: layers.join(", "), pointerEvents: "none" }}>
+    <div style={{ position: "absolute", inset: "10% 8% 12% 11%", opacity: 0.38, transform: `translateX(${drift * u * 0.35}px)`, backgroundImage: "repeating-linear-gradient(135deg, transparent 0 22px, rgba(244,240,232,.016) 22px 23px, transparent 23px 46px)" }} />
+    {showGlyphs && set.map((glyph, index) => <BackdropGlyph key={`${glyph.kind}-${index}`} glyph={glyph} u={u} index={index} />)}
+    {showGrid && <div style={{ position: "absolute", right: "7.5%", top: "13%", width: "18%", height: "18%", opacity: 0.15, display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gridTemplateRows: "repeat(4, 1fr)", gap: u * 1.2 }}>
+      {Array.from({ length: 20 }, (_, index) => <span key={index} style={{ width: u * 0.45, height: u * 0.45, borderRadius: "50%", background: "rgba(244,240,232,.35)", opacity: index % 3 === 0 ? 0.8 : 0.42 }} />)}
+    </div>}
+  </AbsoluteFill>;
+}
+
+function BackdropGlyph({ glyph, u, index }: { glyph: BackdropGlyph; u: number; index: number }) {
+  const size = u * glyph.size;
+  const base = { position: "absolute" as const, left: glyph.left, top: glyph.top, opacity: 0.22 - index * 0.025, transform: `rotate(${glyph.rotate ?? 0}deg)`, color: "rgba(244,240,232,.62)", pointerEvents: "none" as const };
+  if (glyph.kind === "text") return <span style={{ ...base, fontSize: size * 1.7, lineHeight: 1, fontWeight: 300 }}>{glyph.symbol}</span>;
+  if (glyph.kind === "circle") return <span style={{ ...base, width: size, height: size, border: `${Math.max(1, u * 0.08)}px solid rgba(244,240,232,.46)`, borderRadius: "50%" }} />;
+  if (glyph.kind === "square") return <span style={{ ...base, width: size, height: size, border: `${Math.max(1, u * 0.08)}px solid rgba(244,240,232,.38)` }} />;
+  if (glyph.kind === "diamond") return <span style={{ ...base, width: size, height: size, border: `${Math.max(1, u * 0.08)}px solid rgba(244,240,232,.42)`, transform: `rotate(${45 + (glyph.rotate ?? 0)}deg)` }} />;
+  if (glyph.kind === "triangle") return <span style={{ ...base, width: 0, height: 0, borderLeft: `${size / 2}px solid transparent`, borderRight: `${size / 2}px solid transparent`, borderBottom: `${size}px solid rgba(244,240,232,.22)` }} />;
+  if (glyph.kind === "pill") return <span style={{ ...base, width: size * 2.1, height: size * 0.58, border: `${Math.max(1, u * 0.08)}px solid rgba(244,240,232,.34)`, borderRadius: 999 }} />;
+  return <span style={{ ...base, width: size * 2.1, height: Math.max(1, u * 0.08), background: "rgba(244,240,232,.45)" }} />;
 }
 
 function CardFallback({ shot }: { shot: TimelineShot }) {
@@ -1317,9 +1384,10 @@ export function CinematicCardTemplate({ shot, durationInFrames }: AnimationRende
   const variant = card.variant;
   const { opacity, blur, translateY } = cinematicMotion(frame, durationInFrames, variant);
   const chapter = shot.chapter?.index ?? 1;
+  const chapterTotal = typeof shot.animation?.params.seriesTotal === "number" ? shot.animation.params.seriesTotal : 4;
   const eyebrow = cardLabel(variant);
 
-  const headlineText = fitEight(shot.onScreenText || card.headline || shot.keywords[0] || shot.caption);
+  const headlineText = fitEight(shot.onScreenText || card.headline || card.alert?.content || shot.keywords[0] || shot.caption);
   const quoteText = fitEight(card.headline || headlineText || "值得记住");
   const stat = card.stat;
   const definition = card.definition;
@@ -1408,10 +1476,11 @@ export function CinematicCardTemplate({ shot, durationInFrames }: AnimationRende
 
   return (
     <TemplateFrame background="#050505" color="#f4f0e8">
+      <CinematicBackdrop variant={variant} chapter={chapter} frame={frame} u={u} />
       <AbsoluteFill style={{ opacity, filter: `blur(${blur}px)`, transform: `translateY(${translateY}px)` }}>
         <div style={{ position: "absolute", inset: portrait ? u * 5 : u * 4, border: "1px solid rgba(244,240,232,.12)", pointerEvents: "none" }} />
         <div style={{ position: "absolute", top: pad, left: pad, right: pad, display: "flex", justifyContent: "space-between", alignItems: "center", color: "rgba(244,240,232,.5)", fontSize: portrait ? u * 2.8 : u * 2.1, letterSpacing: u * 0.18, opacity: introReveal, transform: `translateY(${(1 - introReveal) * u}px)` }}>
-          <span>{String(chapter).padStart(2, "0")} / 04</span><span>{eyebrow}</span>
+          <span>{String(chapter).padStart(2, "0")} / {String(chapterTotal).padStart(2, "0")}</span><span>{eyebrow}</span>
         </div>
         <div style={{ position: "absolute", left: pad, right: pad, bottom: pad, display: "flex", justifyContent: "space-between", alignItems: "flex-end", color: "rgba(244,240,232,.42)", fontSize: portrait ? u * 2.4 : u * 1.9, letterSpacing: u * 0.12, opacity: footerReveal, transform: `translateY(${(1 - footerReveal) * u}px)` }}>
           <span>{fitEight(shot.keywords[0] || shot.caption, "FILM STUDY")}</span><span>DO / 2026</span>
@@ -1491,7 +1560,7 @@ function Rule({ width, marginTop, reveal = 1 }: { width: number | string; margin
   return <div style={{ width, height: 1, marginTop, background: "rgba(244,240,232,.6)", opacity: reveal, transform: `scaleX(${reveal})`, transformOrigin: "left center" }} />;
 }
 
-export const cardTemplateRenderers: Record<Ui2vTemplateId, (props: AnimationRendererProps) => ReactNode> = {
+export const cardTemplateRenderers: Record<LegacyTemplateId, (props: AnimationRendererProps) => ReactNode> = {
   "creator-cinema-editorial-quote": CinematicCardTemplate,
   "hero-spotlight-stage": CinematicCardTemplate,
   "hero-split-wipe": CinematicCardTemplate,
@@ -1505,7 +1574,7 @@ export const cardTemplateRenderers: Record<Ui2vTemplateId, (props: AnimationRend
   "card-profile": CinematicCardTemplate,
 };
 
-export function renderUi2vTemplate(shot: TimelineShot, durationInFrames: number) {
+export function renderLegacyTemplate(shot: TimelineShot, durationInFrames: number) {
   const templateId = shot.animation?.templateId;
   if (!templateId) return null;
   const Renderer = cardTemplateRenderers[templateId];

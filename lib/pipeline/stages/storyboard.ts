@@ -2,10 +2,11 @@ import { randomUUID } from "crypto";
 import { z } from "zod";
 import { storyboardKey } from "../../core/keys";
 import { sanitizeCard } from "../../core/cards";
+import { focusNumbersMatchSource, focusTextFromLegacy, focusVisualWidth, normalizeFocusText } from "../../core/focus";
 import { distributeMotionCards, isMotionCardShot, normalizeShots, repairShots, sortShots, stampShots, blankShot, shotLineIds } from "../../core/shots";
 import { layoutLines } from "../../core/timeline";
 import { MAX_SHOT_CHARACTERS } from "../../core/prompt-compiler";
-import { storyboardCardVariants, characterRoleLabels, motions, presentationLabels, shotSizeLabels, shotSizes, type Line, type ProjectDoc, type Shot } from "../../core/types";
+import { characterRoleLabels, motions, presentationLabels, shotSizeLabels, shotSizes, type Card, type Line, type ProjectDoc, type Shot } from "../../core/types";
 import { generateJson } from "../../llm";
 import { storyboardPrompt, type StoryboardPayload } from "../../prompts";
 import { getTemplate } from "../../templates/store";
@@ -21,39 +22,30 @@ import { beginGenerationRun, failGenerationRun, finishGenerationRun } from "../.
  * 已有分镜时只重做过期的范围（覆盖的句子改过、又没锁定的镜头），其余不动。
  */
 
-const draftSchema = z.object({
+export const draftSchema = z.object({
   shots: z.array(
     z.object({
       lineId: z.string(),
       char: z.number().int().min(0).optional(),
       intent: z.string(),
-      kind: z.enum(["title", "quote", "placeholder"]),
+      kind: z.literal("placeholder"),
       mode: z.enum(["generate", "motion"]),
       shotSize: z.enum(shotSizes).optional(),
       description: z.string(),
-      card: z
-        .object({
-          // 旧项目仍可读取 headline/qa/cta，但新分镜不再生成这三类卡片。
-          variant: z.enum(storyboardCardVariants),
-          headline: z.string().optional(),
-          stat: z.object({ value: z.string(), unit: z.string().optional(), label: z.string().optional() }).optional(),
-          items: z.array(z.string()).optional(),
-          sides: z.array(z.string()).optional(),
-          alert: z.object({ type: z.enum(["info", "warning", "success", "danger"]), content: z.string() }).optional(),
-          definition: z.object({ term: z.string(), meaning: z.string() }).optional(),
-          timeline: z.array(z.object({ time: z.string(), event: z.string() })).optional(),
-          profile: z.object({ name: z.string(), role: z.string().optional(), bio: z.string().optional() }).optional(),
-        })
-        .optional(),
-      onScreenText: z.string().optional(),
+      focusText: z.object({
+        text: z.string().trim().min(1).refine((value) => focusVisualWidth(value.replace(/\s+/g, "")) <= 8, "重点文字请概括为 8 字宽以内"),
+        emphasis: z.string().optional(),
+        support: z.string().refine((value) => focusVisualWidth(value.replace(/\s+/g, "")) <= 8, "辅助文字请概括为 8 字宽以内").optional(),
+      }).optional(),
       /** 画面里出现的建卡角色 id */
       characters: z.array(z.string()).optional(),
       motion: z.enum(motions),
       importance: z.number().int().min(1).max(3),
-    }),
+    }).strict().refine((shot) => shot.mode !== "motion" || !!shot.focusText, "文字镜头必须提炼 focusText"),
   ),
 });
-type Draft = z.infer<typeof draftSchema>["shots"];
+/** Legacy draft shape is accepted only while converting cached/persisted content. */
+type Draft = (Omit<z.infer<typeof draftSchema>["shots"][number], "kind"> & { kind: "placeholder" | "title" | "quote"; card?: Card; onScreenText?: string })[];
 
 export type StoryboardInput = { projectId: string; modelId: string; mode: "full" | "stale" };
 
@@ -150,9 +142,8 @@ export function toShots(draft: Draft, lines: Line[], characterIds: Set<string> =
     const next = valid[k + 1];
     const to = next ? Math.max(from, order.get(next.lineId)! - ((next.char ?? 0) === 0 ? 1 : 0)) : lines.length - 1;
     const caption = lines.slice(from, to + 1).map((l) => l.text).join("");
-    const placeholder = d.kind === "placeholder";
-    const mode = placeholder ? d.mode : "motion";
-    const card = placeholder && mode === "motion" && d.card ? sanitizeCard({
+    const mode = d.kind === "placeholder" ? d.mode : "motion";
+    const card = mode === "motion" && d.card ? sanitizeCard({
       ...d.card,
       stat: d.card.stat && { ...d.card.stat, label: d.card.stat.label ?? "" },
       sides: d.card.sides?.length === 2 ? [d.card.sides[0], d.card.sides[1]] : undefined,
@@ -161,16 +152,22 @@ export function toShots(draft: Draft, lines: Line[], characterIds: Set<string> =
       timeline: d.card.timeline,
       profile: d.card.profile,
     }, caption) : undefined;
+    let focusText = mode === "motion" ? focusTextFromLegacy({ focusText: d.focusText && { ...d.focusText, layoutMode: "auto" }, card, onScreenText: d.onScreenText }, lines[from]?.keywords ?? [], caption) : undefined;
+    if (focusText && (!normalizeFocusText(focusText.text) || !focusNumbersMatchSource(focusText.text, caption))) {
+      focusText = focusTextFromLegacy({}, (lines[from]?.keywords ?? []).filter((word) => focusNumbersMatchSource(word, caption)), caption);
+    }
+    if (focusText?.support && !focusNumbersMatchSource(focusText.support, caption)) focusText = { ...focusText, support: undefined };
     return {
       ...blankShot(randomUUID(), d.lineId, Math.min(d.char ?? 0, Math.max(0, (text.get(d.lineId)?.length ?? 1) - 1))),
-      kind: d.kind,
+      kind: "placeholder",
       intent: d.intent.trim() || undefined,
       mode,
       shotSize: mode === "generate" ? (d.shotSize ?? "medium") : undefined,
-      card,
+      card: undefined,
+      focusText,
       characterIds: mode === "generate" ? [...new Set((d.characters ?? []).filter((id) => characterIds.has(id)))].slice(0, MAX_SHOT_CHARACTERS) : [],
       description: d.description.trim(),
-      onScreenText: d.onScreenText?.trim() || undefined,
+      onScreenText: undefined,
       motion: d.motion,
       importance: Math.min(3, Math.max(1, d.importance)) as 1 | 2 | 3,
     };
@@ -192,9 +189,7 @@ export function castForStoryboard(doc: ProjectDoc): NonNullable<StoryboardPayloa
 
 /** 给大模型看的镜头摘要（局部重做时描述前后的镜头） */
 export function describeShot(s: Shot): string {
-  if (s.kind === "title") return `章节标题卡「${s.onScreenText ?? ""}」`;
-  if (s.kind === "quote") return `金句卡「${s.onScreenText ?? ""}」`;
-  if (s.mode === "motion") return `信息卡（${s.card?.variant ?? "headline"}${s.card?.headline ? `：${s.card.headline}` : ""}）`;
+  if (isMotionCardShot(s)) return `重点文字「${s.focusText?.text ?? s.onScreenText ?? s.card?.headline ?? ""}」`;
   return [s.shotSize && shotSizeLabels[s.shotSize], s.description].filter(Boolean).join("，") || "画面待定";
 }
 
@@ -292,7 +287,9 @@ export const storyboardStage = defineStage<StoryboardInput, { shots: number; llm
       const normalized = normalizeShots(merged, cur.lines, times, curLaid.endMs, () => randomUUID());
       const stampedFreshIds = new Set(fresh.map((s) => s.id));
       const existingById = new Map(cur.shots.map((s) => [s.id, s]));
-      const stamped = stampShots(normalized, cur.lines).map((s) => {
+      const editableIds = new Set(normalized.filter((s) => stampedFreshIds.has(s.id) || (!existingById.has(s.id) && replaced.has(s.at.lineId))).map((s) => s.id));
+      const spaced = distributeMotionCards(sortShots(normalized, cur.lines), editableIds);
+      const stamped = stampShots(spaced, cur.lines).map((s) => {
         // Keep concurrent/current shots' sourceHash untouched. Only drafts
         // generated from a matching snapshot (and normalization shots inside
         // an applied range) receive a hash for the current text.

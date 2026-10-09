@@ -85,7 +85,7 @@ export function MusicPanel({ id, store }: { id: string; store: ProjectStore }) {
               {track.id.includes("/") && <span className="block truncate text-[11px] text-white/35">{track.id}</span>}
             </button>
             <span className="shrink-0 text-white/40">{formatDuration(track.durationMs)}</span>
-            {track.src ? <AudioButton src={track.src} label="试听" /> : <span className="text-white/25">无音频</span>}
+            {track.src ? <AudioButton src={track.src} label="试听" ariaLabel={`试听 ${track.title}`} channel="bgm" /> : <span className="text-white/25">无音频</span>}
             <button type="button" className={`chip h-7 px-2.5 ${on ? "chip-on" : ""}`} disabled={!hasLines} onClick={() => choose(track.id)}>{on ? "使用中" : "使用"}</button>
           </div>;
         })}

@@ -571,94 +571,25 @@ export function storyboardPrompt(input: StoryboardPayload): Prompt {
   }
   const edge = (label: string, e?: { text: string; shot?: string }) => (e ? `${label}的旁白：「${e.text}」${e.shot ? `，镜头：${e.shot}` : ""}。` : "");
   return {
-    instructions: `你是 B站解说视频的分镜导演。你的工作不是给每句话配一张图，而是先读懂旁白在这里要做什么，再决定用什么方式让观众看懂、看进去。
+    instructions: `你是 B站解说视频的分镜导演。先理解旁白，再决定用具象画面还是重点文字。只输出严格 JSON，顶层为 shots 数组。
 
-【重要：输出格式】
-必须输出严格的 JSON 格式，每个镜头对象必须包含以下字段：
-- lineId: 字符串，必须是旁白中出现过的句子ID（如"line_abc123"）
-- intent: 字符串，这一刻观众应该看到或感受到什么（写目的，不写画面）
-- kind: 字符串，只能是 "title"、"quote" 或 "placeholder"
-- mode: 字符串，只能是 "generate" 或 "motion"
-- description: 字符串，一句话描述画面或版式
-- motion: 字符串，只能是 "zoom-in"、"zoom-out"、"pan-left"、"pan-right" 或 "none"
-- importance: 数字，1-3 之间的整数
+每个镜头必须有 lineId（旁白中的句子 ID）、intent、kind="placeholder"、mode（"generate" 或 "motion"）、description、motion（zoom-in/zoom-out/pan-left/pan-right/none）、importance（1-3）。可选 char（句中的起点，默认 0）、shotSize、characters、focusText。
 
-可选字段：
-- char: 数字，从第几个字开始（默认0）
-- shotSize: 字符串，只能是 "extreme-wide"、"wide"、"medium"、"close" 或 "extreme-close"
-- card: 对象，信息卡内容（mode=motion时必填）
-- onScreenText: 字符串，屏幕上显示的文字（kind=title或quote时必填）
-- characters: 数组，画面中出现的角色ID列表
+【两种画面】
+- mode=generate：人、物、场景、动作、故事情节直接拍出来；抽象情绪用贴合旁白的具体意象。description 写主体、动作、环境和关键细节；shotSize 必填。不要写画风词，也不要让画面出现文字。
+- mode=motion：只展示一个最重要的视觉核心。focusText 必填，结构为 {"text":"重点文字","emphasis":"可选强调片段","support":"可选极短辅助字"}。text 可以是单字、词组、成语、原文里的数字或压缩后的观点，不按章节、金句、提问、对比、数据等业务类别分卡。description 简述画面意图即可，不指定版式。
 
-镜头连续覆盖整条时间轴：每个镜头从某一句（或句中某个字）开始，持续到下一个镜头开始。
+【提炼要求】focusText.text 必须是准确的关键词或短语，最多 8 个等价汉字宽度、单行。超长时重新概括成更短的意思，禁止只截取前八字。support 也最多 8 字，只有确有必要才写。百分数、倍数、年份必须与旁白原文一致，不能编造或换算。不要复制整句字幕；不要输出 card、onScreenText、title 或 quote。
 
-【先理解，再设计】每个镜头按这个顺序想，输出也按这个顺序：
-1. intent：这一刻观众应该看到或感受到什么。写目的，不写画面。例如「让观众直观感到浪费的规模之大」「制造悬念，让人想知道门后有什么」
-2. 表达方式：按下面的决策表选 kind 和 mode
-3. 再写具体内容（description / card / onScreenText）
+【节奏】文字画面用于关键数字、观点落点和认知转折，占全片约 20%-35%。连续两个镜头不能都是 motion；具体叙事优先 generate，给观众消化文字的空间。镜头连续覆盖时间轴，每镜约 2-6 秒；长句可在逗号后用 char 切镜，短句可合并。相邻生成画面景别与运镜要变化。importance=3 只用于开场钩子、高潮、转折，最多约 15%。
 
-【决策表】
-生成画面（kind=placeholder，mode=generate，之后按 description 生成配图）：
-- 具体的人、物、场景、事件、动作、故事情节 → 直接拍出来
-- 抽象的观点、情绪、概念 → 用视觉隐喻：找一个具体、能画出来、和这句话意思紧扣的意象（如「焦虑」→「一只攥紧的手，沙子从指缝流下」）。不要拍「一个人在思考」「城市夜景」这类放在哪句都行的通用画面
-信息卡（kind=placeholder，mode=motion，由代码排版做动画，不生图）：
-- 旁白给出关键数字、比例、倍数 → card.variant=stat。stat.value 必须是旁白里出现的数字原文（可以是「十三亿」「35」），不许换算、不许编造；value、unit、label 和 headline 都最多 8 个字
-- 并列的要点、原因、步骤（2-4 项）→ list。items 和 headline 每项最多 8 个字，只提取关键词，不写完整句子
-- 两者对比（前后、A 与 B、过去与现在）→ split。sides 写对比的双方，每边 ≤ 8 字
-- 重点提示、注意事项、关键信息强调 → alert。type 选 info（一般提示）/warning（注意警告）/success（成功要点）/danger（风险警示），content 和 headline 最多 8 个字
-- 术语解释、概念说明 → definition。term、meaning 和 headline 最多 8 个字，只保留术语和核心释义
-- 时间轴、发展历程（2-4 个节点）→ timeline。每个节点的 time、event 和 headline 最多 8 个字
-- 人物介绍、嘉宾简介、案例人物 → profile。name、role、bio 和 headline 最多 8 个字
-- 不生成通用文字卡、问答卡或号召卡；需要总结时改用 alert、list 或 definition，并只保留关键词
-
-【卡片文字硬规则】所有 card 字段和 keywords 都必须是单行、最多 8 个字；超过 8 个字时先压缩成关键词或短语，再输出。不要把旁白整句搬到卡片上。
-章节与金句：
-- title：章节标题卡。每章第一句用它（开场第一章除外），onScreenText 写 4-10 字的章节标题
-- quote：金句卡。只给全片最有冲击力的 2-5 句话，onScreenText 写要上屏的金句（可精简，不超过 24 字）
-
-【导演原则】
-- 画面要补充字幕说不清的东西，不要复述字幕。字幕已经在念这句话，信息卡上只放提炼后的关键词、数据、要点
-- 信息卡必须把内容写进 card 的对应字段。系统会按 variant 自动套上动画模板；只在 description 里写卡片名称不会换成模板
-- 内容性质决定拍法：真实科普和观点评论不要虚构具体的人物和事件细节，用示意性的画面；虚构故事按情节拍，保持人物和场景前后一致
-- 建卡角色（见下方角色表）出现在画面里时，把角色 id 填进 characters，description 里直接用角色名指代（如「林夏坐在公交站」），不要再写外貌和服装——系统会自动加上。只是被提到、不在画面里的角色不要填（「他想起了母亲」通常只拍他）。一个镜头最多 3 个角色
-- 没有建卡的人物或场景再次出现时，description 里用相同的外观描述词，保证前后一致
-- 真实公众人物不拍正脸，用背影、剪影、手部特写或象征物（角色表里标了呈现方式的照做）
-- 生成画面和信息卡要穿插，信息卡不要连续出现；同一种表达方式不要连续超过 1 个镜头。信息卡一般占 20%-35%，数据密集的内容可以更多
-- 句子的情绪（括号里的 mood）决定画面的光线和氛围：悬疑、紧张偏暗、硬光；温暖、轻松偏柔和、明亮
-
-【description】只在 mode=generate 时认真写，一句话：主体 + 动作 + 环境 + 关键道具或细节，具体到画师能直接画出来
-- 景别写在 shotSize 里，不要写进 description
-- 不要写画风词（油画、水彩、电影感、赛博朋克、4K、高清等），画风由系统统一决定
-- 画面里不要出现文字、字幕、logo
-- mode=motion 时 description 写一句版式说明即可（如「数据卡：十三亿吨」）
-
-【shotSize】（mode=generate 必填）extreme-wide 交代大环境和规模；wide 场景全貌；medium 人物动作和人物关系；close 表情、手部和物件；extreme-close 强调一个关键细节。相邻的生成画面景别要有变化。
-
-【motion】运镜要有理由：zoom-in 强调、紧张、聚焦；zoom-out 揭示全貌、交代环境、收束；pan-left / pan-right 浏览、并列、时间流逝。相邻镜头不要相同。
-
-【importance】1 普通，2 重要，3 开场钩子、高潮、转折（最多占 15%）
-
-【节奏】每个镜头 2-6 秒；开场前 15 秒节奏更快；一句话超过 6 秒时可以在句中逗号后切镜头（用 char 指定从第几个字开始，否则 char 为 0）；很短的句子和相邻句共用一个镜头。
+【角色】建卡角色出现在画面时把 id 写进 characters；description 用名字指代，不重复外貌。真实公众人物以背影、剪影、手部或象征物呈现。
 
 【示例】
-旁白：全世界每年浪费的粮食，高达十三亿吨。
-→ intent：让观众直观感到浪费的规模之大；kind=placeholder，mode=motion，card={variant:stat, stat:{value:"十三亿", unit:"吨", label:"粮食浪费"}}，motion=zoom-in
-旁白：焦虑，本质上是对失控的恐惧。
-→ intent：把抽象的焦虑变成能感受到的失控感；kind=placeholder，mode=generate，shotSize=close，description：一只手用力攥紧一把沙子，沙粒不断从指缝间流下，昏暗的桌面上只有一束侧光
-旁白：他推开门，屋里一个人都没有。
-→ intent：制造空无一人的不安；kind=placeholder，mode=generate，shotSize=wide，description：一扇老旧木门半开着，门后是空荡荡的客厅，家具盖着白布，地上积着薄灰，motion=zoom-in
-旁白：原因有三个：成本太高、效率太低、习惯难改。
-→ intent：让观众一眼记住三个原因；kind=placeholder，mode=motion，card={variant:list, headline:"三个原因", items:["成本太高","效率太低","习惯难改"]}
-旁白：什么是元宇宙？简单说，就是虚拟世界和现实世界的深度融合。
-→ intent：用一句话解释陌生概念；kind=placeholder，mode=motion，card={variant:definition, definition:{term:"元宇宙", meaning:"虚实融合世界"}}
-旁白：记住这三个字：多喝水。
-→ intent：强调关键建议；kind=placeholder，mode=motion，card={variant:alert, alert:{type:"info", content:"多喝水"}}
-旁白：2018年立项，2020年开工，2023年完工，前后五年时间。
-→ intent：展示项目时间线；kind=placeholder，mode=motion，card={variant:timeline, timeline:[{time:"2018年", event:"立项"}, {time:"2020年", event:"开工"}, {time:"2023年", event:"完工"}]}
-旁白：这位就是项目负责人张伟，清华大学计算机系教授。
-→ intent：介绍关键人物；kind=placeholder，mode=motion，card={variant:profile, profile:{name:"张伟", role:"项目负责人", bio:"计算机教授"}}
-旁白：所以，现在就行动起来吧。
-→ intent：号召观众采取行动；kind=placeholder，mode=generate，description：一个人关掉手机并走向窗边，表现行动已经开始`,
+旁白：用户留存提高到85%。→ {"kind":"placeholder","mode":"motion","focusText":{"text":"85%","support":"用户留存"}}
+旁白：焦虑，本质上是对失控的恐惧。→ {"kind":"placeholder","mode":"generate","shotSize":"close","description":"一只手攥紧沙子，沙粒不断从指缝流下"}
+旁白：真正的问题不是速度，而是方向。→ {"kind":"placeholder","mode":"motion","focusText":{"text":"方向比速度重要"}}
+旁白：他推开门，屋里一个人都没有。→ {"kind":"placeholder","mode":"generate","shotSize":"wide","description":"老旧木门半开，门后是空荡的客厅，家具盖着白布"}`,
     prompt: `视频：${input.title}
 ${input.style ? `解说风格：${input.style.name}（${input.style.description}${input.style.tone ? `；语气：${input.style.tone}` : ""}）\n` : ""}${input.brief.audience ? `目标受众：${input.brief.audience}\n` : ""}叙述视角：${input.brief.perspective === "first" ? "第一人称 UP 主" : "第三人称旁白"}
 ${input.brief.summary ? `\n内容概要：\n${input.brief.summary}\n` : ""}${input.cast?.length ? `\n角色表（id · 名字 · 身份 · 外貌摘要）：\n${input.cast.map((c) => `- ${c.id} · ${c.name} · ${c.role} · ${c.brief}${c.presentation ? `（${c.presentation}）` : ""}`).join("\n")}\n` : ""}${input.partial ? `\n注意：这是局部重做。${edge("这段之前", input.partial.before)}${edge("这段之后", input.partial.after)}只为下面这些句子设计镜头，第一个镜头必须从第一句开始，并与前后镜头自然衔接（景别、表达方式不要和相邻镜头雷同）。\n` : ""}

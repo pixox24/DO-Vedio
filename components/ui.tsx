@@ -485,16 +485,39 @@ export function RangeField({ value, min, max, step, onChange, label, suffix = ""
   );
 }
 
-export function AudioButton({ src, startMs = 0, endMs, label = "试听" }: { src: string; startMs?: number; endMs?: number; label?: string }) {
+const previewChannels = new Map<string, Set<(token: number) => void>>();
+let previewToken = 0;
+
+/** 同一 channel 里后开始的试听会停掉正在播的那一个。 */
+function claimPreview(channel: string, token: number) {
+  previewChannels.get(channel)?.forEach((stop) => stop(token));
+}
+
+export function AudioButton({ src, startMs = 0, endMs, label = "试听", ariaLabel, channel }: { src: string; startMs?: number; endMs?: number; label?: string; ariaLabel?: string; channel?: string }) {
   const audio = useRef<HTMLAudioElement>(null);
+  const token = useRef(0);
   const [playing, setPlaying] = useState(false);
   useEffect(() => {
     const element = audio.current;
     if (!element) return;
     const onEnded = () => setPlaying(false);
     element.addEventListener("ended", onEnded);
-    return () => element.removeEventListener("ended", onEnded);
-  }, []);
+    if (!channel) return () => element.removeEventListener("ended", onEnded);
+    const stop = (next: number) => {
+      if (next === token.current) return;
+      element.pause();
+      setPlaying(false);
+    };
+    const group = previewChannels.get(channel) ?? new Set<(next: number) => void>();
+    group.add(stop);
+    previewChannels.set(channel, group);
+    return () => {
+      element.removeEventListener("ended", onEnded);
+      element.pause();
+      group.delete(stop);
+      if (group.size === 0) previewChannels.delete(channel);
+    };
+  }, [channel]);
   async function toggle() {
     const element = audio.current;
     if (!element) return;
@@ -503,14 +526,16 @@ export function AudioButton({ src, startMs = 0, endMs, label = "试听" }: { src
       setPlaying(false);
       return;
     }
+    token.current = ++previewToken;
+    if (channel) claimPreview(channel, token.current);
     element.currentTime = startMs / 1000;
     setPlaying(true);
     await element.play().catch(() => setPlaying(false));
   }
   return (
     <>
-      <button type="button" className="audio-button" onClick={toggle} aria-label={playing ? "暂停试听" : label}>
-        <Icon name={playing ? "pause" : "play"} className="size-3.5" /> {playing ? "暂停" : label}
+      <button type="button" className="audio-button" data-playing={playing ? "true" : undefined} onClick={toggle} aria-pressed={playing} aria-label={playing ? `暂停${ariaLabel ?? label}` : (ariaLabel ?? label)}>
+        {playing ? <span className="audio-eq" aria-hidden="true"><span /><span /><span /></span> : <Icon name="play" className="size-3.5" />} {playing ? "暂停" : label}
       </button>
       <audio ref={audio} preload="metadata" className="hidden" src={src} onTimeUpdate={(event) => { if (endMs != null && event.currentTarget.currentTime * 1000 >= endMs) { event.currentTarget.pause(); setPlaying(false); } }} />
     </>

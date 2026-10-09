@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Select, Spinner, Switch } from "@/components/ui";
 import { useFeedback } from "@/components/feedback";
 import { useModels } from "@/lib/client";
@@ -18,6 +19,12 @@ import {
 import { STUDIO_FONTS } from "@/lib/core/subtitle/fonts";
 import type { ProjectDoc } from "@/lib/core/types";
 import { clearPresetDefault, createPreset, deletePreset, fetchPresets, setPresetDefault, updatePreset, type PresetList } from "@/lib/presets-client";
+
+/** 设置卡片带 backdrop-blur，会把内部 fixed 弹窗困在卡片里，底部按钮会被成片盖住。 */
+function portalToBody(node: ReactNode) {
+  if (typeof document === "undefined") return null;
+  return createPortal(node, document.body);
+}
 
 type PresetStore = {
   doc: ProjectDoc | null;
@@ -96,7 +103,6 @@ export function PresetSection({ doc, store, catalog }: { doc: ProjectDoc; store:
   const presets = list?.presets ?? [];
   const preset = presets.find((item) => item.id === selectedId) ?? null;
   const changes = useMemo(() => (preset ? describePresetChanges(doc, preset.payload, { groups: allGroups }) : []), [doc, preset]);
-  const isDefault = Boolean(preset && list?.defaultId === preset.id);
 
   const openManager = (focusSave: boolean) => {
     setManagerFocusSave(focusSave);
@@ -104,44 +110,32 @@ export function PresetSection({ doc, store, catalog }: { doc: ProjectDoc; store:
   };
 
   return (
-    <div className="mt-4 rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <p className="text-sm font-medium text-white/85">制作预设</p>
-          {isDefault && <span className="tag border-accent/30 bg-accent/10 text-accent">默认</span>}
-        </div>
-        {preset && (
-          <span className={`text-xs ${changes.length === 0 ? "text-accent" : "text-amber-200/80"}`}>
-            {changes.length === 0 ? "已应用" : `未应用 · ${changes.length} 项差异`}
-          </span>
-        )}
-      </div>
-
+    <div>
       {loading ? (
-        <p className="mt-3 text-xs text-white/40">正在加载预设…</p>
+        <p className="text-xs text-text-faint">加载中</p>
       ) : error ? (
-        <p className="mt-3 flex flex-wrap items-center gap-2 text-xs text-red-300">
+        <p className="flex flex-wrap items-center gap-2 text-xs text-red-300">
           {error}
           <button className="btn-text px-1 py-0 text-xs" onClick={reload}>重试</button>
         </p>
       ) : presets.length === 0 ? (
-        <p className="mt-3 text-xs leading-5 text-white/45">还没有预设。把当前项目的全部制作设置与画面风格另存为预设，之后可一键复用。</p>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm text-text-muted">还没有预设</p>
+          <button className="btn btn-ghost btn-sm" disabled={loading} onClick={() => openManager(true)}>另存为预设</button>
+        </div>
       ) : (
-        <>
-          <Select value={selectedId ?? ""} onChange={setSelectedId} className="mt-3" aria-label="选择制作预设">
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={selectedId ?? ""} onChange={setSelectedId} className="min-w-40 flex-1" aria-label="选择制作预设">
             {presets.map((item) => (
               <option key={item.id} value={item.id}>{item.name}{item.id === list?.defaultId ? " · 默认" : ""}</option>
             ))}
           </Select>
-          {preset?.description && <p className="mt-2 text-xs leading-5 text-white/40">{preset.description}</p>}
-        </>
+          {preset && <span className={`text-2xs ${changes.length === 0 ? "text-accent" : "text-amber-200/80"}`}>{changes.length === 0 ? "已应用" : `${changes.length} 项差异`}</span>}
+          {changes.length > 0 && <button className="btn btn-primary btn-sm" disabled={!preset} onClick={() => setApplyOpen(true)}>应用</button>}
+          <button className="btn-text px-1.5" disabled={loading} onClick={() => openManager(true)}>另存</button>
+          <button className="btn-text px-1.5" onClick={() => openManager(false)}>管理</button>
+        </div>
       )}
-
-      <div className="mt-3 flex flex-wrap gap-2">
-        <button className="btn btn-primary btn-sm" disabled={!preset} onClick={() => setApplyOpen(true)}>应用</button>
-        <button className="btn btn-ghost btn-sm" disabled={loading} onClick={() => openManager(true)}>另存为预设</button>
-        <button className="btn btn-ghost btn-sm" onClick={() => openManager(false)}>管理</button>
-      </div>
 
       {applyOpen && preset && <PresetApplyDialog preset={preset} doc={doc} store={store} context={context} onClose={() => setApplyOpen(false)} onApplied={reload} />}
       {managerOpen && (
@@ -193,8 +187,8 @@ function PresetApplyDialog({ preset, doc, store, context, onClose, onApplied }: 
     onClose();
   };
 
-  return (
-    <div className="fixed inset-0 z-[95] grid place-items-center bg-black/65 p-4 backdrop-blur-sm" role="presentation" onClick={onClose}>
+  return portalToBody(
+    <div className="overlay" role="presentation" onClick={onClose}>
       <div className="flex max-h-[85vh] w-full max-w-xl flex-col rounded-2xl border border-white/10 bg-[#111]/95 shadow-2xl" role="dialog" aria-modal="true" aria-label={`应用预设 ${preset.name}`} onClick={(event) => event.stopPropagation()}>
         <div className="border-b border-white/10 p-5">
           <h2 className="text-base font-semibold text-white">应用预设 · {preset.name}</h2>
@@ -253,7 +247,7 @@ function PresetApplyDialog({ preset, doc, store, context, onClose, onApplied }: 
           <button className="btn btn-primary btn-sm" disabled={groups.length === 0} onClick={apply}>应用预设</button>
         </div>
       </div>
-    </div>
+    </div>,
   );
 }
 
@@ -394,8 +388,8 @@ function PresetManagerDialog({ doc, presets, defaultId, focusSave, onClose, onCh
 
   const disabled = busy !== null;
 
-  return (
-    <div className="fixed inset-0 z-[95] grid place-items-center bg-black/65 p-4 backdrop-blur-sm" role="presentation" onClick={() => { if (!disabled) onClose(); }}>
+  return portalToBody(
+    <div className="overlay" role="presentation" onClick={() => { if (!disabled) onClose(); }}>
       <div className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-2xl border border-white/10 bg-[#111]/95 shadow-2xl" role="dialog" aria-modal="true" aria-label="管理制作预设" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-white/10 p-5">
           <h2 className="text-base font-semibold text-white">管理制作预设</h2>
@@ -454,6 +448,6 @@ function PresetManagerDialog({ doc, presets, defaultId, focusSave, onClose, onCh
           </div>
         </div>
       </div>
-    </div>
+    </div>,
   );
 }

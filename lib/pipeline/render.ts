@@ -4,8 +4,10 @@ import http from "http";
 import path from "path";
 import type { AddressInfo } from "net";
 import { quickHash } from "../core/hash";
+import { RENDER_OUTPUT_VERSION } from "../core/keys";
 import { toSrt } from "../core/subtitles";
 import type { Timeline } from "../core/timeline";
+import { renderEncode } from "../core/video-composition";
 import { dataDir, get, run } from "../server/db";
 import { ffmpeg, loudnormFilter, measureLoudness } from "../server/ffmpeg";
 import { assetFile, getAsset, putBuffer, putFile, tempPath } from "../server/media";
@@ -129,10 +131,11 @@ export async function renderTimeline(opts: {
 }): Promise<RenderOutput> {
   const { timeline: t, quality } = opts;
   const existing = get<{ id: string; video_hash: string; srt_hash: string | null; duration_ms: number; loudness: number }>(
-    "SELECT * FROM renders WHERE project_id = ? AND content_hash = ? AND quality = ? ORDER BY created_at DESC LIMIT 1",
+    "SELECT * FROM renders WHERE project_id = ? AND content_hash = ? AND quality = ? AND output_version = ? ORDER BY created_at DESC LIMIT 1",
     opts.projectId,
     opts.contentHash,
     quality,
+    RENDER_OUTPUT_VERSION,
   );
   if (existing && getAsset(existing.video_hash)) {
     return { renderId: existing.id, videoHash: existing.video_hash, srtHash: existing.srt_hash, durationMs: existing.duration_ms, loudness: existing.loudness };
@@ -163,14 +166,14 @@ export async function renderTimeline(opts: {
       inputProps,
       codec: "h264",
       outputLocation: raw,
-      crf: quality === "final" ? 18 : 28,
-      scale: quality === "final" ? 1 : 0.5,
-      x264Preset: quality === "final" ? "medium" : "veryfast",
+      crf: renderEncode.crf,
+      scale: renderEncode.scale,
+      x264Preset: renderEncode.x264Preset,
       pixelFormat: "yuv420p",
       audioCodec: "aac",
       audioBitrate: "192k",
       imageFormat: "jpeg",
-      jpegQuality: quality === "final" ? 92 : 75,
+      jpegQuality: renderEncode.jpegQuality,
       enforceAudioTrack: true,
       concurrency: Number(process.env.RENDER_CONCURRENCY) || null,
       cancelSignal,
@@ -230,7 +233,7 @@ export async function renderTimeline(opts: {
   if (!opts.current()) throw opts.signal.reason ?? new DOMException("渲染任务已取消", "AbortError");
   const loudness = after?.i ?? m.i;
   run(
-    "INSERT INTO renders (id, project_id, aspect, quality, timeline_hash, content_hash, animation_hash, video_hash, srt_hash, duration_ms, loudness, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO renders (id, project_id, aspect, quality, timeline_hash, content_hash, animation_hash, video_hash, srt_hash, duration_ms, loudness, created_at, output_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     renderId,
     opts.projectId,
     t.aspect,
@@ -243,6 +246,7 @@ export async function renderTimeline(opts: {
     t.durationMs,
     loudness,
     Date.now(),
+    RENDER_OUTPUT_VERSION,
   );
   return { renderId, videoHash: video.hash, srtHash: srt?.hash ?? null, durationMs: t.durationMs, loudness };
 }

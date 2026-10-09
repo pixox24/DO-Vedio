@@ -20,7 +20,7 @@ const lines = [line("a", "全世界每年浪费的粮食，高达十三亿吨。
 const draft = (over: Record<string, unknown>) => ({ lineId: "a", intent: "", kind: "placeholder" as const, mode: "generate" as const, description: "", motion: "zoom-in" as const, importance: 1, ...over });
 
 describe("分镜草稿转镜头", () => {
-  it("信息卡按覆盖的旁白校验，生成画面带景别", async () => {
+  it("旧草稿转为统一重点文字，生成画面带景别", async () => {
     const { toShots } = await import("@/lib/pipeline/stages/storyboard");
     const shots = toShots(
       [
@@ -31,10 +31,10 @@ describe("分镜草稿转镜头", () => {
       lines,
     );
     expect(shots.map((s) => s.at.lineId)).toEqual(["a", "b", "c"]);
-    expect(shots[0]).toMatchObject({ mode: "motion", intent: "让观众感到规模之大", card: { variant: "stat", stat: { value: "十三亿", unit: "吨", label: "" } } });
+    expect(shots[0]).toMatchObject({ kind: "placeholder", mode: "motion", intent: "让观众感到规模之大", card: undefined, focusText: { text: "十三亿吨" } });
     expect(shots[0].shotSize).toBeUndefined();
     expect(shots[1]).toMatchObject({ mode: "generate", shotSize: "close", card: undefined });
-    expect(shots[2].card?.items).toEqual(["成本太高", "效率太低", "习惯难改"]);
+    expect(shots[2]).toMatchObject({ card: undefined, focusText: { text: "三个原因" } });
   });
 
   it("连续信息卡自动交替为生成画面", async () => {
@@ -49,11 +49,25 @@ describe("分镜草稿转镜头", () => {
     expect(shots[1].shotSize).toBe("medium");
   });
 
-  it("编造的数字被拒绝；标题卡和金句卡一律走代码画面", async () => {
+  it("编造数字被拒绝；旧标题与相邻文字分散编排", async () => {
     const { toShots } = await import("@/lib/pipeline/stages/storyboard");
     const [stat, title] = toShots([draft({ mode: "motion", card: { variant: "stat", stat: { value: "13", unit: "亿吨" } } }), draft({ lineId: "b", kind: "title", mode: "generate", shotSize: "wide", onScreenText: "焦虑" })], lines);
     expect(stat.card).toBeUndefined();
-    expect(title).toMatchObject({ kind: "title", mode: "motion", shotSize: undefined });
+    expect(stat.focusText?.text).not.toContain("13");
+    expect(title).toMatchObject({ kind: "placeholder", mode: "generate", shotSize: "medium", focusText: undefined });
+  });
+
+  it("新输出拒绝分类、超长和缺少重点；保留原文数字", async () => {
+    const { draftSchema, toShots } = await import("@/lib/pipeline/stages/storyboard");
+    const shot = { ...draft({ mode: "motion", focusText: { text: "85%", support: "用户留存" } }), intent: "强调留存", description: "关键数字" };
+    expect(draftSchema.safeParse({ shots: [shot] }).success).toBe(true);
+    expect(draftSchema.safeParse({ shots: [{ ...shot, card: { variant: "stat" } }] }).success).toBe(false);
+    expect(draftSchema.safeParse({ shots: [{ ...shot, kind: "title" }] }).success).toBe(false);
+    expect(draftSchema.safeParse({ shots: [{ ...shot, focusText: undefined }] }).success).toBe(false);
+    expect(draftSchema.safeParse({ shots: [{ ...shot, focusText: { text: "无法在八字内完整显示的文字" } }] }).success).toBe(false);
+    const source = [{ ...line("a", "用户留存提高到85%。"), keywords: ["用户留存"] }];
+    expect(toShots([shot], source)[0].focusText?.text).toBe("85%");
+    expect(toShots([{ ...shot, focusText: { text: "95%" } }], source)[0].focusText?.text).toBe("用户留存");
   });
 });
 
@@ -95,7 +109,7 @@ describe("局部重做的前后文", () => {
     ];
     expect(partialContext(doc, { from: 1, to: 1 })).toEqual({
       before: { text: "全世界每年浪费的粮食，高达十三亿吨。", shot: "全景，堆满粮食的仓库" },
-      after: { text: "原因有三个：成本太高、效率太低、习惯难改。", shot: "信息卡（list：三个原因）" },
+      after: { text: "原因有三个：成本太高、效率太低、习惯难改。", shot: "重点文字「三个原因」" },
     });
   });
 });
@@ -111,9 +125,10 @@ describe("分镜提示词", () => {
       lines: [{ id: "a", segmentIndex: 0, text: lines[0].text, ms: 3200, keywords: [], mood: "紧张" }],
     });
     for (const x of ["内容性质：真实科普", "硬核科普", "本章要点：浪费的规模；原因", "(3.2s · 紧张)", "目标受众：大学生"]) expect(p.prompt).toContain(x);
-    expect(p.instructions).toContain("先理解，再设计");
-    expect(p.instructions).toContain("不生成通用文字卡、问答卡或号召卡");
-    expect(p.instructions).toContain("最多 8 个字");
+    expect(p.instructions).toContain("先理解旁白");
+    expect(p.instructions).toContain("不要输出 card、onScreenText、title 或 quote");
+    expect(p.instructions).toContain("最多 8 个等价汉字宽度");
+    expect(p.instructions).toContain("禁止只截取前八字");
     expect(p.instructions).not.toContain("card.variant=qa");
     expect(p.instructions).not.toContain("card.variant=cta");
   });

@@ -469,4 +469,13 @@ CREATE TABLE IF NOT EXISTS app_meta (
       for (const [term, category, meaning, usage, example] of seeds) insert.run(randomUUID(), term, meaning, usage, example, "", now, now, now, category);
     },
   },
+  {
+    id: 18,
+    name: "render_output_version",
+    sql: "",
+    apply: (db) => {
+      const columns = db.prepare("PRAGMA table_info(renders)").all() as { name: string }[];
+      if (!columns.some((column) => column.name === "output_version")) db.exec("ALTER TABLE renders ADD COLUMN output_version INTEGER NOT NULL DEFAULT 0");
+    },
+  },
 ];

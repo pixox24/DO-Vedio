@@ -6,7 +6,7 @@ import { defaultTheme } from "../lib/core/theme";
 import { motionProfile } from "../lib/core/motion";
 import { DEFAULT_SUBTITLE_CONFIG } from "../lib/core/subtitle";
 import type { Timeline } from "../lib/core/timeline";
-import { ui2vTemplateIds, type Ui2vTemplateId } from "../lib/core/types";
+import { legacyTemplateIds, type LegacyTemplateId } from "../lib/core/types";
 
 const root = process.cwd();
 const outputDir = path.join(root, ".tmp-animation-probe");
@@ -16,7 +16,7 @@ function timeline(aspect: "16:9" | "9:16"): Timeline {
   const portrait = aspect === "9:16";
   const width = portrait ? 1080 : 1920;
   const height = portrait ? 1920 : 1080;
-  const cards: Record<Ui2vTemplateId, Timeline["shots"][number]["card"]> = {
+  const cards: Record<LegacyTemplateId, Timeline["shots"][number]["card"]> = {
     "creator-cinema-editorial-quote": { variant: "quote", headline: "你以为你在刷世界" },
     "hero-spotlight-stage": { variant: "headline", headline: "新的章节" },
     "hero-split-wipe": { variant: "split", sides: ["过去", "现在"] },
@@ -30,7 +30,7 @@ function timeline(aspect: "16:9" | "9:16"): Timeline {
     "card-profile": { variant: "profile", profile: { name: "林夏", role: "讲述者", bio: "把问题说清楚" } },
   };
   const compositeFixture = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1920' height='1080'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' x2='1'%3E%3Cstop stop-color='%2310213a'/%3E%3Cstop offset='1' stop-color='%23d46a52'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1920' height='1080' fill='url(%23g)'/%3E%3Ccircle cx='1450' cy='340' r='260' fill='%23f4d35e' fill-opacity='.72'/%3E%3Ctext x='120' y='880' fill='white' font-size='92' font-family='sans-serif'%3ECOMPOSITE FIXTURE%3C/text%3E%3C/svg%3E";
-  const templateShots = ui2vTemplateIds.map((templateId, index) => {
+  const templateShots = legacyTemplateIds.map((templateId, index) => {
     const startMs = index * 1000;
     const card = cards[templateId];
     return {

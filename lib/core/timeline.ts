@@ -7,12 +7,13 @@ import { dbToGain, duckEnvelope, type Envelope } from "./mix";
 import { anchorMs, sortShots, type LineTime } from "./shots";
 import { cuesForLine, normalizeCues, type Cue } from "./subtitles";
 import { isSecondaryUsable, type SubtitleBlock, type SubtitleConfig } from "./subtitle";
-import { outputSpecs, shotKindLabels, animationSpecSchema, type AnimationFamily, type Aspect, type Card, type Line, type OutputSpec, type ProjectDoc, type ShotKind, type ShotMode, type Motion, type Ui2vTemplateId } from "./types";
+import { outputSpecs, shotKindLabels, animationSpecSchema, type AnimationFamily, type Aspect, type Card, type Line, type OutputSpec, type ProjectDoc, type ShotKind, type ShotMode, type Motion, type LegacyTemplateId } from "./types";
 import { outputSpecIdForAspect } from "./output-spec";
 import { normalizeAnimation } from "./animation";
 import { choreograph } from "./choreography";
-import { inferCardTemplate, isActiveUi2vTemplate, isCodeCardShot } from "./ui2v";
+import { inferCardTemplate, isActiveLegacyTemplate, isCodeCardShot } from "./legacy-templates";
 import { compactKeywords, compactText } from "./text";
+import { focusVisualWidth, normalizeFocusText, resolveFocusText } from "./focus";
 
 /**
  * 时间轴 —— 纯函数。输入 = 项目文档 + 机器产物（配音缓存、曲库），输出 = Remotion 的 inputProps。
@@ -44,11 +45,13 @@ export type TimelineShot = {
   keywords: string[];
   seed: number;
   mode?: ShotMode;
+  /** 统一重点文字；旧项目由 card/onScreenText 兼容转换。 */
+  focusText?: import("./types").FocusText;
   /** 信息卡：大模型给的数据优先，没有时按旁白保守兜底（见 lib/core/cards.ts） */
   card: Card;
   animation?: {
     family: AnimationFamily;
-    templateId?: Ui2vTemplateId;
+    templateId?: LegacyTemplateId;
     intensity: 1 | 2 | 3;
     anchors: { frame: number; role: "enter" | "emphasis" | "exit"; target: string }[];
     params: Record<string, string | number | boolean>;
@@ -57,7 +60,7 @@ export type TimelineShot = {
   overlapInFrames?: number;
   overlapOutFrames?: number;
   transitionIn?: "cut" | "fade" | "wipe" | "whip" | "push" | "dissolve";
-  safeArea?: { bottomRatio: number; sideRatio: number };
+  safeArea?: { bottomRatio: number; sideRatio: number; topRatio?: number };
 };
 
 
@@ -206,6 +209,7 @@ export function buildTimeline(doc: ProjectDoc, art: Artifacts, aspectOrSpec: Asp
   const normalized = normalizeAnimation(doc.shots, doc.lines, times, profile);
   const sorted = sortShots(choreograph(normalized, doc.lines, times, profile), doc.lines);
   const transitionMs = themeOf(doc.visualStyle).motion.punchy ? 520 : 400;
+  const recentFocusPresets: import("./types").FocusPresetId[] = [];
   const shots: TimelineShot[] = sorted.map((s, k) => {
     const startMs = k === 0 ? 0 : (anchorMs(s.at, times) ?? 0);
     const endMs = k + 1 < sorted.length ? (anchorMs(sorted[k + 1].at, times) ?? durationMs) : durationMs;
@@ -232,7 +236,17 @@ export function buildTimeline(doc: ProjectDoc, art: Artifacts, aspectOrSpec: Asp
     const overlapOutFrames = k + 1 < sorted.length && sorted[k + 1].transitionIn && sorted[k + 1].transitionIn !== "cut" ? Math.max(1, Math.round((transitionMs / 1000) * fps)) : 0;
     const parsedAnimation = s.animation ? animationSpecSchema.parse(s.animation) : undefined;
     const card = sanitizeCard(s.card, caption) ?? fallbackCard(caption, keywords);
-    const requestedTemplate = isActiveUi2vTemplate(parsedAnimation?.templateId) ? parsedAnimation.templateId : undefined;
+    const focusText = (s.mode === "motion" || s.kind === "title" || s.kind === "quote")
+      ? resolveFocusText(s, covered.flatMap((line) => line.keywords).filter((word) => !!normalizeFocusText(word)), caption, { seed, recentPresetIds: recentFocusPresets })
+      : undefined;
+    if (focusText?.presetId) {
+      recentFocusPresets.push(focusText.presetId);
+      if (recentFocusPresets.length > 3) recentFocusPresets.shift();
+    }
+    if (focusText && (focusVisualWidth(focusText.text) > 8 || focusVisualWidth(focusText.support ?? "") > 8)) {
+      issues.push({ level: "warn", message: `镜头 ${s.id} 的重点文字超过 8 字宽，请概括后再渲染`, lineId: s.at.lineId });
+    }
+    const requestedTemplate = isActiveLegacyTemplate(parsedAnimation?.templateId) ? parsedAnimation.templateId : undefined;
     const templateId = isCodeCardShot(s) ? (requestedTemplate ?? inferCardTemplate({ ...s, card })) : undefined;
     const animation = templateId || parsedAnimation ? {
       family: "none" as const,
@@ -252,15 +266,16 @@ export function buildTimeline(doc: ProjectDoc, art: Artifacts, aspectOrSpec: Asp
       endMs,
       motion: s.motion,
       description: s.description,
-      onScreenText: s.kind === "placeholder" && s.mode === "motion" ? compactText(s.onScreenText) : s.onScreenText,
+      onScreenText: s.kind === "placeholder" && s.mode === "motion" ? compactText(focusText?.text ?? s.onScreenText) : s.onScreenText,
       imageSrc: assetId && s.kind !== "video" ? art.media(assetId) : undefined,
       videoSrc: assetId && s.kind === "video" ? art.media(assetId) : undefined,
       focus: s.focus,
-      chapter: s.kind === "title" ? { index: seg + 1, title: s.onScreenText || doc.segments[seg]?.title || "" } : undefined,
+      chapter: s.kind === "title" ? { index: seg + 1, title: doc.segments[seg]?.title || "" } : undefined,
       caption,
       keywords,
       seed,
       mode: s.mode,
+      focusText,
       card,
       animation,
       overlapInFrames,
@@ -269,7 +284,7 @@ export function buildTimeline(doc: ProjectDoc, art: Artifacts, aspectOrSpec: Asp
     };
   });
   if (shots.length === 0 && doc.lines.length) {
-    shots.push({ shotId: "auto", kind: "placeholder", startMs: 0, endMs: durationMs, motion: "zoom-in", description: "", caption: "", keywords: [], seed: 1, mode: "motion", card: { variant: "headline", headline: doc.brief.title || undefined }, animation: { family: "none", templateId: "hero-spotlight-stage", intensity: 1, anchors: [], params: {} } });
+    shots.push({ shotId: "auto", kind: "placeholder", startMs: 0, endMs: durationMs, motion: "zoom-in", description: "", caption: "", keywords: [], seed: 1, mode: "motion", focusText: { text: normalizeFocusText(doc.brief.title) || "待制作", layoutMode: "auto", presetId: "focus" }, card: { variant: "headline", headline: doc.brief.title || undefined }, animation: { family: "none", intensity: 1, anchors: [], params: {} } });
     issues.push({ level: "info", message: "还没有分镜，暂用一个占位画面" });
   }
   shots.forEach((s) => {
@@ -305,6 +320,17 @@ export function buildTimeline(doc: ProjectDoc, art: Artifacts, aspectOrSpec: Asp
     : [];
   shots.forEach((shot) => {
     shot.safeArea = subtitleBand(cues, shot, { portrait: aspect === "9:16" });
+    const activeBlocks = subtitle.enabled && subtitle.burnIn ? subtitleBlocks.filter((block) => block.endMs > shot.startMs && block.startMs < shot.endMs) : [];
+    if (activeBlocks.length) {
+      const fontSize = subtitle.fontSize * width / 950;
+      const maxLines = Math.max(...activeBlocks.map((block) => Math.min(subtitle.maxLines, Math.ceil(focusVisualWidth(block.text) * fontSize / (width * subtitle.maxWidthRatio)))));
+      const halfBand = (fontSize * (maxLines * 1.35 + (subtitle.bilingual ? 2.2 : 1.2)) / 2 + height * .025) / height;
+      if (subtitle.positionY >= 50) shot.safeArea.bottomRatio = Math.max(shot.safeArea.bottomRatio, 1 - subtitle.positionY / 100 + halfBand);
+      else {
+        shot.safeArea.bottomRatio = 0;
+        shot.safeArea.topRatio = subtitle.positionY / 100 + halfBand;
+      }
+    } else shot.safeArea = { bottomRatio: 0, sideRatio: 0 };
   });
 
   // 配乐
@@ -387,7 +413,7 @@ export function contentHash(t: Timeline) {
 /** 仅由动效、转场和风格动效 token 组成的哈希。 */
 export function animationHash(t: Timeline) {
   return quickHash({
-    shots: t.shots.map((shot) => ({ shotId: shot.shotId, motion: shot.motion, animation: shot.animation, overlapInFrames: shot.overlapInFrames, overlapOutFrames: shot.overlapOutFrames, transitionIn: shot.transitionIn })),
+    shots: t.shots.map((shot) => ({ shotId: shot.shotId, motion: shot.motion, animation: shot.animation, focusText: shot.focusText, overlapInFrames: shot.overlapInFrames, overlapOutFrames: shot.overlapOutFrames, transitionIn: shot.transitionIn })),
     motion: t.theme.motion,
   });
 }
