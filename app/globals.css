@@ -71,6 +71,18 @@
   --animate-dialog-in: dialog-in 0.18s cubic-bezier(0.2, 0.8, 0.2, 1) both;
   --animate-toast-in: toast-in 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) both;
   --animate-drawer-in: drawer-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  /* —— 制作页：开工确认 / 动作条 / 步骤轨 —— */
+  --animate-fact-in: fact-in 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-seal-ring: seal-ring 0.62s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-check-in: check-in 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
+  --animate-step-flash: step-flash 0.85s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-stop-in: stop-in 0.24s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-shimmer: shimmer 1.8s linear infinite;
+  --animate-live-dot: live-dot 1.6s ease-in-out infinite;
+  /* —— 字幕样张：与 Remotion 字幕层的入场动效保持同一套参数 —— */
+  --animate-sub-pop: sub-pop 0.34s cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
+  --animate-sub-fade: sub-fade 0.42s ease-out both;
+  --animate-sub-kara: sub-kara 0.3s ease-out both;
 
   @keyframes rise {
     from { opacity: 0; transform: translateY(8px); }
@@ -106,6 +118,55 @@
   @keyframes audio-eq {
     0%, 100% { transform: scaleY(0.3); }
     50% { transform: scaleY(1); }
+  }
+  /* 开工确认：7 项设置依次浮现，建立阅读节奏 */
+  @keyframes fact-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+  }
+  /* 确认开工：涟漪从按钮向外扩散 */
+  @keyframes seal-ring {
+    0% { opacity: 0.55; transform: scale(0.72); }
+    70% { opacity: 0; }
+    100% { opacity: 0; transform: scale(1.9); }
+  }
+  /* 步骤完成：对勾弹入，带一点过冲 */
+  @keyframes check-in {
+    from { opacity: 0; transform: scale(0.4) rotate(-14deg); }
+    to { opacity: 1; transform: none; }
+  }
+  /* 步骤完成：底色闪一下再回落 */
+  @keyframes step-flash {
+    0% { background-color: rgb(205 255 58 / 0); }
+    18% { background-color: rgb(205 255 58 / 0.13); }
+    100% { background-color: rgb(205 255 58 / 0); }
+  }
+  /* 停止按钮：只在真的有任务时滑入，避免布局跳动 */
+  @keyframes stop-in {
+    from { opacity: 0; transform: translateX(-6px) scale(0.96); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes shimmer {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(100%); }
+  }
+  @keyframes live-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.45; transform: scale(0.82); }
+  }
+  /* 字幕入场：弹出（0.92 → 1，与 remotion/layers/subtitles.tsx 一致） */
+  @keyframes sub-pop {
+    from { transform: scale(0.92); }
+    to { transform: none; }
+  }
+  @keyframes sub-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  /* 逐字高亮：字符颜色从底色过渡到强调色，延迟由每个字符的 inline style 决定 */
+  @keyframes sub-kara {
+    from { color: var(--sub-base); }
+    to { color: var(--sub-hl); }
   }
 }
 
@@ -338,6 +399,18 @@ body::before {
   .generation-live-dot {
     animation: generation-breathe 2s ease-in-out infinite;
   }
+  /*
+   * 渲染进行中：整条动作条扫一层微光。
+   * 用 container 限幅，避免光带溢出到相邻面板。
+   */
+  .action-shimmer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(90deg, transparent, rgb(205 255 58 / 0.06), transparent);
+    animation: var(--animate-shimmer);
+  }
 }
 
 /*
@@ -353,10 +426,29 @@ body::before {
   .animate-dialog-in,
   .animate-toast-in,
   .animate-drawer-in,
+  .animate-fact-in,
+  .animate-seal-ring,
+  .animate-check-in,
+  .animate-step-flash,
+  .animate-stop-in,
+  .animate-shimmer,
+  .animate-live-dot,
+  .animate-sub-pop,
+  .animate-sub-fade,
+  .action-shimmer::after,
   .select-menu,
   .overlay,
   .overlay-panel {
     animation: none;
+  }
+  /* 逐字高亮停在终态（全部强调色），不播放过渡 */
+  .animate-sub-kara {
+    animation: none;
+    color: var(--sub-hl);
+  }
+  /* 光带隐藏，但完成对勾必须保留——它是状态而不是装饰。 */
+  .action-shimmer::after {
+    display: none;
   }
   .animate-spin {
     animation-duration: 1.6s;

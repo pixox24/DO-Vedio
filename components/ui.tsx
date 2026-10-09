@@ -562,6 +562,17 @@ const paths: Record<string, ReactNode> = {
   bolt: <path d="M13 3L5 13h6l-1 8 8-10h-6l1-8z" />,
   bug: <><rect x="7" y="7" width="10" height="11" rx="4" /><path d="M7 11H4M20 11h-3M7 15H4M20 15h-3M9 6L7.5 4M15 6l1.5-2" /></>,
   server: <><rect x="3" y="4" width="18" height="7" rx="2" /><rect x="3" y="13" width="18" height="7" rx="2" /><path d="M7 7.5h.01M7 16.5h.01" /></>,
+  lock: <><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 018 0v3" /></>,
+  alert: <><path d="M12 4l9 16H3L12 4z" /><path d="M12 10v4.5M12 17.2v.1" /></>,
+  /* 制作页面板选项卡图标（PanelTabs 使用） */
+  sliders: <><path d="M4 7h8M16 7h4M4 12h4M12 12h8M4 17h10M18 17h2" /><circle cx="14" cy="7" r="2.2" /><circle cx="10" cy="12" r="2.2" /><circle cx="16" cy="17" r="2.2" /></>,
+  text: <path d="M4 6.5h16M4 12h16M4 17.5h9" />,
+  user: <><circle cx="12" cy="9" r="3.2" /><path d="M5.5 19.5c1.2-3 3.6-4.5 6.5-4.5s5.3 1.5 6.5 4.5" /></>,
+  frames: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 12h18M9 5v14M15 5v14" /></>,
+  palette: <><circle cx="12" cy="12" r="8.5" /><circle cx="9.2" cy="10.2" r="1.7" /><circle cx="12.6" cy="8.4" r="1.7" /><circle cx="15.4" cy="11.2" r="1.7" /></>,
+  captions: <><rect x="3" y="6" width="18" height="12" rx="2" /><path d="M7.5 12h3M13.5 12h3" /></>,
+  music: <><path d="M9 18V6l10-2v12" /><circle cx="6.5" cy="18" r="2.5" /><circle cx="16.5" cy="16" r="2.5" /></>,
+  mic: <><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M6 11a6 6 0 0012 0M12 17v4M8 21h8" /></>,
 };
 
 export function Icon({ name, className = "size-4" }: { name: keyof typeof paths; className?: string }) {
