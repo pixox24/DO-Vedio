@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import { AutoTextarea, Field, Icon, SegmentedControl, Select, Spinner } from "@/components/ui";
+import { Alert, AutoTextarea, Button, Field, Icon, SegmentedControl, Select, Spinner } from "@/components/ui";
 import { postJson, useImageModels, useTemplates } from "@/lib/client";
 import { compilePrompt } from "@/lib/core/prompt-compiler";
 import { easingLabels, easingNames, motionPresetIds, motionPresetLabels, motionProfile, type EasingName, type MotionPresetId } from "@/lib/core/motion";
+import { resolveStyleCover, type StyleCoverMode, type StyleThumbnail } from "@/lib/core/style-cover";
 import { mediaUrl, moods, shotSizeLabels, styleMediumLabels, styleMediums, type Job, type Mood, type VisualStyleInput } from "@/lib/core/types";
 
 /**
@@ -27,7 +28,6 @@ const strengthOptions = [
 export function StyleEditor({ value, onChange }: { value: VisualStyleInput; onChange: (next: VisualStyleInput) => void }) {
   const { templates } = useTemplates();
   const set = (patch: Partial<VisualStyleInput>) => onChange({ ...value, ...patch });
-  const setScheme = (i: number, j: number, color: string) => set({ palette: { ...value.palette, schemes: value.palette.schemes.map((s, k) => (k === i ? (s.map((c, m) => (m === j ? color : c)) as [string, string, string]) : s)) } });
   return (
     <div className="space-y-6">
       <Group title="基本">
@@ -53,7 +53,7 @@ export function StyleEditor({ value, onChange }: { value: VisualStyleInput; onCh
         </Field>
       </Group>
 
-      <Group title="动效" hint="代码画面（信息卡、标题卡）的节奏与质感。选一个基调，再按需微调">
+      <Group title="动效" hint="转场和仍由代码绘制的画面会跟着换节奏。重点文字使用镜头上的排版动效">
         <Field label="动效基调">
           <Select
             value={value.motion.preset}
@@ -130,32 +130,7 @@ export function StyleEditor({ value, onChange }: { value: VisualStyleInput; onCh
         </Field>
       </Group>
 
-      <Group title="色彩" hint="配色组同时用于信息卡、标题卡等代码画面，让它们和生成画面色调统一">
-        <div className="space-y-2">
-          {value.palette.schemes.map((scheme, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <span className="w-12 text-xs text-white/40">配色 {i + 1}</span>
-              {scheme.map((color, j) => (
-                <ColorInput key={j} value={color} label={["深", "中", "浅"][j]} onChange={(c) => setScheme(i, j, c)} />
-              ))}
-              <span className="h-7 flex-1 rounded-md" style={{ background: `linear-gradient(130deg, ${scheme[0]}, ${scheme[1]} 65%, ${scheme[2]})` }} />
-              {value.palette.schemes.length > 1 && (
-                <button type="button" className="text-white/35 hover:text-red-300" aria-label="删除配色" onClick={() => set({ palette: { ...value.palette, schemes: value.palette.schemes.filter((_, k) => k !== i) } })}>
-                  <Icon name="trash" className="size-3.5" />
-                </button>
-              )}
-            </div>
-          ))}
-          {value.palette.schemes.length < 6 && (
-            <button type="button" className="text-xs text-white/40 transition hover:text-white" onClick={() => set({ palette: { ...value.palette, schemes: [...value.palette.schemes, value.palette.schemes.at(-1)!] } })}>
-              + 再加一组配色
-            </button>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="w-12 text-xs text-white/40">强调色</span>
-          <ColorInput value={value.palette.accent} label="强调" onChange={(accent) => set({ palette: { ...value.palette, accent } })} />
-        </div>
+      <Group title="色彩" hint="写进生图提示词，决定画面的调色、饱和度和对比">
         <Field label="调色">
           <input className="input" value={value.colorGrade} onChange={(e) => set({ colorGrade: e.target.value })} placeholder="如：冷青色调，暗部偏蓝" />
         </Field>
@@ -225,14 +200,6 @@ function Group({ title, hint, children }: { title: string; hint?: string; childr
   );
 }
 
-function ColorInput({ value, label, onChange }: { value: string; label: string; onChange: (c: string) => void }) {
-  return (
-    <label className="relative size-7 shrink-0 cursor-pointer overflow-hidden rounded-md border border-white/15" title={`${label} ${value}`} style={{ background: value }}>
-      <input type="color" className="absolute inset-0 cursor-pointer opacity-0" value={value} aria-label={`${label}色`} onChange={(e) => onChange(e.target.value)} />
-    </label>
-  );
-}
-
 /** 情绪调制：每种情绪可以在风格范围内微调光影 / 调色 / 氛围，或标记为这个风格不承载 */
 function MoodTweaks({ value, onChange }: { value: VisualStyleInput; onChange: (p: Partial<VisualStyleInput>) => void }) {
   const [open, setOpen] = useState<Mood | null>(null);
@@ -276,21 +243,25 @@ function MoodTweaks({ value, onChange }: { value: VisualStyleInput; onChange: (p
   );
 }
 
-/** 编译结果预览：同一个测试画面在这个风格和所选情绪下会发给模型什么 */
+/**
+ * 编译结果预览：同一个测试画面在这个风格和所选情绪下会发给模型什么。
+ * 标签与内容分栏对齐；风格段是本面板要看的重点，内容与负面词降低亮度作为背景信息。
+ */
 export function StylePromptPreview({ value }: { value: VisualStyleInput }) {
   const [mood, setMood] = useState<Mood>("中性");
   const compiled = useMemo(() => compilePrompt({ content: "一位中年人坐在窗边的旧沙发上低头看书", shotSize: "medium", style: { ...value, id: "preview" }, mood }), [value, mood]);
-  const slot = (label: string, text: string, tone = "text-white/70") => text && (
-    <p className="text-xs leading-5">
-      <span className="text-white/35">{label} · </span>
-      <span className={tone}>{text}</span>
-    </p>
-  );
+  const rows = [
+    { label: "内容", text: compiled.slots.content, tone: "text-white/90" },
+    { label: "镜头", text: compiled.slots.camera, tone: "text-white/65" },
+    { label: "风格", text: compiled.slots.style, tone: "text-white" },
+    { label: "情绪", text: compiled.slots.mood, tone: "text-white/65" },
+    { label: "负面", text: compiled.negative.join("、"), tone: "text-white/40" },
+  ].filter((row) => row.text);
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <p className="label">提示词预览</p>
-        <Select value={mood} onChange={(v) => setMood(v as Mood)} className="h-8 w-36 py-1 text-xs">
+        <Select aria-label="预览情绪" value={mood} onChange={(v) => setMood(v as Mood)} className="h-8 w-36 py-1 text-xs">
           {moods.map((m) => (
             <option key={m} value={m}>
               情绪：{m}
@@ -298,18 +269,25 @@ export function StylePromptPreview({ value }: { value: VisualStyleInput }) {
           ))}
         </Select>
       </div>
-      <div className="space-y-1.5 rounded-lg border border-white/10 bg-black/20 p-3">
-        {slot("内容", compiled.slots.content, "text-white")}
-        {slot("镜头", compiled.slots.camera)}
-        {slot("风格", compiled.slots.style, "text-accent/90")}
-        {slot("情绪", compiled.slots.mood)}
-        {slot("负面", compiled.negative.join("、"), "text-white/45")}
-      </div>
-      {compiled.moodConflict && <p className="text-xs text-amber-200/80">这个风格不承载「{compiled.moodConflict}」，会保持风格基调。</p>}
-      <p className="text-[11px] text-white/35">内容由分镜决定（示例为「{shotSizeLabels.medium}」测试画面），风格只改变怎么画。</p>
-    </div>
+      <dl className="grid grid-cols-[3.5rem_minmax(0,1fr)] gap-x-4 gap-y-3 rounded-surface border border-line bg-black/25 p-4 text-sm leading-6">
+        {rows.map((row) => (
+          <div key={row.label} className="contents">
+            <dt className="pt-px text-xs text-text-faint">{row.label}</dt>
+            <dd className={`min-w-0 break-words ${row.tone}`}>{row.text}</dd>
+          </div>
+        ))}
+      </dl>
+      {compiled.moodConflict && (
+        <Alert tone="warn" size="sm" role="status">
+          这个风格不承载「{compiled.moodConflict}」，会保持风格基调。
+        </Alert>
+      )}
+      <p className="text-xs leading-5 text-text-muted">内容由分镜决定（示例为「{shotSizeLabels.medium}」测试画面），风格只改变怎么画。</p>
+    </section>
   );
 }
+
+const SAMPLE_SCENES = ["人物中景", "城市全景", "静物特写"] as const;
 
 /** 样张：3 个固定测试场景，同一风格卡 + 模型只生成一次 */
 export function StyleSamples({ value, compact = false }: { value: VisualStyleInput; compact?: boolean }) {
@@ -365,14 +343,15 @@ export function StyleSamples({ value, compact = false }: { value: VisualStyleInp
   }
 
   const running = !!job && ["queued", "running"].includes(job.status);
-  if (models && models.length === 0) return <p className="text-xs text-white/40">配置生图模型后可以生成样张。</p>;
+  const percent = Math.round((job?.progress ?? 0) * 100);
+  if (models && models.length === 0) return <p className="text-xs text-text-muted">配置生图模型后可以生成样张。</p>;
   return (
-    <div className="space-y-3">
+    <section className="space-y-3">
       {!compact && (
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <p className="label">样张</p>
           {models && models.length > 1 && (
-            <Select value={model} onChange={setModelId} className="h-8 max-w-48 py-1 text-xs">
+            <Select aria-label="生图模型" value={model} onChange={setModelId} className="h-8 w-64 py-1 text-xs">
               {models.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.label}
@@ -382,46 +361,109 @@ export function StyleSamples({ value, compact = false }: { value: VisualStyleInp
           )}
         </div>
       )}
-      <div className="grid grid-cols-3 gap-1.5">
-        {[0, 1, 2].map((i) => (
-          <div key={i} className="relative aspect-[4/3] overflow-hidden rounded-md border border-white/10 bg-white/[0.03]">
-            {assets?.[i] ? <Image src={mediaUrl(assets[i])} alt="" fill sizes="200px" unoptimized className="object-cover" /> : <span className="grid h-full place-items-center text-[10px] text-white/25">{["人物中景", "城市全景", "静物特写"][i]}</span>}
-          </div>
+      {/* 样张按生图输出的真实画幅（16:9 横屏）排列，不再裁成 4:3 */}
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        {SAMPLE_SCENES.map((scene, i) => (
+          <figure key={scene} className="min-w-0">
+            <div className="relative aspect-video overflow-hidden rounded-surface border border-line bg-white/[0.03]">
+              {assets?.[i] ? (
+                <Image src={mediaUrl(assets[i])} alt={`${scene}样张`} fill sizes="(min-width: 640px) 260px, 30vw" unoptimized className="object-cover" />
+              ) : (
+                <div className="grid h-full place-items-center text-[11px] text-text-faint">{running ? <Spinner className="size-4" /> : "待生成"}</div>
+              )}
+            </div>
+            <figcaption className="mt-1.5 truncate text-xs text-text-muted">{scene}</figcaption>
+          </figure>
         ))}
       </div>
-      {!assets && (
-        <button type="button" className="btn btn-ghost btn-sm" disabled={!model || running} onClick={generate}>
-          {running ? <Spinner className="size-3" /> : <Icon name="sparkle" className="size-3.5" />}
-          {running ? `生成中 · ${Math.round((job?.progress ?? 0) * 100)}%` : "生成 3 张样张"}
-        </button>
+      {running && (
+        <div className="h-1 overflow-hidden rounded-full bg-white/10" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}>
+          <div className="h-full rounded-full bg-accent transition-[width] duration-500 motion-reduce:transition-none" style={{ width: `${percent}%` }} />
+        </div>
       )}
-      {error && <p className="text-xs text-red-300">{error}</p>}
+      {!assets && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs leading-5 text-text-faint">调用所选生图模型，会产生服务商费用。风格不变时不会重复生成。</p>
+          <Button variant="primary" size="sm" icon={<Icon name="sparkle" className="size-3.5" />} loading={running} disabled={!model} onClick={generate}>
+            {running ? `生成中 · ${percent}%` : "生成 3 张样张"}
+          </Button>
+        </div>
+      )}
+      {error && <p className="text-xs text-danger">{error}</p>}
+    </section>
+  );
+}
+
+/**
+ * 卡片封面：Aix 官方缩略图优先，否则用已生成样张，都没有则是中性底。
+ * frame="portrait" 是 2:3 竖版画框，与 Aix 缩略图（427×640）同比例，用于项目面板首屏；
+ * 默认的宽版横条保留给风格库卡片。
+ */
+export function StyleCover({ style, thumbnail, frame = "wide" }: { style: VisualStyleInput; thumbnail?: StyleThumbnail | null; frame?: "wide" | "portrait" }) {
+  const thumbSrc = thumbnail?.src.trim() ?? "";
+  const [assets, setAssets] = useState<string[] | null>(null);
+  const [fetchedFor, setFetchedFor] = useState<string | null>(null);
+  const signature = JSON.stringify(style);
+  useEffect(() => {
+    if (thumbSrc) return;
+    let cancelled = false;
+    postJson<{ assets: string[] | null }>("/api/visual-styles/preview", { style })
+      .then((r) => {
+        if (cancelled) return;
+        setAssets(r.assets ?? null);
+        setFetchedFor(signature);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setAssets(null);
+        setFetchedFor(signature);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // 封面只跟风格内容和缩略图走；palette 色值不再决定外观
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signature, thumbSrc]);
+  const ready = !!thumbSrc || fetchedFor === signature;
+  const mode = resolveStyleCover({ thumbnail: thumbSrc ? thumbnail : null, samples: ready && !thumbSrc ? assets : null });
+  if (frame === "portrait") return <PortraitCover mode={mode} loading={!ready && mode.kind === "neutral"} />;
+  if (!ready && mode.kind === "neutral") return <div className="h-28 bg-white/[0.03]" aria-busy="true" />;
+  if (mode.kind === "thumbnail") {
+    return (
+      <div className="relative h-44 bg-white/[0.03]">
+        <Image src={mode.src} alt={mode.alt} fill sizes="480px" unoptimized className="object-cover" />
+      </div>
+    );
+  }
+  if (mode.kind === "neutral") return <div className="grid h-28 place-items-center bg-white/[0.03] text-xs text-white/30">尚无样张</div>;
+  return (
+    <div className="grid h-28 grid-cols-3">
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="relative bg-white/[0.03]">
+          {mode.assets[i] ? <Image src={mediaUrl(mode.assets[i])} alt="" fill sizes="160px" unoptimized className="object-cover" /> : null}
+        </div>
+      ))}
     </div>
   );
 }
 
-/** 卡片封面：有样张显示样张，否则显示配色 */
-export function StyleCover({ style }: { style: VisualStyleInput }) {
-  const [assets, setAssets] = useState<string[] | null>(null);
-  useEffect(() => {
-    postJson<{ assets: string[] | null }>("/api/visual-styles/preview", { style })
-      .then((r) => setAssets(r.assets ?? null))
-      .catch(() => setAssets(null));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(style)]);
-  return (
-    <div className="grid h-28 grid-cols-3">
-      {[0, 1, 2].map((i) =>
-        assets?.[i] ? (
-          <div key={i} className="relative">
-            <Image src={mediaUrl(assets[i])} alt="" fill sizes="160px" unoptimized className="object-cover" />
-          </div>
-        ) : (
-          <div key={i} style={{ background: (() => { const p = style.palette.schemes[i % style.palette.schemes.length]; return `linear-gradient(130deg, ${p[0]}, ${p[1]} 65%, ${p[2]})`; })() }} className="flex items-end p-2">
-            {i === 2 && <span className="size-3 rounded-full" style={{ background: style.palette.accent }} />}
-          </div>
-        ),
-      )}
-    </div>
-  );
+/** 竖版封面：2:3 画框。没有 Aix 缩略图时，用第一张样张居中裁切（样张本身是横屏 16:9） */
+function PortraitCover({ mode, loading }: { mode: StyleCoverMode; loading: boolean }) {
+  const frame = "relative aspect-[2/3] w-full overflow-hidden rounded-surface border border-line bg-white/[0.03]";
+  if (loading) return <div className={`${frame} animate-pulse motion-reduce:animate-none`} aria-busy="true" />;
+  if (mode.kind === "thumbnail") {
+    return (
+      <div className={frame}>
+        <Image src={mode.src} alt={mode.alt} fill sizes="160px" unoptimized className="object-cover" />
+      </div>
+    );
+  }
+  if (mode.kind === "samples") {
+    return (
+      <div className={frame}>
+        <Image src={mediaUrl(mode.assets[0])} alt="" fill sizes="160px" unoptimized className="object-cover object-center" />
+      </div>
+    );
+  }
+  return <div className={`${frame} grid place-items-center border-dashed text-xs text-text-faint`}>尚无样张</div>;
 }

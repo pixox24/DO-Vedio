@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { Icon } from "@/components/ui";
+import { Button, Icon } from "@/components/ui";
 import { fetchAixDetail, postJson, useAixStyles, useVisualStyles } from "@/lib/client";
 import { aixToVisualStyle } from "@/lib/aix/adapter";
 import type { AixCompact } from "@/lib/aix/schema";
@@ -14,6 +14,9 @@ import { useFeedback } from "@/components/feedback";
 /**
  * 项目「画面风格」面板：选风格（按解说风格推荐）、项目内微调、从风格库更新、另存为新风格。
  * 项目里保存的是风格快照；换风格会让已生成的画面过期（旧图保留，不自动重新生成）。
+ *
+ * 首屏结构：风格 hero（2:3 竖版缩略图 + 名称 + 操作）→ 样张 → 提示词预览。
+ * 「当前风格」与「未选择」两种状态共用同一套版式，切换时首屏高度不跳动。
  */
 
 type Store = { doc: ProjectDoc | null; setDoc: (fn: (doc: ProjectDoc) => ProjectDoc) => void };
@@ -40,6 +43,7 @@ export function VisualStylePanel({ store }: { store: Store }) {
   const current = doc.visualStyle;
   const recommended = aixItems[0];
   const currentAixId = current?.source?.kind === "aix" ? current.source.aixId : undefined;
+  const aixThumb = currentAixId ? aixItems.find((item) => item.id === currentAixId) : undefined;
   const source = currentAixId ? (aixItems.some((s) => s.id === currentAixId) ? current : undefined) : customStyles.find((s) => s.id === current?.id);
   const tweaked = !!(current && source && !same(source, current));
 
@@ -49,7 +53,6 @@ export function VisualStylePanel({ store }: { store: Store }) {
     const parts = [
       n > 0 && `${n} 张已生成的画面会标记为过期（旧图保留，不会自动重新生成，可以在「镜头」里一键重新生成）。`,
       reason === "switch" && tweaked && "项目里对当前风格的微调会丢失。",
-      "信息卡、标题卡会立刻换成新配色。",
     ].filter(Boolean);
     if ((n > 0 || tweaked) && !(await confirm({ title: reason === "update" ? `更新为风格库中的「${style.name}」？` : `切换到「${style.name}」？`, message: parts.join(""), confirmLabel: reason === "update" ? "更新" : "切换", bullets: [`预计费用：不自动重新生成图片，不产生新的生图费用。`, `影响范围：${n ? `${n} 张旧图会标记为过期` : "仅更新当前项目的风格设置"}。`, "可恢复：可以再次切换或恢复风格库版本。"] }))) return;
     store.setDoc((d) => ({ ...d, visualStyle: style }));
@@ -85,59 +88,75 @@ export function VisualStylePanel({ store }: { store: Store }) {
       {view === "current" && (
         <>
           {current ? (
-            <div className="overflow-hidden rounded-xl border border-white/10">
-              <StyleCover style={current} />
-              <div className="space-y-2 p-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-base font-semibold">{current.name}</h3>
-                  <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] text-white/50">{styleMediumLabels[current.medium]}</span>
-                  {tweaked && <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] text-accent">已在项目中微调</span>}
-                  {!source && <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] text-white/45">风格库中已删除</span>}
+            <section className="flex gap-4 rounded-surface border border-line bg-white/[0.02] p-4 sm:gap-5 sm:p-5">
+              <div className="w-32 shrink-0 sm:w-40">
+                <StyleCover style={current} frame="portrait" thumbnail={aixThumb ? { src: aixThumb.thumbnailPath, alt: aixThumb.thumbnailAlt } : undefined} />
+              </div>
+              <div className="flex min-w-0 flex-1 flex-col">
+                <p className="label">当前画面风格</p>
+                <h3 className="mt-1.5 break-words text-xl font-semibold tracking-tight">{current.name}</h3>
+                <div className="mt-2.5 flex flex-wrap gap-1.5">
+                  <span className="tag">{styleMediumLabels[current.medium]}</span>
+                  {tweaked && <span className="tag border-accent/30 bg-accent/10 text-accent">已在项目中微调</span>}
+                  {!source && <span className="tag">风格库中已删除</span>}
                 </div>
-                <p className="text-xs text-white/50">{current.description}</p>
-                <div className="flex flex-wrap gap-2 pt-2">
-                  <button className="btn btn-ghost btn-sm" onClick={() => setView("pick")}>
+                {current.description && <p className="mt-3 line-clamp-3 text-sm leading-relaxed text-text-secondary">{current.description}</p>}
+                <div className="mt-auto flex flex-wrap items-center gap-2 pt-5">
+                  <Button variant="primary" size="sm" onClick={() => setView("pick")}>
                     换风格
-                  </button>
-                  <button className="btn btn-ghost btn-sm" onClick={() => setView("edit")}>
-                    <Icon name="edit" className="size-3.5" />
+                  </Button>
+                  <Button size="sm" icon={<Icon name="edit" className="size-3.5" />} onClick={() => setView("edit")}>
                     在项目中微调
-                  </button>
+                  </Button>
                   {tweaked && source && (
-                    <button className="btn btn-ghost btn-sm" onClick={() => apply(source, "update")}>
+                    <button type="button" className="btn-text" onClick={() => apply(source, "update")}>
                       恢复为风格库版本
                     </button>
                   )}
                   {(tweaked || !source) && (
-                    <button className="btn btn-ghost btn-sm" onClick={saveAsNew}>
+                    <button type="button" className="btn-text" onClick={saveAsNew}>
                       <Icon name="copy" className="size-3.5" />
                       另存为新风格
                     </button>
                   )}
                 </div>
               </div>
-            </div>
+            </section>
           ) : (
-            <div className="rounded-xl border border-accent/25 bg-accent/[0.04] p-4">
-              <p className="text-sm text-white/80">还没有选择画面风格。</p>
-              <p className="mt-1 text-xs leading-5 text-white/50">{recommended ? `生成图片时会自动采用推荐的「${recommended.name}」。也可以现在就选好，信息卡和标题卡会跟着换配色。` : "生成图片时会自动采用推荐风格。"}</p>
-              <div className="mt-3 flex gap-2">
-                {recommended && (
-              <button className="btn btn-primary btn-sm" onClick={() => applyAix(recommended.id)} disabled={!!busyId}>
-                    使用「{recommended.name}」
-                  </button>
+            <section className="flex gap-4 rounded-surface border border-dashed border-accent/30 bg-accent/[0.03] p-4 sm:gap-5 sm:p-5">
+              <div className="w-32 shrink-0 sm:w-40">
+                {recommended ? (
+                  <PortraitImage src={recommended.thumbnailPath} alt={recommended.thumbnailAlt} />
+                ) : (
+                  <div className="grid aspect-[2/3] place-items-center rounded-surface border border-dashed border-line text-xs text-text-faint">暂无推荐</div>
                 )}
-                <button className="btn btn-ghost btn-sm" onClick={() => setView("pick")}>
-                  选择其他风格
-                </button>
               </div>
-            </div>
+              <div className="flex min-w-0 flex-1 flex-col">
+                <p className="label">当前画面风格</p>
+                <h3 className="mt-1.5 text-xl font-semibold tracking-tight">尚未选择</h3>
+                <p className="mt-3 text-sm leading-relaxed text-text-secondary">{recommended ? `生成图片时会自动采用推荐的「${recommended.name}」，也可以现在就选好。` : "生成图片时会自动采用推荐风格。"}</p>
+                <div className="mt-auto flex flex-wrap gap-2 pt-5">
+                  {recommended && (
+                    <Button variant="primary" size="sm" loading={busyId === recommended.id} disabled={!!busyId} onClick={() => applyAix(recommended.id)}>
+                      使用「{recommended.name}」
+                    </Button>
+                  )}
+                  <Button size="sm" onClick={() => setView("pick")}>
+                    选择其他风格
+                  </Button>
+                </div>
+              </div>
+            </section>
           )}
           {current && (
-            <div className="grid gap-4 xl:grid-cols-2">
-              <StylePromptPreview value={strip(current)} />
-              <StyleSamples value={strip(current)} />
-            </div>
+            <>
+              <div className="border-t border-hairline pt-5">
+                <StyleSamples value={strip(current)} />
+              </div>
+              <div className="border-t border-hairline pt-5">
+                <StylePromptPreview value={strip(current)} />
+              </div>
+            </>
           )}
         </>
       )}
@@ -153,7 +172,7 @@ export function VisualStylePanel({ store }: { store: Store }) {
           <div className="flex flex-wrap gap-2">
             {[['', '全部'], ['illustration', '插画'], ['painting', '绘画'], ['photographic', '摄影'], ['3d', '3D'], ['graphic', '平面']].map(([value, label]) => <button key={value} type="button" className={`btn btn-ghost btn-sm ${category === value ? "border-accent/50 text-accent" : ""}`} onClick={() => setCategory(value)}>{label}</button>)}
           </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-4">
             <div className="col-span-full">
               <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索风格名称、编号、标签" className="input w-full" />
             </div>
@@ -182,9 +201,18 @@ export function VisualStylePanel({ store }: { store: Store }) {
   );
 }
 
+/** Aix 缩略图是 427×640 的竖图（2:3），画框按同一比例显示，不裁成横条 */
+function PortraitImage({ src, alt }: { src: string; alt: string }) {
+  return (
+    <div className="relative aspect-[2/3] overflow-hidden rounded-surface border border-line bg-white/[0.03]">
+      <Image src={src} alt={alt} fill sizes="160px" unoptimized className="object-cover" />
+    </div>
+  );
+}
+
 function AixCard({ item, current, busy, onClick }: { item: AixCompact; current: boolean; busy: boolean; onClick: () => void }) {
   return <button type="button" className={`overflow-hidden rounded-xl border text-left transition hover:border-white/30 ${current ? "border-accent" : "border-white/10"}`} onClick={onClick} disabled={busy}>
-    <Image src={item.thumbnailPath} alt={item.thumbnailAlt} width={360} height={640} unoptimized loading="lazy" className="aspect-[9/16] w-full object-cover" />
-    <div className="p-3"><div className="flex items-center gap-2"><span className="text-sm font-medium">{item.name}</span>{current && <span className="text-[10px] text-accent">当前</span>}{busy && <span className="text-[10px] text-white/45">读取中</span>}</div><p className="mt-1 line-clamp-2 text-xs text-white/45">{item.description}</p><p className="mt-2 text-[10px] text-white/35">{item.id} · {item.tags.slice(0, 2).join(" · ")}</p></div>
+    <Image src={item.thumbnailPath} alt={item.thumbnailAlt} width={427} height={640} unoptimized loading="lazy" className="aspect-[2/3] w-full object-cover" />
+    <div className="p-3"><div className="flex items-start gap-2"><span className="min-w-0 text-sm leading-snug font-medium">{item.name}</span>{current && <span className="shrink-0 whitespace-nowrap text-[10px] text-accent">当前</span>}{busy && <span className="shrink-0 whitespace-nowrap text-[10px] text-white/45">读取中</span>}</div><p className="mt-1 line-clamp-2 text-xs text-white/45">{item.description}</p><p className="mt-2 text-[10px] text-white/35">{item.id} · {item.tags.slice(0, 2).join(" · ")}</p></div>
   </button>;
 }

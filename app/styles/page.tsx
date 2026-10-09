@@ -57,7 +57,7 @@ export default function StylesPage() {
 
       <div className="mt-10 mb-8 flex items-center justify-between"><div><p className="label">Aix 风格库</p><p className="mt-1 text-xs text-white/45">160 种系统风格，选择时直接写入项目快照。</p></div></div>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
-        {aixItems.map((s) => <article key={s.id} className="panel overflow-hidden"><Image src={s.thumbnailPath} alt={s.thumbnailAlt} width={360} height={640} unoptimized loading="lazy" className="aspect-[9/16] w-full object-cover" /><div className="p-4"><h2 className="text-sm font-semibold">{s.name}</h2><p className="mt-1 line-clamp-2 text-xs text-white/45">{s.description}</p><p className="mt-2 text-[10px] text-white/35">{s.id} · {s.tags.slice(0, 2).join(" · ")}</p></div></article>)}
+        {aixItems.map((s) => <article key={s.id} className="panel overflow-hidden"><Image src={s.thumbnailPath} alt={s.thumbnailAlt} width={427} height={640} unoptimized loading="lazy" className="aspect-[2/3] w-full object-cover" /><div className="p-4"><h2 className="text-sm font-semibold">{s.name}</h2><p className="mt-1 line-clamp-2 text-xs text-white/45">{s.description}</p><p className="mt-2 text-[10px] text-white/35">{s.id} · {s.tags.slice(0, 2).join(" · ")}</p></div></article>)}
       </div>
       <div className="mt-12 mb-8 flex items-center justify-between"><div><p className="label">我的风格</p><p className="mt-1 text-xs text-white/45">用户创建的风格独立保存，不会覆盖 Aix 系统目录。</p></div></div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

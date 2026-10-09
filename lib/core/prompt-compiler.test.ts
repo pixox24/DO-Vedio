@@ -39,6 +39,15 @@ describe("提示词编译", () => {
     expect(a.negative).toContain("塑料磨皮");
   });
 
+  it("配色组色值不进入生图提示词，改色不改变提示词", () => {
+    const base = style("cinematic-real");
+    const compiled = compilePrompt({ content: "港口", shotSize: "wide", style: base });
+    expect(compiled.full).not.toContain(base.palette.accent);
+    expect(compiled.full).not.toContain(base.palette.schemes[0][0]);
+    const recolored = { ...base, palette: { schemes: [["#112233", "#445566", "#778899"]] as [string, string, string][], accent: "#abcdef" } };
+    expect(compilePrompt({ content: "港口", shotSize: "wide", style: recolored }).hash).toBe(compiled.hash);
+  });
+
   it("情绪在风格范围内调制；风格不承载的情绪保持基调并提示", () => {
     const noir = style("noir-suspense");
     const warm = compilePrompt({ content: "一间小屋", style: noir, mood: "温暖" });
