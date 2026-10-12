@@ -1,5 +1,6 @@
 import { PARAGRAPH_JOINERS, blockLimitsFor, planBlocks } from "../core/blocks";
 import { lineSpeech, ttsBlockKey, ttsBlockLineKey, ttsKey, ttsRequestForLine, type TtsResult } from "../core/keys";
+import { sfxAssetNames, sfxRoles, type SfxSources } from "../core/sfx";
 import { buildTimeline, type Artifacts } from "../core/timeline";
 import { mediaUrl, outputSpecs, type Aspect, type Line, type OutputSpecId, type ProjectDoc, type VoiceSettings } from "../core/types";
 import { outputSpecForRequest } from "../core/output-spec";
@@ -54,16 +55,25 @@ export function measuredCpmOf(voice: VoiceSettings) {
   return r && r.samples >= 5 && r.speech_ms > 0 ? (r.chars / r.speech_ms) * 60_000 : undefined;
 }
 
+/** 已合成的角色音效地址。缺哪条就少哪条，时间轴不会塞空地址。 */
+export function sfxSourcesOf(media: (hash: string) => string): SfxSources {
+  const sources: SfxSources = {};
+  for (const role of sfxRoles) {
+    const hash = appAsset(sfxAssetNames[role]);
+    if (hash) sources[role] = media(hash);
+  }
+  return sources;
+}
+
 /** 组装时间轴所需的机器产物；media 决定素材地址（网页用 /api/media，渲染用本地静态服务） */
 export function loadArtifacts(doc: ProjectDoc, projectId: string, media: (hash: string) => string = mediaUrl): Artifacts {
   const keys = lineTtsKeys(doc, projectId);
   const hits = cacheMany<TtsResult>(keys.map((k) => k.key));
   const tracks = listTracks();
-  const whoosh = appAsset("sfx.whoosh.v1");
   return {
     tts: new Map(keys.map((k) => [k.line.id, hits.get(k.key)])),
     tracks: new Map(tracks.map((t) => [t.id, t])),
-    sfx: { whoosh: whoosh ? media(whoosh) : undefined },
+    sfx: { sources: sfxSourcesOf(media) },
     charsPerMinute: measuredCpm(doc),
     media,
   };

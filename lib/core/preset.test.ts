@@ -95,7 +95,7 @@ describe("制作预设：分组应用", () => {
     expect(doc.settings.subtitle.preset).toBe("neon-cyan");
     expect(doc.settings.music.enabled).toBe(false);
     expect(doc.settings.aiLabel.enabled).toBe(false);
-    expect(doc.settings.pauseAfterPreview).toBe(true);
+    expect(doc.settings.pauseAfterPreview).toBe(false);
     expect(doc.modelId).toBe("claude");
     expect(doc.visualStyle?.name).toBe("霓虹夜城");
     expect(doc.settings.budgetYuan).toBe(50);
@@ -124,6 +124,23 @@ describe("制作预设：分组应用", () => {
     payload.visualStyle!.name = "被改掉";
     expect(doc.settings.subtitle.fontSize).toBe(34);
     expect(doc.visualStyle?.name).toBe("霓虹夜城");
+  });
+});
+
+describe("制作预设：全片说明", () => {
+  it("自动生成的说明不进入预设", () => {
+    const doc = emptyDoc();
+    doc.settings.voice = { ...doc.settings.voice, instruction: "沉稳、老练，语重心长。", instructionSource: "generated" };
+    const payload = extractPresetPayload(doc);
+    expect(payload.settings.voice.instruction).toBe("");
+    expect(payload.settings.voice.instructionSource).toBe("user");
+    expect(doc.settings.voice.instruction).toBe("沉稳、老练，语重心长。");
+  });
+
+  it("手写说明照常进入预设", () => {
+    const doc = emptyDoc();
+    doc.settings.voice = { ...doc.settings.voice, instruction: "沉稳、老练，语重心长。", instructionSource: "user" };
+    expect(extractPresetPayload(doc).settings.voice.instruction).toBe("沉稳、老练，语重心长。");
   });
 });
 

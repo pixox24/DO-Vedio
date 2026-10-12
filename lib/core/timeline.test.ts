@@ -3,8 +3,9 @@ import { evenChars } from "./align";
 import type { TtsResult } from "./keys";
 import { duckEnvelope, envelopeAt, mergeIntervals } from "./mix";
 import { normalizeShots, repairShots, SHOT_RULES, stampShots, blankShot } from "./shots";
+import { selectShotCandidate } from "./shot-asset";
 import { breakLine, cuesForLine, toSrt } from "./subtitles";
-import { animationHash, buildTimeline, contentHash, layoutLines, subtitleBand, TIMING } from "./timeline";
+import { animationHash, buildTimeline, contentHash, FOCUS_HOLD_MS, FOCUS_NEXT_MIN_MS, holdFocusTextShots, layoutLines, subtitleBand, TIMING, type TimelineShot } from "./timeline";
 import { emptyDoc, type Line, type ProjectDoc, duckingSchema } from "./types";
 
 const line = (id: string, text: string, seg = 0, extra: Partial<Line> = {}): Line => ({ id, segmentIndex: seg, text, spans: [], keywords: [], locked: false, ...extra });
@@ -139,6 +140,24 @@ describe("时间轴", () => {
     expect(landscape.issues.some((issue) => issue.message.includes("共享素材"))).toBe(true);
   });
 
+  it("选中候选后成片时间轴改用这一幅的新画面", () => {
+    const doc = docWith([line("v", "换一张")]);
+    doc.shots = [{
+      ...blankShot("shot", "v"),
+      kind: "image",
+      assetId: "old",
+      candidates: [{ id: "old", assetId: "old", selected: true }, { id: "new", assetId: "new", selected: false }],
+      assetVariants: { "16:9": { assetId: "old", promptHash: "h", aspect: "16:9", width: 1920, height: 1080, source: "generated" } },
+    }];
+    const before = buildTimeline(doc, { ...art({}), media: (hash: string) => `/m/${hash}` }, "16:9");
+    const picked = selectShotCandidate(doc.shots[0]!, "new", { aspect: "16:9", framing: "smart-dual", aspects: ["16:9"] });
+    const after = buildTimeline({ ...doc, shots: [picked!] }, { ...art({}), media: (hash: string) => `/m/${hash}` }, "16:9");
+    expect(before.shots[0].imageSrc).toBe("/m/old");
+    expect(after.shots[0].imageSrc).toBe("/m/new");
+    expect(after.shots[0].startMs).toBe(before.shots[0].startMs);
+    expect(contentHash(after)).not.toBe(contentHash(before));
+  });
+
   it("转场只延长渲染区间，内容哈希与动画哈希分离", () => {
     const doc = docWith(lines);
     doc.shots = [
@@ -154,10 +173,86 @@ describe("时间轴", () => {
     expect(animationHash(changed)).not.toBe(animationHash(t));
   });
 
+  it("重点文字多留 500 毫秒，下一镜晚出现，旁白和总时长不动", () => {
+    const lines = [line("a", "方向比速度重要。"), line("b", "港口的清晨很安静。"), line("c", "船慢慢离开码头。")];
+    const doc = docWith(lines);
+    doc.shots = [
+      { ...blankShot("text", "a"), mode: "motion", focusText: { text: "方向", layoutMode: "auto" } },
+      { ...blankShot("pic", "b"), kind: "image", mode: "generate" },
+      { ...blankShot("pic2", "c"), kind: "image", mode: "generate" },
+    ];
+    const artifacts = art({ a: fakeTts(lines[0].text, 2000), b: fakeTts(lines[1].text, 2000), c: fakeTts(lines[2].text, 2000) });
+    const spoken = layoutLines(lines, artifacts);
+    const t = buildTimeline(doc, artifacts, "16:9");
+    expect(t.lines.map((item) => [item.startMs, item.endMs])).toEqual(spoken.lines.map((item) => [item.startMs, item.endMs]));
+    expect(t.durationMs).toBe(Math.max(1000, Math.round(spoken.endMs + TIMING.tailMs - TIMING.pauseInSegmentMs)));
+    expect(t.shots[0].startMs).toBe(0);
+    expect(t.shots[0].endMs).toBe(t.lines[1].startMs + FOCUS_HOLD_MS);
+    expect(t.shots[1].startMs).toBe(t.lines[1].startMs + FOCUS_HOLD_MS);
+    expect(t.shots[1].endMs).toBe(t.lines[2].startMs);
+    expect(t.shots[2].startMs).toBe(t.lines[2].startMs);
+    expect(t.shots[2].endMs).toBe(t.durationMs);
+  });
+
+  it("下一镜不够长时少延，片尾的重点文字不加", () => {
+    const lines = [line("a", "方向。"), line("b", "短句。"), line("c", "后面还有一句完整的话。")];
+    const doc = docWith(lines);
+    doc.shots = [
+      { ...blankShot("text", "a"), mode: "motion", focusText: { text: "方向", layoutMode: "auto" } },
+      { ...blankShot("pic", "b"), kind: "image", mode: "generate", locked: true },
+      { ...blankShot("tail", "c"), mode: "motion", focusText: { text: "完整", layoutMode: "auto" }, locked: true },
+    ];
+    const artifacts = art({ a: fakeTts(lines[0].text, 2000), b: fakeTts(lines[1].text, 1150), c: fakeTts(lines[2].text, 2000) });
+    const t = buildTimeline(doc, artifacts, "16:9");
+    const room = 1150 + TIMING.pauseInSegmentMs - FOCUS_NEXT_MIN_MS;
+    expect(t.lines[2].startMs - t.lines[1].startMs).toBe(1150 + TIMING.pauseInSegmentMs);
+    expect(t.shots[0].endMs).toBe(t.lines[1].startMs + room);
+    expect(t.shots[1].endMs - t.shots[1].startMs).toBe(FOCUS_NEXT_MIN_MS);
+    expect(t.shots[2].startMs).toBe(t.lines[2].startMs);
+    expect(t.shots[2].endMs).toBe(t.durationMs);
+  });
+
   it("字幕行数增加时安全区底部比例随之增加", () => {
     const one = subtitleBand([{ startMs: 0, endMs: 1000, text: "一行", lineId: "a", highlights: [] }], { startMs: 0, endMs: 1000 }, { portrait: true });
     const three = subtitleBand([{ startMs: 0, endMs: 1000, text: "这是一段很长的字幕文本，应该需要三行来显示。这是一段很长的字幕文本，应该需要三行来显示。", lineId: "a", highlights: [] }], { startMs: 0, endMs: 1000 }, { portrait: true });
     expect(three.bottomRatio).toBeGreaterThan(one.bottomRatio);
+  });
+});
+
+describe("重点文字停留", () => {
+  const shot = (partial: Partial<TimelineShot> & Pick<TimelineShot, "shotId" | "startMs" | "endMs">): TimelineShot => ({
+    kind: "placeholder", motion: "none", description: "", caption: "", keywords: [], seed: 1, card: { variant: "headline" }, ...partial,
+  });
+
+  it("连续两张重点文字各把切点后移，中间镜头时长不变", () => {
+    const held = holdFocusTextShots([
+      shot({ shotId: "a", startMs: 0, endMs: 3000, mode: "motion", focusText: { text: "方向", layoutMode: "auto" } }),
+      shot({ shotId: "b", startMs: 3000, endMs: 5500, mode: "motion", focusText: { text: "速度", layoutMode: "auto" } }),
+      shot({ shotId: "c", startMs: 5500, endMs: 9000, kind: "image", mode: "generate" }),
+    ]);
+    expect(held[0].endMs).toBe(3500);
+    expect(held[1].startMs).toBe(3500);
+    expect(held[1].endMs).toBe(6000);
+    expect(held[2].startMs).toBe(6000);
+    expect(held[2].endMs).toBe(9000);
+    expect(held[1].endMs - held[1].startMs).toBe(2500);
+  });
+
+  it("下一镜不到 1 秒时不延，锚点跟着新的起点走", () => {
+    const unchanged = holdFocusTextShots([
+      shot({ shotId: "a", startMs: 0, endMs: 2000, mode: "motion", focusText: { text: "方向", layoutMode: "auto" } }),
+      shot({ shotId: "b", startMs: 2000, endMs: 2800, kind: "image", mode: "generate" }),
+    ]);
+    expect(unchanged.map((item) => [item.startMs, item.endMs])).toEqual([[0, 2000], [2000, 2800]]);
+    const shifted = holdFocusTextShots([
+      shot({ shotId: "a", startMs: 0, endMs: 3000, mode: "motion", focusText: { text: "方向", layoutMode: "auto" } }),
+      shot({
+        shotId: "b", startMs: 3000, endMs: 6000, kind: "image", mode: "generate",
+        animation: { family: "none", intensity: 1, anchors: [{ frame: 30, role: "emphasis", target: "x" }, { frame: 10, role: "enter", target: "y" }], params: {} },
+      }),
+    ]);
+    expect(shifted[1].startMs).toBe(3500);
+    expect(shifted[1].animation?.anchors).toEqual([{ frame: 15, role: "emphasis", target: "x" }]);
   });
 });
 
@@ -198,6 +293,14 @@ describe("分镜规则", () => {
     const d = durations(shots, times, total);
     expect(d[0]).toBeLessThanOrEqual(SHOT_RULES.openingMaxMs + 1);
     for (let k = 1; k < shots.length; k++) if (!shots[k].locked && !shots[k - 1].locked) expect(shots[k].motion).not.toBe(shots[k - 1].motion);
+  });
+
+  it("锁定的静止运镜不会被改掉", () => {
+    const { ls, times, total } = mk(2, 2000);
+    const second = { ...blankShot("b", "l1"), motion: "none" as const, motionLocked: true };
+    const shots = normalizeShots([blankShot("a", "l0"), second], ls, times, total, id);
+    expect(shots.find((shot) => shot.id === "b")?.motion).toBe("none");
+    expect(shots.find((shot) => shot.id === "b")?.motionLocked).toBe(true);
   });
 
   it("拆出来的镜头换景别、不继承信息卡", () => {

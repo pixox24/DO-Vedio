@@ -59,7 +59,7 @@ function timeline(aspect: "16:9" | "9:16"): Timeline {
     cues: [],
     subtitleBlocks: [],
     music: [],
-    sfx: [],
+    sfx: [], sfxSources: {},
     subtitle: { ...DEFAULT_SUBTITLE_CONFIG, enabled: false, highlight: false },
     aiLabel: { enabled: false, position: "top-right" },
     issues: [],

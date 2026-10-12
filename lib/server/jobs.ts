@@ -230,6 +230,19 @@ export function cancelProjectJobBatch(projectId: string, stages: string | string
   ).changes;
 }
 
+/** 只取消后台追成片的渲染。用户点的生成不带这个标记，不会被这里收掉。 */
+export function cancelCatchUpJobs(projectId: string): number {
+  const rows = all<{ id: string }>(
+    `SELECT id FROM jobs
+     WHERE project_id = ? AND stage = 'render' AND status IN ('queued', 'running')
+       AND json_extract(input, '$.catchUp') = 1`,
+    projectId,
+  );
+  let count = 0;
+  for (const row of rows) if (cancelJob(row.id)) count += 1;
+  return count;
+}
+
 /** 只取消某一轮自动制作提交的任务，不能影响同项目的独立面板任务。 */
 export function cancelProjectJobsByGoal(projectId: string, goalId: string) {
   const rows = all<{ id: string }>(

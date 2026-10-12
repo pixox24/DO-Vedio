@@ -496,4 +496,85 @@ CREATE TABLE custom_voices (
 );
 `,
   },
+  {
+    id: 20,
+    name: "render_origin",
+    sql: "",
+    apply: (db) => {
+      const columns = db.prepare("PRAGMA table_info(renders)").all() as { name: string }[];
+      if (!columns.some((column) => column.name === "origin")) db.exec("ALTER TABLE renders ADD COLUMN origin TEXT NOT NULL DEFAULT 'manual'");
+    },
+  },
+  {
+    id: 21,
+    name: "motion_notes",
+    sql: `
+CREATE TABLE motion_notes (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  link TEXT NOT NULL DEFAULT '',
+  shelf TEXT NOT NULL,
+  energy TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+`,
+  },
+  {
+    id: 22,
+    name: "viral_recreation",
+    sql: `
+CREATE TABLE viral_drafts (
+  id TEXT PRIMARY KEY,
+  revision INTEGER NOT NULL,
+  generation INTEGER NOT NULL DEFAULT 0,
+  body TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX viral_drafts_recent ON viral_drafts(updated_at DESC);
+CREATE TABLE viral_snapshots (
+  id TEXT PRIMARY KEY,
+  draft_id TEXT NOT NULL REFERENCES viral_drafts(id) ON DELETE CASCADE,
+  body TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE viral_tasks (
+  id TEXT PRIMARY KEY,
+  draft_id TEXT NOT NULL REFERENCES viral_drafts(id) ON DELETE CASCADE,
+  snapshot_id TEXT NOT NULL REFERENCES viral_snapshots(id),
+  generation INTEGER NOT NULL,
+  status TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX viral_tasks_draft ON viral_tasks(draft_id, created_at DESC);
+CREATE UNIQUE INDEX viral_one_active_task ON viral_tasks(draft_id) WHERE status IN ('queued', 'running');
+CREATE TABLE viral_artifacts (
+  task_id TEXT NOT NULL REFERENCES viral_tasks(id) ON DELETE CASCADE,
+  stage TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY(task_id, stage)
+);
+CREATE TABLE viral_versions (
+  id TEXT PRIMARY KEY,
+  draft_id TEXT NOT NULL REFERENCES viral_drafts(id) ON DELETE CASCADE,
+  body TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX viral_versions_draft ON viral_versions(draft_id, created_at);
+CREATE TABLE viral_adoptions (
+  id TEXT PRIMARY KEY,
+  draft_id TEXT NOT NULL REFERENCES viral_drafts(id) ON DELETE CASCADE,
+  version_id TEXT NOT NULL REFERENCES viral_versions(id),
+  settings_key TEXT NOT NULL,
+  project_id TEXT NOT NULL REFERENCES projects(id),
+  body TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  UNIQUE(draft_id, version_id, settings_key)
+);
+`,
+  },
 ];

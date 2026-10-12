@@ -447,14 +447,13 @@ function Looks({ card, doc, update }: { card: CharacterCard; doc: ProjectDoc; up
     <div className="space-y-2.5">
       <div className="flex items-baseline justify-between gap-3">
         <p className="text-xs font-medium text-text-faint">造型</p>
-        <p className="text-2xs text-text-faint">需要换装时再添加一套</p>
+        <p className="text-2xs text-text-faint">只写服装和穿戴配饰；手里拿的东西写在分镜里</p>
       </div>
       {card.looks.map((look, i) => (
         <div key={look.id} className="space-y-2.5 rounded-control border border-line bg-white/[0.02] p-3">
-          <div className="grid gap-2 @md:grid-cols-[7rem_1fr_1fr]">
+          <div className="grid gap-2 @md:grid-cols-[7rem_1fr]">
             <input className="input h-9 py-1.5 text-sm" value={look.name} onChange={(e) => setLook(look.id, { name: e.target.value })} aria-label="造型名称" />
-            <input className="input h-9 py-1.5 text-sm" value={look.wardrobe} placeholder="服装" onChange={(e) => setLook(look.id, { wardrobe: e.target.value })} />
-            <input className="input h-9 py-1.5 text-sm" value={look.props} placeholder="道具（可选）" onChange={(e) => setLook(look.id, { props: e.target.value })} />
+            <input className="input h-9 py-1.5 text-sm" value={look.wardrobe} placeholder="服装与穿戴配饰" onChange={(e) => setLook(look.id, { wardrobe: e.target.value })} />
           </div>
           {i > 0 && (
             <div className="flex items-center gap-2">

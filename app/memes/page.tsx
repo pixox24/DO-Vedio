@@ -243,7 +243,13 @@ export default function MemesPage() {
             </div>
           </form>
           <div className="border-t border-white/[0.06] pt-5">
-            <MemeImport searchAvailable={!!data?.searchModel} onImported={() => void reload()} />
+            <MemeImport
+              searchAvailable={!!data?.searchModel}
+              existing={data?.memes ?? []}
+              blocked={data?.blocks.map((block) => block.term) ?? []}
+              defaultCategory={manualCategory}
+              onImported={() => void reload()}
+            />
           </div>
         </div>
       )}

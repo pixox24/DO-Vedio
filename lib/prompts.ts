@@ -534,7 +534,8 @@ export function annotatePrompt(lines: { id: string; text: string }[], context: {
 - 不需要标注的句子，spans 给空数组
 - pauseAfterMs：句后停顿毫秒数。一般句子不填；需要强调、制造悬念或话题转折时填 500-1200
 - keywords：每句 0-2 个值得在字幕上高亮的关键词，必须是原句里出现的连续文字，每个最多 8 个字
-- mood：这句话的情绪，从给定选项中选`,
+- mood：这句话的内容情绪，从给定选项中选。它给分镜和字幕用，不是念法
+- delivery：这一句的念法。多数句子填 none。只有这一句确实要离开全片口吻时才选一个：serious 严肃、sad 悲伤、excited 兴奋、amazed 惊叹、curious 好奇、empathetic 共情、sarcastic 讽刺、whispers 耳语、very slowly 非常缓慢、very fast 非常快速。不要因为内容情绪是激昂、忧伤或悬疑就选标签`,
     prompt: `视频：${context.title}
 章节：${context.segmentTitle}
 ${context.lexicon.length ? `\n已有读音词典（遇到这些词直接照用）：\n${context.lexicon.map((l) => `- ${l.word} → ${l.say}`).join("\n")}\n` : ""}
@@ -542,6 +543,31 @@ ${context.lexicon.length ? `\n已有读音词典（遇到这些词直接照用�
 ${lines.map((l) => `[${l.id}] ${l.text}`).join("\n")}
 
 为每一句输出一条标注，id 与上面一致。`,
+  };
+}
+
+export function voiceDirectionPrompt(input: {
+  title: string;
+  style?: { name: string; description: string; tone: string };
+  perspective: "first" | "third";
+  script: string;
+  moods: { mood: string; count: number }[];
+  tagged: { text: string; tag: string }[];
+}): Prompt {
+  return {
+    instructions: `你是中文配音导演，负责给整部口播片写一句全片朗读说明。这句说明会交给语音模型，决定全片怎么念。
+要求：
+- 只写一句中文，不超过 80 个字
+- 写怎么念：语速、轻重、态度。用具体的声音词，例如沉稳、低沉、语速偏慢、语重心长
+- 不要模仿任何具体的人
+- 不要写性别、年龄或音色名字，音色已经选定
+- 不要写方括号标签，也不要复述正文`,
+    prompt: `视频：${input.title}
+叙述视角：${input.perspective === "first" ? "第一人称" : "第三人称"}
+${input.style ? `解说风格：${input.style.name}（${input.style.description}；语气：${input.style.tone}）\n` : ""}内容情绪分布：${input.moods.length ? input.moods.map((item) => `${item.mood} ${item.count}`).join("、") : "尚未标注"}
+${input.tagged.length ? `这几句会单独换念法，全片说明不要把它们的念法写成全片口吻：\n${input.tagged.map((item) => `- ${item.tag}：${item.text}`).join("\n")}\n` : ""}
+正文：
+${input.script}`,
   };
 }
 
@@ -576,20 +602,33 @@ export function storyboardPrompt(input: StoryboardPayload): Prompt {
 每个镜头必须有 lineId（旁白中的句子 ID）、intent、kind="placeholder"、mode（"generate" 或 "motion"）、description、motion（zoom-in/zoom-out/pan-left/pan-right/none）、importance（1-3）。可选 char（句中的起点，默认 0）、shotSize、characters、focusText。
 
 【两种画面】
-- mode=generate：人、物、场景、动作、故事情节直接拍出来；抽象情绪用贴合旁白的具体意象。description 写主体、动作、环境和关键细节；shotSize 必填。不要写画风词，也不要让画面出现文字。
+- mode=generate：人、物、场景、动作、故事情节直接拍出来；抽象情绪用贴合旁白的具体意象。description 写主体、动作、环境和关键细节；shotSize 必填。不要写画风词，也不要让画面出现文字。人物在看带屏幕的设备时，按【屏幕朝向】写，不要新增字段。
 - mode=motion：只展示一个最重要的视觉核心。focusText 必填，结构为 {"text":"重点文字","emphasis":"可选强调片段","support":"可选极短辅助字"}。text 可以是单字、词组、成语、原文里的数字或压缩后的观点，不按章节、金句、提问、对比、数据等业务类别分卡。description 简述画面意图即可，不指定版式。
 
 【提炼要求】focusText.text 必须是准确的关键词或短语，最多 8 个等价汉字宽度、单行。超长时重新概括成更短的意思，禁止只截取前八字。support 也最多 8 字，只有确有必要才写。百分数、倍数、年份必须与旁白原文一致，不能编造或换算。不要复制整句字幕；不要输出 card、onScreenText、title 或 quote。
 
 【节奏】文字画面用于关键数字、观点落点和认知转折，占全片约 20%-35%。连续两个镜头不能都是 motion；具体叙事优先 generate，给观众消化文字的空间。镜头连续覆盖时间轴，每镜约 2-6 秒；长句可在逗号后用 char 切镜，短句可合并。相邻生成画面景别与运镜要变化。importance=3 只用于开场钩子、高潮、转折，最多约 15%。
 
-【角色】建卡角色出现在画面时把 id 写进 characters；description 用名字指代，不重复外貌。真实公众人物以背影、剪影、手部或象征物呈现。
+【角色】建卡角色出现在画面时把 id 写进 characters；description 用名字指代，不重复外貌。角色卡只有外貌和服装，这一镜他手里拿什么、正在做什么，都要写进 description。真实公众人物以背影、剪影、手部或象征物呈现。
+
+【屏幕朝向】人物看手机、平板、电脑或手表时，生图模型会把界面画在朝向镜头的那一面，也会把摄像头模组画成被注视的物体。约束只写进 description，不要新增字段，不要写「屏幕显示」「界面上」。除了拍照和视频通话，不要写「摄像头模组」。
+- 手指在玻璃上点按、滑动、解锁、输入，或主观、过肩看界面：屏幕在手指下方，略微朝向镜头，上面只有抽象色块和图标，没有文字和数字。特写时以手和屏幕为主，脸不入画。手机平放被点时屏幕朝上。
+- 看得到脸、人在看手机或平板：手机侧对镜头，屏幕朝向眼睛，只见屏幕侧缘，屏幕是暗的。
+- 只是拿着、握着、走路，屏幕不是动作：屏幕背对镜头或朝下，没有界面。
+- 笔记本、显示器：屏幕朝向使用者，不画外壳背面。过肩只看到一块暗的屏幕。打字时键盘在手前。车机屏幕朝向驾驶者，不画屏幕背面。
+- 看手表：表盘朝向眼睛，不画表壳背面，不写可读数字。
+- 把屏幕给对方看：屏幕朝向对方，上面只有抽象色块，没有可读文字。两人看同一台手机时，屏幕在两人之间。
+- 用手机拍照：后置摄像头朝向被摄物，屏幕朝向拍摄者。自拍或视频通话：前置摄像头朝向人脸。只有这两种镜头可以写摄像头。
+- 旁白要让观众知道屏幕上的金额或通知：不要画在设备上。改成人物身侧一块半透明磨砂面板，只写图标和抽象色条，不写数字和文字。金额和原文仍用 focusText。
+- 没人看的屏幕可以露出来，但只能是暗的或糊的，不画界面。
 
 【示例】
 旁白：用户留存提高到85%。→ {"kind":"placeholder","mode":"motion","focusText":{"text":"85%","support":"用户留存"}}
 旁白：焦虑，本质上是对失控的恐惧。→ {"kind":"placeholder","mode":"generate","shotSize":"close","description":"一只手攥紧沙子，沙粒不断从指缝流下"}
 旁白：真正的问题不是速度，而是方向。→ {"kind":"placeholder","mode":"motion","focusText":{"text":"方向比速度重要"}}
-旁白：他推开门，屋里一个人都没有。→ {"kind":"placeholder","mode":"generate","shotSize":"wide","description":"老旧木门半开，门后是空荡的客厅，家具盖着白布"}`,
+旁白：他推开门，屋里一个人都没有。→ {"kind":"placeholder","mode":"generate","shotSize":"wide","description":"老旧木门半开，门后是空荡的客厅，家具盖着白布"}
+旁白：她看着账户，只剩下一万二。→ {"kind":"placeholder","mode":"generate","shotSize":"medium","description":"年轻女性坐在窗边低头看手机，手机侧对镜头，屏幕朝向眼睛，只见屏幕侧缘，屏幕是暗的。画面右侧一块半透明磨砂卡片，存钱罐图标和一条色条，没有文字"}
+旁白：她在设置里把通知关掉。→ {"kind":"placeholder","mode":"generate","shotSize":"extreme-close","description":"手指在手机屏幕上点按，屏幕在手指下方，略微朝向镜头，屏幕上只有抽象色块和图标，没有文字和数字，以手和屏幕为主，脸不入画"}`,
     prompt: `视频：${input.title}
 ${input.style ? `解说风格：${input.style.name}（${input.style.description}${input.style.tone ? `；语气：${input.style.tone}` : ""}）\n` : ""}${input.brief.audience ? `目标受众：${input.brief.audience}\n` : ""}叙述视角：${input.brief.perspective === "first" ? "第一人称 UP 主" : "第三人称旁白"}
 ${input.brief.summary ? `\n内容概要：\n${input.brief.summary}\n` : ""}${input.cast?.length ? `\n角色表（id · 名字 · 身份 · 外貌摘要）：\n${input.cast.map((c) => `- ${c.id} · ${c.name} · ${c.role} · ${c.brief}${c.presentation ? `（${c.presentation}）` : ""}`).join("\n")}\n` : ""}${input.partial ? `\n注意：这是局部重做。${edge("这段之前", input.partial.before)}${edge("这段之后", input.partial.after)}只为下面这些句子设计镜头，第一个镜头必须从第一句开始，并与前后镜头自然衔接（景别、表达方式不要和相邻镜头雷同）。\n` : ""}
@@ -643,13 +682,15 @@ export function castPrompt(input: CastPayload): Prompt {
 - narrator（UP 主形象）只有文中的「我」确实需要出现在画面里时才建卡
 
 【第四步：设计外貌】只对 needsCard=true 的角色认真写
+- 只写这个人长什么样、穿什么。身份锚会被逐字放进他的每一个镜头，所以随时间变化的内容一律不能写：不写手里拿着、身上带着的物件（手机、杯子、文件、配送箱、秤），不写动作、表情、姿势（低头、双手抱胸、苦笑、站在窗边），也不写地点和屏幕内容。这些只写在分镜的画面描述里。
+- 常穿戴在身上、不占用手的可以写：眼镜、围巾、帽子、耳环。判断标准是「不拿在手里」。
 - 原文明确写到的特征必须照写，并把字段名列进 explicitFields；根据时代、职业、地域、性格合理推断的列进 inferredFields；其余按题材补全
 - 可填字段：ageRange（自然的说法，如「二十出头」「五十多岁」）、gender、region（仅当背景需要时）、era（时代）、occupation、hair、eyes、faceShape、facialHair、marks（疤痕、痣等）、build、height
 - 区分「不变的」和「随造型变的」：身份锚会出现在这个角色的每一个镜头里，所以
-  · occupation 只写贯穿全片不变的身份；剧情里换了职业（外卖员→心理咨询师），职业写进对应造型的 name 和 wardrobe，occupation 留空
-  · signature：2-3 个识别锚点，必须在所有造型里都成立——身体特征（「左耳缺一角」「雀斑」）或始终佩戴的配饰（「圆框眼镜」「红色毛线围巾」）。某套造型专属的服装、工具、道具（头盔、工作证、配送箱）只能写进那套造型，不能当识别锚点
+  · occupation 只写贯穿全片不变的身份名词，不写正在做的事（写「外卖骑手」，不写「正在送外卖」）；剧情里换了职业（外卖员→心理咨询师），职业写进对应造型的 name 和 wardrobe，occupation 留空
+  · signature：2-3 个识别锚点，必须在所有造型里都成立——身体特征（「左耳缺一角」「雀斑」）或始终穿戴、不占用手的配饰（「圆框眼镜」「红色毛线围巾」）。拿在手里的东西和某套造型专属的物件（配送箱、工作证）不能当识别锚点
   · 同一特征在各字段里的描述必须一致（左右、颜色、数量不能前后矛盾），已写进 marks 的特征不要在 signature 里换个说法重复
-- looks：造型（服装 + 道具）。服装随剧情变化时（少年→中年、平时→婚礼、换工作）写多套，第二套起用 fromLineId 标明从哪一句开始
+- looks：造型（服装 + 穿戴配饰）。服装随剧情变化时（少年→中年、平时→婚礼、换工作）写多套，第二套起用 fromLineId 标明从哪一句开始。不要写手里拿的道具
 - personality：一句话性格，只用来指导姿态和表情
 - 同一部片的角色之间，发型、配色、体型至少有两项明显不同，让观众分得清
 - 没有依据时不指定肤色和体型，不套用职业和地域的刻板印象；确实没有信息、也不需要补全的字段直接留空，不要写「不指定」「未知」
@@ -658,7 +699,7 @@ export function castPrompt(input: CastPayload): Prompt {
 
 【示例】
 原文：「林夏今年二十三岁，留着齐耳短发……她又一次站在那家书店门口……五年后，林夏已经是一家出版社的编辑。」
-→ key=林夏，role=protagonist，needsCard=true，ageRange=二十出头，gender=女性，hair=齐耳黑色短发，explicitFields=[ageRange, gender, hair]，occupation 留空（前后换了身份），signature=[红色毛线围巾, 左眼角一颗泪痣]，looks=[{name:大学生, wardrobe:米色风衣、牛仔裤, props:帆布托特包}, {name:出版社编辑, wardrobe:深灰色西装外套、白衬衫, props:一叠书稿, fromLineId:<五年后那句的 ID>}]`,
+→ key=林夏，role=protagonist，needsCard=true，ageRange=二十出头，gender=女性，hair=齐耳黑色短发，explicitFields=[ageRange, gender, hair]，occupation 留空（前后换了身份），signature=[红色毛线围巾, 左眼角一颗泪痣]，looks=[{name:大学生, wardrobe:米色风衣、牛仔裤}, {name:出版社编辑, wardrobe:深灰色西装外套、白衬衫, fromLineId:<五年后那句的 ID>}]`,
     prompt: `视频：${input.title}
 叙述视角：${input.brief.perspective === "first" ? "第一人称 UP 主" : "第三人称旁白"}
 ${input.style ? `解说风格：${input.style.name}（${input.style.description}）\n` : ""}${input.brief.summary ? `\n内容概要：\n${input.brief.summary}\n` : ""}

@@ -12,6 +12,11 @@ function insert(projectId: string, revision: number, label: string, doc: Project
   return id;
 }
 
+/** No nested transaction: the handoff saves this snapshot alongside the replacement script. */
+export function createVersionWithinTx(projectId: string, revision: number, label: string, doc: ProjectDoc) {
+  return insert(projectId, revision, label, doc);
+}
+
 export function listVersions(projectId: string) {
   return all<Row>("SELECT * FROM project_versions WHERE project_id = ? ORDER BY created_at DESC, rowid DESC", projectId).map(({ id, revision, label, doc, created_at }) => ({
     id, revision, label, createdAt: created_at, segments: (parseJson(doc, {}) as ProjectDoc).segments?.length ?? 0,

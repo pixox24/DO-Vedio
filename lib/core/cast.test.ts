@@ -91,6 +91,12 @@ describe("身份锚", () => {
     expect(anchorText({ ...card, presentation: "back" })).toMatch(/^林夏：只拍背影，不出现可辨认的正脸/);
   });
 
+  it("造型道具不进身份锚，不会和当镜动作抢手", () => {
+    const held = characterCardSchema.parse({ id: "p", name: "我", hair: "黑色短发", looks: [{ id: "L1", name: "默认", wardrobe: "灰色卫衣", props: "手机（屏幕使用时间报告页面）" }] });
+    expect(anchorText(held, held.looks[0])).toBe("我：黑色短发，穿着灰色卫衣");
+    expect(anchorText(held, held.looks[0])).not.toContain("手机");
+  });
+
   it("外貌或风格变了，定妆指纹就变", () => {
     const h = sheetSourceHash(card, aixFixture());
     expect(sheetSourceHash({ ...card, hair: "长发" }, aixFixture())).not.toBe(h);

@@ -6,7 +6,8 @@ import { getProject, mutateProject } from "@/lib/server/projects";
 import { enqueue, latestJobByKey } from "@/lib/server/jobs";
 import { listProviderProfiles } from "@/lib/providers/registry";
 import { ensureProjectVisualStyle } from "@/lib/visual-styles/store";
-import { outputSpecForRequest, type GenerationFrame } from "@/lib/core/output-spec";
+import { outputSpecForRequest, outputSpecsFor, previewSpecFor, type GenerationFrame } from "@/lib/core/output-spec";
+import { selectShotCandidate } from "@/lib/core/shot-asset";
 import type { Aspect, OutputSpecId } from "@/lib/core/types";
 
 const body = z.object({ kind: z.enum(["image", "video"]), modelId: z.string().optional(), candidateCount: z.number().int().min(1).max(4).optional(), outputSpecId: z.enum(["landscape-1080p", "portrait-1080p"]).optional(), aspect: z.enum(["16:9", "9:16"]).optional(), assetFraming: z.enum(["smart-dual", "per-output", "shared"]).optional() });
@@ -35,20 +36,25 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; sh
   });
 }
 
-const selectBody = z.object({ candidateId: z.string().min(1) });
+const selectBody = z.object({ candidateId: z.string().min(1), aspect: z.enum(["16:9", "9:16"]).optional() });
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string; shotId: string }> }) {
   return handle(async () => {
     const { id, shotId } = await ctx.params;
     if (!getProject(id)) return fail("项目不存在", 404);
-    const { candidateId } = await parseBody(req, selectBody);
+    const { candidateId, aspect } = await parseBody(req, selectBody);
     let selected = false;
     const project = mutateProject(id, (doc) => {
       const shot = doc.shots.find((s) => s.id === shotId);
       if (!shot) return null;
-      if (!shot.candidates.some((c) => c.id === candidateId)) return null;
+      const next = selectShotCandidate(shot, candidateId, {
+        aspect: aspect ?? previewSpecFor(doc.settings).aspect,
+        framing: doc.settings.assetFraming,
+        aspects: outputSpecsFor(doc.settings).map((spec) => spec.aspect),
+      });
+      if (!next) return null;
       selected = true;
-      return { ...doc, shots: doc.shots.map((s) => s.id === shotId ? { ...s, assetId: s.candidates.find((c) => c.id === candidateId)!.assetId, candidates: s.candidates.map((c) => ({ ...c, selected: c.id === candidateId })) } : s) };
+      return { ...doc, shots: doc.shots.map((s) => (s.id === shotId ? next : s)) };
     });
     if (!project || !selected) return fail("候选素材不存在", 404);
     return Response.json({ shot: project.doc.shots.find((s) => s.id === shotId) });

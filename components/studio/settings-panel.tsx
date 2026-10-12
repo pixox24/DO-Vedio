@@ -89,11 +89,8 @@ export function SettingsPanel({ store }: { store: ProjectStore }) {
               <Switch checked={doc.settings.aiLabel.enabled} label="AI 生成标识" onChange={(checked) => { void toggleAiLabel(checked); }} />
             </span>
             </SettingRow>
-            <SettingRow label="转场音效">
-              <Switch checked={doc.settings.sfx.enabled} label="转场音效" onChange={(checked) => store.setDoc((current) => ({ ...current, settings: { ...current.settings, sfx: { enabled: checked } } }))} />
-            </SettingRow>
-            <SettingRow label="样片后暂停">
-              <Switch checked={doc.settings.pauseAfterPreview} label="样片后暂停" onChange={(checked) => store.setDoc((current) => ({ ...current, settings: { ...current.settings, pauseAfterPreview: checked } }))} />
+            <SettingRow label="动画音效">
+              <Switch checked={doc.settings.sfx.enabled} label="动画音效" onChange={(checked) => store.setDoc((current) => ({ ...current, settings: { ...current.settings, sfx: { enabled: checked } } }))} />
             </SettingRow>
           </div>}
         </SettingGroup>

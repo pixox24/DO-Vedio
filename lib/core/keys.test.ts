@@ -56,15 +56,16 @@ describe("镜头生成缓存键", () => {
 });
 
 describe("Qwen-Audio 逐句表达标签", () => {
-  it("自动跟随已标注情绪，手动标签可覆盖或关闭", () => {
+  it("待标注不再跟随内容情绪，手动标签可覆盖或关闭", () => {
     const line = { mood: "忧伤" as const, voiceTag: "auto" as const };
-    expect(ttsTextForLine("这段旁白。", line, "qwen-audio-3.0-tts-plus")).toBe("[sad]这段旁白。");
+    expect(ttsTextForLine("这段旁白。", line, "qwen-audio-3.0-tts-plus")).toBe("这段旁白。");
+    expect(ttsTextForLine("这段旁白。", { ...line, locked: true }, "qwen-audio-3.0-tts-plus")).toBe("[sad]这段旁白。");
     expect(ttsTextForLine("这段旁白。", { ...line, voiceTag: "excited" }, "qwen-audio-3.0-tts-plus")).toBe("[excited]这段旁白。");
     expect(ttsTextForLine("这段旁白。", { ...line, voiceTag: "none" }, "qwen-audio-3.0-tts-plus")).toBe("这段旁白。");
   });
 
   it("不向 CosyVoice 注入标签，且标签会改变 TTS 缓存键", () => {
-    const line = { mood: "激昂" as const, voiceTag: "auto" as const };
+    const line = { mood: "激昂" as const, voiceTag: "excited" as const };
     const plain = ttsTextForLine("开始吧。", line, "cosyvoice-v3-flash");
     const tagged = ttsTextForLine("开始吧。", line, "qwen-audio-3.0-tts-flash");
     const voice = emptyDoc().settings.voice;

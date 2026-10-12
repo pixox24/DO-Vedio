@@ -17,7 +17,7 @@ export function setupFingerprint(settings: Settings): string {
       pitch: settings.voice.pitch,
       volume: settings.voice.volume,
       granularity: settings.voice.granularity,
-      instruction: settings.voice.instruction,
+      instruction: settings.voice.instructionSource === "generated" ? "" : settings.voice.instruction,
       google: settings.voice.google ? {
         stylePrompt: settings.voice.google.stylePrompt,
         locale: settings.voice.google.locale ?? null,

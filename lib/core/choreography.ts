@@ -22,7 +22,7 @@ export function choreograph(shots: Shot[], lines: Line[], times: Map<string, Lin
     const chapterStart = !!previous && previous.at.lineId !== shot.at.lineId &&
       byId.get(previous.at.lineId)?.segmentIndex !== line?.segmentIndex;
     let transitionIn: Shot["transitionIn"] = shot.transitionIn ?? "cut";
-    if (chapterStart) {
+    if (!shot.transitionLocked && chapterStart) {
       const segment = line?.segmentIndex ?? -1;
       if (segment >= 0 && !chapterHighlights.has(segment)) {
         chapterHighlights.add(segment);

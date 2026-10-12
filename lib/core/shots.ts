@@ -209,7 +209,7 @@ export function normalizeShots(shots: Shot[], lines: Line[], times: Map<string, 
       const best = ok.reduce((a, b) => (Math.abs(b.ms - target) - (b.at.char === 0 ? 400 : 0) < Math.abs(a.ms - target) - (a.at.char === 0 ? 400 : 0) ? b : a));
       // 拆出来的镜头：同一主体换景别；信息卡数据属于原镜头，新镜头按自己覆盖的旁白兜底
       const k2 = ++splitK;
-      const child: Shot = { ...s, id: newId(), at: best.at, motion: pickMotion(s.motion, k2), locked: false, kind: s.kind === "upload" && !s.assetId ? "placeholder" : s.kind, onScreenText: s.kind === "quote" ? undefined : s.onScreenText, card: undefined, focusText: undefined };
+      const child: Shot = { ...s, id: newId(), at: best.at, motion: pickMotion(s.motion, k2), motionLocked: undefined, transitionIn: undefined, transitionLocked: undefined, locked: false, kind: s.kind === "upload" && !s.assetId ? "placeholder" : s.kind, onScreenText: s.kind === "quote" ? undefined : s.onScreenText, card: undefined, focusText: undefined };
       if (s.kind === "quote") Object.assign(child, { kind: "placeholder", mode: "motion" });
       if (child.mode !== "motion") child.shotSize = splitShotSize(s.shotSize, k2);
       out.push(child);
@@ -221,7 +221,7 @@ export function normalizeShots(shots: Shot[], lines: Line[], times: Map<string, 
   let prev: Motion | undefined;
   return distributeMotionCards(out.map((s, k) => {
     let motion = s.motion;
-    if (!s.locked && (motion === "none" || motion === prev) && s.kind !== "title") motion = pickMotion(prev, k);
+    if (!s.locked && !s.motionLocked && (motion === "none" || motion === prev) && s.kind !== "title") motion = pickMotion(prev, k);
     prev = motion;
     return motion === s.motion ? s : { ...s, motion };
   }));

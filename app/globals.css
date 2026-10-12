@@ -48,6 +48,9 @@
   --color-success-surface: rgb(205 255 58 / 0.05);
   --color-success-border: rgb(205 255 58 / 0.25);
 
+  /* 分镜已写完、图片还没生成：中等饱和度青绿，和完成绿区分开 */
+  --color-hold: #3cbeae;
+
   /* —— 视频衬底（letterbox）—— */
   --color-stage: #17242c;
 
@@ -66,6 +69,8 @@
   --font-mono: var(--font-jetbrains-mono), ui-monospace, "SF Mono", Consolas, monospace;
 
   --animate-rise: rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  /* 首页首屏：比 rise 更长、更松弛，落点带一点点过冲感 */
+  --animate-rise-soft: rise-soft 0.72s cubic-bezier(0.16, 1, 0.3, 1) both;
   --animate-caret: caret 1s steps(1) infinite;
   --animate-fade-in: fade-in 0.16s ease-out both;
   --animate-dialog-in: dialog-in 0.18s cubic-bezier(0.2, 0.8, 0.2, 1) both;
@@ -79,6 +84,7 @@
   --animate-stop-in: stop-in 0.24s cubic-bezier(0.2, 0.8, 0.2, 1) both;
   --animate-shimmer: shimmer 1.8s linear infinite;
   --animate-live-dot: live-dot 1.6s ease-in-out infinite;
+  --animate-step-hold: step-hold 1.6s ease-in-out infinite;
   /* —— 字幕样张：与 Remotion 字幕层的入场动效保持同一套参数 —— */
   --animate-sub-pop: sub-pop 0.34s cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
   --animate-sub-fade: sub-fade 0.42s ease-out both;
@@ -86,6 +92,10 @@
 
   @keyframes rise {
     from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes rise-soft {
+    from { opacity: 0; transform: translateY(14px); }
     to { opacity: 1; transform: none; }
   }
   @keyframes caret {
@@ -98,6 +108,12 @@
   @keyframes dialog-in {
     from { opacity: 0; transform: translateY(6px) scale(0.98); }
     to { opacity: 1; transform: none; }
+  }
+  /* 首页模式菜单入场：只动 opacity 与独立 scale 属性，
+     不与用于翻转到上方的 inline transform 抢同一属性 */
+  @keyframes menu-in {
+    from { opacity: 0; scale: 0.94; }
+    to { opacity: 1; scale: 1; }
   }
   @keyframes toast-in {
     from { opacity: 0; transform: translateX(16px); }
@@ -154,6 +170,16 @@
     0%, 100% { opacity: 1; transform: scale(1); }
     50% { opacity: 0.45; transform: scale(0.82); }
   }
+  /* 一次模型调用没有中间百分比，细条在轨道里流动 */
+  @keyframes step-indeterminate {
+    0% { transform: translateX(-120%); }
+    100% { transform: translateX(380%); }
+  }
+  /* 分镜正在生图：满格青绿轻轻呼吸，不把进度打回半截 */
+  @keyframes step-hold {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+  }
   /* 字幕入场：弹出（0.92 → 1，与 remotion/layers/subtitles.tsx 一致） */
   @keyframes sub-pop {
     from { transform: scale(0.92); }
@@ -195,6 +221,8 @@ body {
     radial-gradient(900px 480px at 50% -120px, rgb(205 255 58 / 0.09), transparent 70%),
     radial-gradient(700px 400px at 100% 0%, rgb(120 90 255 / 0.06), transparent 70%),
     var(--color-ink);
+  /* 渐变的定位区是视口。默认 repeat 会每隔一屏再铺一层，制作页上正好落在预览区下方。 */
+  background-repeat: no-repeat;
   color: #f4f4f5;
   font-family: var(--font-sans);
 }
@@ -267,6 +295,53 @@ body::before {
   }
   .select-option:disabled {
     @apply cursor-not-allowed opacity-35;
+  }
+  /* —— 模式菜单（首页）——
+     与 .select-menu 同源：同样的 fixed 定位、同样的层级。
+     区别只在多了滑块指示器。 */
+  .mode-menu {
+    position: fixed;
+    z-index: calc(var(--z-modal) + 1);
+    overflow: hidden;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-surface);
+    background: rgb(16 20 19 / 0.96);
+    padding: 0.375rem;
+    box-shadow: 0 20px 50px rgb(0 0 0 / 0.48), 0 0 0 1px rgb(205 255 58 / 0.04);
+    backdrop-filter: blur(24px);
+    transform-origin: center;
+    animation: menu-in 0.26s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  /* 滑块：绝对定位的实心块，随选中项位移，不参与文档流。
+     top:0 明确以菜单 padding 盒为基准，避免依赖 static 定位而与内边距叠加错位。 */
+  .mode-marker {
+    position: absolute;
+    left: 0.375rem;
+    right: 0.375rem;
+    top: 0;
+    border-radius: var(--radius-control);
+    background: rgb(205 255 58 / 0.12);
+    box-shadow: inset 0 0 0 1px rgb(205 255 58 / 0.22);
+    transition: transform 0.24s cubic-bezier(0.2, 0.9, 0.3, 1.05), height 0.24s cubic-bezier(0.2, 0.9, 0.3, 1.05);
+    pointer-events: none;
+  }
+  .mode-item {
+    @apply relative z-10 flex w-full cursor-pointer items-start gap-3 rounded-control px-3 py-2.5 text-left transition;
+  }
+  .mode-item:hover {
+    @apply bg-white/[0.05];
+  }
+  .mode-item-title {
+    @apply text-sm text-white/80 transition;
+  }
+  .mode-item[aria-checked="true"] .mode-item-title {
+    @apply text-white;
+  }
+  .mode-item-hint {
+    @apply text-2xs leading-snug text-text-faint;
+  }
+  .mode-item[aria-checked="true"] .mode-item-hint {
+    @apply text-text-muted;
   }
   .btn {
     @apply inline-flex h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-full px-5 text-sm font-medium whitespace-nowrap transition select-none active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-35 disabled:active:scale-100;
@@ -357,6 +432,122 @@ body::before {
     .audio-eq > span { animation: none; transform: scaleY(0.7); }
   }
 
+  /* —— 首页输入区 ——
+     令牌（而不是调用处手写 hex/透明度）是这里的负责人：
+     三处透明度、一处光晕强度都在这一层定义，首页组件只管结构。 */
+  .composer-shell {
+    @apply relative rounded-panel backdrop-blur-xl;
+    /* 纯净输入面：无填充，只有一条安静的描边；聚焦时描边渐亮为主色并浮起一层辉光 */
+    border: 1px solid var(--color-line);
+    box-shadow: 0 30px 70px -42px rgb(0 0 0 / 0.95);
+    transition:
+      border-color 0.55s cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  /* 聚焦：边框缓亮成亮绿，并带一圈主色辉光 */
+  .composer-shell:focus-within {
+    border-color: var(--color-accent);
+    box-shadow:
+      0 0 0 1px rgb(205 255 58 / 0.55),
+      0 0 26px -6px rgb(205 255 58 / 0.45),
+      0 30px 70px -42px rgb(0 0 0 / 0.95);
+  }
+  .composer-text {
+    @apply w-full resize-none bg-transparent px-5 pt-5 pb-2 text-base leading-relaxed text-white caret-accent outline-none placeholder:text-white/30;
+  }
+  /* 首页首屏各块共用的入场：只做透明度与位移，长缓动落点更稳 */
+  .composer-enter {
+    animation: var(--animate-rise-soft);
+  }
+  /* 模式切换后辅助文字交叉淡入，位移很小，只提示「这里是新的」 */
+  .composer-note {
+    animation: var(--animate-rise);
+  }
+  /* 发送前的一瞬提亮，与项目列表按钮共用同一套曲线 */
+  .composer-flash {
+    animation: generation-breathe 1.4s ease-in-out 1;
+  }
+  /* 模式触发器：无边框的轻量 pill，靠底色与文字层级表达状态 */
+  .composer-mode {
+    @apply inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-full px-3 text-xs font-medium text-white/70 transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white;
+  }
+  .composer-mode:hover {
+    @apply bg-white/[0.06] text-white;
+  }
+  .composer-mode[aria-expanded="true"] {
+    @apply bg-accent/[0.12] text-white;
+  }
+  .composer-mode:disabled {
+    @apply cursor-not-allowed opacity-35;
+  }
+  /* 发送键：就绪态由颜色、投影、抬升共同表达；禁用态彻底安静下来 */
+  .composer-send {
+    @apply relative grid size-11 shrink-0 cursor-pointer place-items-center rounded-full bg-accent text-black;
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.55),
+      0 8px 22px -10px rgb(205 255 58 / 0.75);
+    transition:
+      transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.1),
+      box-shadow 0.3s ease,
+      filter 0.2s ease,
+      background-color 0.25s ease;
+  }
+  .composer-send:hover:not(:disabled) {
+    transform: translateY(-1px);
+    filter: brightness(1.05);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.6),
+      0 14px 30px -10px rgb(205 255 58 / 0.9);
+  }
+  .composer-send:active:not(:disabled) {
+    transform: scale(0.95);
+  }
+  .composer-send:disabled {
+    @apply cursor-not-allowed bg-white/[0.07] text-white/25;
+    box-shadow: none;
+    filter: none;
+    transform: none;
+  }
+  .composer-send[data-busy="true"] {
+    @apply cursor-wait;
+    filter: brightness(0.92);
+  }
+  /* 箭头：悬停时沿它指向的方向轻推一下（箭头本身 -rotate-90 朝上） */
+  .composer-send-icon {
+    display: inline-flex;
+    transition: transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.1);
+  }
+  .composer-send:hover:not(:disabled) .composer-send-icon {
+    transform: translateY(-1.5px);
+  }
+  /* 示例 chip：入场交给外层包裹，本体专注悬停抬升 */
+  .composer-chip {
+    @apply inline-flex h-9 cursor-pointer items-center rounded-full border border-line bg-white/[0.02] px-4 text-xs whitespace-nowrap text-text-muted transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white;
+  }
+  .composer-chip:hover {
+    @apply border-accent/40 bg-accent/[0.06] text-white;
+    transform: translateY(-2px);
+  }
+  .composer-chip:active {
+    transform: translateY(0) scale(0.98);
+  }
+  /* —— DotGrid：输入框周边的交互点阵 ——
+     结构样式放在这里，组件本体不再单独 import 一份 CSS，
+     避免与 globals.css 的加载顺序互相覆盖。 */
+  .dot-grid {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+  .dot-grid__canvas {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
   /* —— 语义横幅：替代原来 12 处各自漂移的 amber/red 边框组合 —— */
   .alert {
     @apply flex flex-wrap items-center justify-between gap-3 rounded-surface border px-5 py-3 text-sm leading-relaxed;
@@ -411,6 +602,13 @@ body::before {
     background: linear-gradient(90deg, transparent, rgb(205 255 58 / 0.06), transparent);
     animation: var(--animate-shimmer);
   }
+  .step-indeterminate {
+    width: 28%;
+    animation: step-indeterminate 1.4s ease-in-out infinite;
+  }
+  .step-hold {
+    animation: var(--animate-step-hold);
+  }
 }
 
 /*
@@ -433,13 +631,29 @@ body::before {
   .animate-stop-in,
   .animate-shimmer,
   .animate-live-dot,
+  .step-hold,
+  .step-indeterminate,
   .animate-sub-pop,
   .animate-sub-fade,
   .action-shimmer::after,
   .select-menu,
+  .mode-menu,
+  .mode-marker,
+  .composer-note,
+  .composer-enter,
+  .composer-chip,
+  .composer-flash,
   .overlay,
   .overlay-panel {
     animation: none;
+  }
+  .composer-chip:hover,
+  .composer-send:hover:not(:disabled),
+  .composer-send:hover:not(:disabled) .composer-send-icon {
+    transform: none;
+  }
+  .mode-marker {
+    transition: none;
   }
   /* 逐字高亮停在终态（全部强调色），不播放过渡 */
   .animate-sub-kara {

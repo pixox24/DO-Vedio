@@ -1,0 +1,9 @@
+# 主配置的公开策略部分；实际安装保留 provider、插件、MCP 等现有设置。
+model = "gpt-6.1-sol"
+model_reasoning_effort = "ultra"
+
+[agents]
+enabled = true
+max_concurrent_threads_per_session = 3
+default_subagent_model = "gpt-6.1-sol"
+default_subagent_reasoning_effort = "ultra"

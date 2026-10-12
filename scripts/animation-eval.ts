@@ -31,7 +31,7 @@ function fixture(families: readonly string[], preset: MotionPresetId): Timeline 
     safeArea: { bottomRatio: 0.12, sideRatio: 0.04 },
     transitionIn: index === 0 ? "cut" : index % 2 ? "fade" : "wipe",
   }));
-  return { outputSpecId: "landscape-1080p", fps: 30, width: 1920, height: 1080, aspect: "16:9", durationMs: 6000, durationInFrames: 180, title: preset, theme: { ...defaultTheme, motion: motionProfile(preset) }, voice: [], lines: [], shots, cues: [], subtitleBlocks: [], music: [], sfx: [], subtitle: { ...DEFAULT_SUBTITLE_CONFIG, highlight: false }, aiLabel: { enabled: true, position: "top-right" }, issues: [] };
+  return { outputSpecId: "landscape-1080p", fps: 30, width: 1920, height: 1080, aspect: "16:9", durationMs: 6000, durationInFrames: 180, title: preset, theme: { ...defaultTheme, motion: motionProfile(preset) }, voice: [], lines: [], shots, cues: [], subtitleBlocks: [], music: [], sfx: [], sfxSources: {}, subtitle: { ...DEFAULT_SUBTITLE_CONFIG, highlight: false }, aiLabel: { enabled: true, position: "top-right" }, issues: [] };
 }
 
 const reports = cases.flatMap((scenario) => presets.map((preset) => {

@@ -19,9 +19,9 @@ export const presetGroupMeta: Record<PresetGroup, { label: string; hint: string 
   output: { label: "输出与素材", hint: "画幅、预览画幅、素材策略" },
   voice: { label: "配音", hint: "服务商、音色、语速、合成粒度、表达指令" },
   subtitle: { label: "字幕", hint: "字幕样式、字体、动效、双语" },
-  music: { label: "配乐与音效", hint: "配乐开关、音量、自动压低、转场音效" },
+  music: { label: "配乐与音效", hint: "配乐开关、音量、自动压低、动画音效" },
   style: { label: "画面风格", hint: "风格卡快照（画风、配色、动效基调）" },
-  publish: { label: "发布与流程", hint: "AI 标识、预算、样片后暂停、文本模型" },
+  publish: { label: "发布与流程", hint: "AI 标识、预算、文本模型" },
 };
 
 export const presetPayloadSchema = z.object({
@@ -42,7 +42,11 @@ export type ProductionPreset = z.infer<typeof productionPresetSchema>;
 
 /** 从项目文档提取预设快照；顶层 modelId 优先于 settings.modelId（文案页用的是顶层） */
 export function extractPresetPayload(doc: Pick<ProjectDoc, "settings" | "visualStyle" | "modelId">): PresetPayload {
-  const settings = { ...doc.settings };
+  const settings = { ...doc.settings, voice: { ...doc.settings.voice } };
+  if (settings.voice.instructionSource === "generated") {
+    settings.voice.instruction = "";
+    settings.voice.instructionSource = "user";
+  }
   if (doc.modelId) settings.modelId = doc.modelId;
   return presetPayloadSchema.parse({ settings, visualStyle: doc.visualStyle });
 }
@@ -129,7 +133,6 @@ export function applyPresetToDoc(
     settings = {
       ...settings,
       aiLabel: { ...payload.settings.aiLabel },
-      pauseAfterPreview: payload.settings.pauseAfterPreview,
       ...(nextModelId ? { modelId: nextModelId } : {}),
       ...(selection.includeBudget ? { budgetYuan: payload.settings.budgetYuan } : {}),
     };
@@ -200,7 +203,7 @@ export function describePresetChanges(
     const changes: string[] = [];
     if (doc.settings.music.enabled !== payload.settings.music.enabled) changes.push(`配乐 ${onOff(doc.settings.music.enabled)} → ${onOff(payload.settings.music.enabled)}`);
     if (doc.settings.music.gainDb !== payload.settings.music.gainDb) changes.push(`配乐音量 ${doc.settings.music.gainDb}dB → ${payload.settings.music.gainDb}dB`);
-    if (doc.settings.sfx.enabled !== payload.settings.sfx.enabled) changes.push(`转场音效 ${onOff(doc.settings.sfx.enabled)} → ${onOff(payload.settings.sfx.enabled)}`);
+    if (doc.settings.sfx.enabled !== payload.settings.sfx.enabled) changes.push(`动画音效 ${onOff(doc.settings.sfx.enabled)} → ${onOff(payload.settings.sfx.enabled)}`);
     if (changes.length) out.push({ group: "music", label: presetGroupMeta.music.label, changes });
   }
 
@@ -213,7 +216,6 @@ export function describePresetChanges(
   if (groups.has("publish")) {
     const changes: string[] = [];
     if (doc.settings.aiLabel.enabled !== payload.settings.aiLabel.enabled) changes.push(`AI 标识 ${onOff(doc.settings.aiLabel.enabled)} → ${onOff(payload.settings.aiLabel.enabled)}`);
-    if (doc.settings.pauseAfterPreview !== payload.settings.pauseAfterPreview) changes.push(`样片后暂停 ${onOff(doc.settings.pauseAfterPreview)} → ${onOff(payload.settings.pauseAfterPreview)}`);
     if (selection.includeBudget && doc.settings.budgetYuan !== payload.settings.budgetYuan) {
       changes.push(`预算 ${doc.settings.budgetYuan ?? "不设上限"} → ${payload.settings.budgetYuan ?? "不设上限"}`);
     }

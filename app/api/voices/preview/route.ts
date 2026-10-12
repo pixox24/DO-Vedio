@@ -2,7 +2,7 @@ import { z } from "zod";
 import { handle, parseBody } from "@/lib/api";
 import { ttsKey, type TtsResult } from "@/lib/core/keys";
 import { mediaUrl, voiceSettingsSchema } from "@/lib/core/types";
-import { ttsProviderOf } from "@/lib/providers/tts/factory";
+import { ttsProviderOf, ttsRequestOf } from "@/lib/providers/tts/factory";
 import type { SynthResult } from "@/lib/providers/tts/types";
 import { cacheGet, cachePut } from "@/lib/server/cache";
 import { rememberCustomVoiceProbe } from "@/lib/server/custom-voices";
@@ -20,17 +20,7 @@ export async function POST(req: Request) {
     const provider = ttsProviderOf(voice);
     let result: SynthResult;
     try {
-      result = await provider.synthesize({
-        text,
-        model: voice.model,
-        voice: voice.voiceId,
-        rate: voice.rate,
-        pitch: voice.pitch,
-        volume: voice.volume,
-        instruction: voice.provider === "dashscope" && textType !== "SSML" ? voice.instruction || undefined : undefined,
-        textType,
-        ...(voice.provider === "google-gemini" && voice.google ? { output: { encoding: voice.google.outputEncoding, sampleRateHertz: voice.google.sampleRateHertz }, alignment: voice.google.alignment } : {}),
-      }, req.signal);
+      result = await provider.synthesize(ttsRequestOf(voice, text, textType), req.signal);
     } catch (error) {
       rememberCustomVoiceProbe(voice.provider, voice.model, voice.voiceId, { error });
       throw error;

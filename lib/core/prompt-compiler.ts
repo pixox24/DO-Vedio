@@ -1,6 +1,7 @@
 import { quickHash } from "./hash";
 import { shotLineIds } from "./shots";
 import { anchorText, characterReferenceIds, lookAt } from "./cast";
+import { guardScreenContent } from "./screen-guard";
 import { shotSizeLabels, styleMediumLabels, type CharacterCard, type Mood, type ProjectDoc, type Shot, type ShotSize, type VisualStyle } from "./types";
 
 /**
@@ -87,7 +88,7 @@ export function compilePrompt(input: {
 }): CompiledPrompt {
   const { style, mood } = input;
   const filtered = input.filter === false ? { text: input.content.trim(), removed: [] } : filterStyleWords(input.content);
-  const content = filtered.text;
+  const content = guardScreenContent(filtered.text, input.sheet ? undefined : input.shotSize);
 
   // 情绪调制：风格卡定义了就用它的（在风格范围内），否则用通用氛围提示；风格不承载的情绪保持基调
   const denied = !!(mood && style?.deniedMoods.includes(mood));

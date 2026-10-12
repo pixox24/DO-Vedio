@@ -11,7 +11,7 @@ import type { GenerationFrame } from "./output-spec";
  * 改了某步骤的算法就把版本号加 1，旧缓存自然失效。
  */
 
-export const STAGE_VERSION = { annotate: 1, tts: 3, ttsBlock: 1, storyboard: 4, music: 1, render: 3, shotGeneration: 4, cast: 3, characterSheet: 1 } as const;
+export const STAGE_VERSION = { annotate: 2, tts: 3, ttsBlock: 1, storyboard: 5, music: 1, render: 3, shotGeneration: 4, cast: 3, characterSheet: 1 } as const;
 
 /** 1 表示成片时长和像素都跟随时间轴。0 是只渲染了 3 秒的旧文件，不能复用。 */
 export const RENDER_OUTPUT_VERSION = 1;
@@ -41,9 +41,11 @@ const moodVoiceTags: Partial<Record<Mood, Exclude<VoiceTag, "auto" | "none">>> =
   "忧伤": "sad",
 };
 
-export function voiceTagForLine(line: Pick<Line, "mood" | "voiceTag">) {
+/** 未锁定的「待标注」不把内容情绪折成念法。锁定且仍是待标注的旧句保持原来的折算，避免被重录。 */
+export function voiceTagForLine(line: Pick<Line, "mood" | "voiceTag"> & { locked?: boolean }) {
   if (line.voiceTag && line.voiceTag !== "auto") return line.voiceTag === "none" ? undefined : line.voiceTag;
-  return line.mood ? moodVoiceTags[line.mood] : undefined;
+  if (line.locked) return line.mood ? moodVoiceTags[line.mood] : undefined;
+  return undefined;
 }
 
 function escapeXml(text: string) {
@@ -60,7 +62,7 @@ function ssmlPauses(text: string, mode: "ssml:measured" | "ssml:compact") {
   }).join("")}</speak>`;
 }
 
-export function ttsRequestForLine(spoken: string, line: Pick<Line, "mood" | "voiceTag">, model: string) {
+export function ttsRequestForLine(spoken: string, line: Pick<Line, "mood" | "voiceTag"> & { locked?: boolean }, model: string) {
   const tag = model.startsWith("qwen-audio-") ? voiceTagForLine(line) : undefined;
   if (tag === "ssml:measured" || tag === "ssml:compact") return { text: ssmlPauses(spoken, tag), textType: "SSML" as const };
   const emotionTag = tag && !tag.startsWith("ssml:") ? tag : undefined;
@@ -68,7 +70,7 @@ export function ttsRequestForLine(spoken: string, line: Pick<Line, "mood" | "voi
 }
 
 /** Qwen-Audio consumes control tags in text; other DashScope models receive plain speech. */
-export function ttsTextForLine(spoken: string, line: Pick<Line, "mood" | "voiceTag">, model: string) {
+export function ttsTextForLine(spoken: string, line: Pick<Line, "mood" | "voiceTag"> & { locked?: boolean }, model: string) {
   return ttsRequestForLine(spoken, line, model).text;
 }
 

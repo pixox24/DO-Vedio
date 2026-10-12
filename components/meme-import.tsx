@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { postJson } from "@/lib/client";
 import {
-  importStatuses, memeCategories, memeCircles, memeKinds, memeRisks, parseSinceMonth, sinceBucket,
+  classifyImport, importStatuses, MAX_VERIFY_HOT_PER_IMPORT, memeCategories, memeCircles, memeKinds, memeRisks, normalizeTerm, parseSinceMonth, parseTermList, planImportBatches, sinceBucket, termListEntry,
   type ImportCandidate, type ImportStatus, type MemeCategory, type MemeInput, type MemeRisk,
 } from "@/lib/memes";
 import { useFeedback } from "./feedback";
@@ -37,13 +37,38 @@ function Highlight({ text, forms }: { text: string; forms: string[] }) {
  * 粘贴导入：抽取 → 预览 → 确认入库。
  * 抽取只返回候选；每个梗都必须出现在原文里，原文摘录由程序截取。用户勾选、修改后才入库。
  */
-export function MemeImport({ searchAvailable, onImported }: { searchAvailable: boolean; onImported: () => void }) {
+export function MemeImport({
+  searchAvailable, onImported, existing = [], blocked = [], defaultCategory = "daily",
+}: {
+  searchAvailable: boolean;
+  onImported: () => void;
+  existing?: { term: string; variants: string[] }[];
+  blocked?: string[];
+  /** 词表没写类别时用这个类别，对应上面「添加表达」选中的那一项 */
+  defaultCategory?: MemeCategory;
+}) {
   const [text, setText] = useState("");
   const [extracted, setExtracted] = useState<Extracted | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState<null | "extract" | "import">(null);
+  const [importStep, setImportStep] = useState<null | { current: number; total: number; verify: boolean }>(null);
   const [verify, setVerify] = useState(searchAvailable);
   const { toast } = useFeedback();
+
+  function splitList() {
+    const parsed = parseTermList(text, defaultCategory);
+    if (!parsed.length) {
+      toast("没有拆出词条。用斜杠或空格分开；一行只写类别名时，后面的词用这个类别。", "info");
+      return;
+    }
+    const blockedKeys = new Set(blocked.map((term) => normalizeTerm(term)));
+    const candidates: ImportCandidate[] = parsed.map(({ term, category }) => {
+      const input = termListEntry(term, category);
+      return { input, context: "", inferred: false, ...classifyImport(existing, blockedKeys, input) };
+    });
+    setExtracted({ candidates, dropped: 0, publishedAt: "" });
+    setRows(candidates.map((c) => ({ ...c, checked: c.status === "new" })));
+  }
 
   async function extract() {
     setBusy("extract");
@@ -62,25 +87,49 @@ export function MemeImport({ searchAvailable, onImported }: { searchAvailable: b
 
   async function commit() {
     const items = rows.filter((r) => r.checked).map((r) => r.input);
+    const verifyHot = verify && items.some((item) => item.category === "hot");
+    const batches = planImportBatches(items, verifyHot);
+    if (!batches.length) return;
     setBusy("import");
+    let added = 0;
+    let updated = 0;
+    let rechecked = 0;
+    let finished = 0;
     try {
-      const verifyHot = verify && items.some((item) => item.category === "hot");
-      const r = await postJson<{ added: number; updated: number; rechecked: number }>("/api/memes/import", { items, verify: verifyHot });
-      toast(`导入完成：新增 ${r.added} 个，续期 ${r.updated} 个${verifyHot ? `，已联网核实 ${r.rechecked} 个热梗热度` : ""}`, "success");
+      for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i];
+        setImportStep({ current: i + 1, total: batches.length, verify: batch.verify });
+        const r = await postJson<{ added: number; updated: number; rechecked: number }>("/api/memes/import", batch);
+        added += r.added;
+        updated += r.updated;
+        rechecked += r.rechecked;
+        finished = i + 1;
+      }
+      toast(`导入完成：新增 ${added} 个，续期 ${updated} 个${verifyHot ? `，已联网核实 ${rechecked} 个热梗热度` : ""}`, "success");
       setExtracted(null);
       setRows([]);
       setText("");
       onImported();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "error");
+      const message = e instanceof Error ? e.message : String(e);
+      const done = new Set(batches.slice(0, finished).flatMap((batch) => batch.items.map((item) => item.term)));
+      if (done.size) {
+        setRows((rs) => rs.map((r) => (done.has(r.input.term) ? { ...r, checked: false } : r)));
+        onImported();
+        toast(`已写入 ${done.size} 条（新增 ${added}，续期 ${updated}）。其余未写入：${message}`, "error");
+      } else toast(message, "error");
     } finally {
       setBusy(null);
+      setImportStep(null);
     }
   }
 
   const edit = (i: number, patch: Partial<MemeInput>) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, input: { ...r.input, ...patch } } : r)));
   const toggle = (i: number) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, checked: !r.checked } : r)));
-  const checked = rows.filter((r) => r.checked).length;
+  const checkedRows = rows.filter((r) => r.checked);
+  const checked = checkedRows.length;
+  const verifyHot = verify && checkedRows.some((row) => row.input.category === "hot");
+  const importBatches = planImportBatches(checkedRows.map((row) => row.input), verifyHot);
   const count = (s: ImportStatus) => rows.filter((r) => r.status === s).length;
   const published = extracted?.publishedAt ? parseSinceMonth(extracted.publishedAt) : "";
   const old = published && ["y1", "older"].includes(sinceBucket(published));
@@ -90,15 +139,20 @@ export function MemeImport({ searchAvailable, onImported }: { searchAvailable: b
       <div className="space-y-2">
         <p className="text-sm font-medium">粘贴导入</p>
         <p className="text-xs leading-relaxed text-white/40">
-          粘贴词库、评论区或弹幕，AI 从原文整理出可复用的表达，先预览和分类，确认后才入库。只收原文里真的出现过的词。
+          文章、评论或弹幕用「整理预览」，由 AI 抽取后再入库。已经是词表时用「按词表拆开」：斜杠或空格分开，不调用模型。一行只写「日常口语」或「情绪表达」时，后面的词用这个类别；没写类别就用上面选中的类别。
         </p>
         <AutoTextarea className="input max-h-96 min-h-32 text-sm leading-relaxed" value={text} onChange={(e) => setText(e.target.value)} placeholder="把包含梗的文字粘贴到这里，一次最多 2 万字" />
         <div className="flex items-center justify-between">
           <span className="text-[11px] text-white/30">{text.trim().length.toLocaleString()} / 20,000 字</span>
-          <button className="btn btn-primary btn-sm" disabled={text.trim().length < 10 || text.length > 20_000 || busy !== null} onClick={extract}>
-            {busy === "extract" ? <Spinner className="size-3.5" /> : <Icon name="sparkle" className="size-3.5" />}
-            {busy === "extract" ? "正在整理…" : "整理预览"}
-          </button>
+          <span className="flex gap-2">
+            <button className="btn btn-ghost btn-sm" disabled={!text.trim() || text.length > 20_000 || busy !== null} onClick={splitList}>
+              按词表拆开
+            </button>
+            <button className="btn btn-primary btn-sm" disabled={text.trim().length < 10 || text.length > 20_000 || busy !== null} onClick={extract}>
+              {busy === "extract" ? <Spinner className="size-3.5" /> : <Icon name="sparkle" className="size-3.5" />}
+              {busy === "extract" ? "正在整理…" : "整理预览"}
+            </button>
+          </span>
         </div>
       </div>
     );
@@ -116,7 +170,7 @@ export function MemeImport({ searchAvailable, onImported }: { searchAvailable: b
             {extracted.dropped > 0 && ` · 另有 ${extracted.dropped} 个在原文里找不到原词，已丢弃`}
           </span>
         </p>
-        <button className="cursor-pointer text-xs text-white/40 hover:text-white" onClick={() => setExtracted(null)}>
+        <button className="cursor-pointer text-xs text-white/40 hover:text-white disabled:cursor-default disabled:opacity-40" disabled={busy !== null} onClick={() => setExtracted(null)}>
           重新粘贴
         </button>
       </div>
@@ -127,7 +181,7 @@ export function MemeImport({ searchAvailable, onImported }: { searchAvailable: b
         </p>
       )}
 
-      <div className="grid gap-3 lg:grid-cols-2">
+      <div className={`grid gap-3 lg:grid-cols-2 ${busy ? "pointer-events-none" : ""}`}>
         {rows.map((r, i) => (
           <article key={r.input.term} className={`rounded-xl border p-3.5 transition ${r.checked ? "border-accent/40 bg-accent/[0.03]" : "border-white/[0.07] opacity-60"}`}>
             <div className="flex items-start justify-between gap-3">
@@ -143,9 +197,11 @@ export function MemeImport({ searchAvailable, onImported }: { searchAvailable: b
                 </span>
               </span>
             </div>
-            <p className="mt-2 border-l-2 border-white/15 pl-2 text-xs leading-relaxed text-white/55">
-              <Highlight text={r.context} forms={[r.input.term, ...r.input.variants]} />
-            </p>
+            {r.context && (
+              <p className="mt-2 border-l-2 border-white/15 pl-2 text-xs leading-relaxed text-white/55">
+                <Highlight text={r.context} forms={[r.input.term, ...r.input.variants]} />
+              </p>
+            )}
             <div className="mt-3 space-y-2 text-xs">
               <AutoTextarea className="input min-h-0 py-1.5 text-xs leading-relaxed" value={r.input.meaning} onChange={(e) => edit(i, { meaning: e.target.value })} placeholder="含义" aria-label="含义" />
               <input className="input h-8 py-0 text-xs" value={r.input.usage} onChange={(e) => edit(i, { usage: e.target.value })} placeholder="用法：在句子里怎么用、适合放在哪" aria-label="用法" />
@@ -169,6 +225,12 @@ export function MemeImport({ searchAvailable, onImported }: { searchAvailable: b
         ))}
       </div>
 
+      {importBatches.length > 1 && (
+        <p className="text-[11px] text-white/35">
+          将分 {importBatches.length} 批写入{importBatches.some((batch) => batch.verify) ? `，联网核实的热梗每批 ${MAX_VERIFY_HOT_PER_IMPORT} 个` : ""}。
+        </p>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] pt-4">
         <label className="flex items-center gap-2.5 text-xs">
           <Switch checked={verify && searchAvailable} onChange={setVerify} label="联网核实热梗热度" />
@@ -179,7 +241,9 @@ export function MemeImport({ searchAvailable, onImported }: { searchAvailable: b
         </label>
         <button className="btn btn-primary btn-sm" disabled={!checked || busy !== null} onClick={commit}>
           {busy === "import" ? <Spinner className="size-3.5" /> : <Icon name="check" className="size-3.5" />}
-          {busy === "import" ? (verify ? "正在核实并导入…" : "正在导入…") : `导入选中的 ${checked} 个`}
+          {busy === "import"
+            ? `${importStep?.verify ? "正在核实并导入…" : "正在导入…"}${importStep && importStep.total > 1 ? `（${importStep.current}/${importStep.total}）` : ""}`
+            : `导入选中的 ${checked} 个`}
         </button>
       </div>
     </div>

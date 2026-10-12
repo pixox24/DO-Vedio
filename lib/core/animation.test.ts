@@ -45,6 +45,14 @@ describe("normalizeAnimation", () => {
     expect(result.map((item) => item.transitionIn)).toEqual(["fade", "cut"]);
   });
 
+  it("锁定的相邻转场保留", () => {
+    const result = normalizeAnimation([
+      { ...shot("a", "a", { family: "none", intensity: 1, anchors: [], params: {} }), transitionIn: "fade", transitionLocked: true },
+      { ...shot("b", "b", { family: "none", intensity: 1, anchors: [], params: {} }), transitionIn: "fade", transitionLocked: true },
+    ], lines, times, defaultMotionProfile);
+    expect(result.map((item) => item.transitionIn)).toEqual(["fade", "fade"]);
+  });
+
   it("十秒窗口最多两个高强度镜头，且窗口内保留留白", () => {
     const denseTimes = new Map([...times].map(([id, value], index) => [id, { ...value, startMs: index * 4_000, endMs: index * 4_000 + 3_000, chars: value.chars.map((char) => ({ ...char, startMs: index * 4_000 + char.i * 150, endMs: index * 4_000 + (char.i + 1) * 150 })) }]));
     const result = normalizeAnimation(["a", "b", "c"].map((id) => shot(id, id, { family: "editorial", intensity: 3, anchors: [], params: {} })), lines, denseTimes, defaultMotionProfile);

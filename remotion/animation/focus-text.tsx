@@ -1,10 +1,13 @@
 import { Easing, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 import type { CSSProperties } from "react";
-import { focusVisualWidth } from "@/lib/core/focus";
+import { focusColumnFontSize, focusColumnUnits, focusSmallCopy, focusVisualWidth, FOCUS_COLUMN_WIDTH } from "@/lib/core/focus";
+import { focusCountSettleFrame, focusFadeRange, pressGlyphTiming, pressSupportStart, staggerLineTiming } from "@/lib/core/focus-timing";
 import type { FocusPresetId } from "@/lib/core/types";
 import type { TimelineShot } from "@/lib/core/timeline";
 import { FONT } from "../fonts";
 import { useTheme } from "../theme";
+
+export { focusFadeRange, pressGlyphTiming, staggerLineTiming };
 
 const PAPER = "#f1f0e9";
 const MUTED = "#8c948d";
@@ -12,7 +15,7 @@ const INK = "#101312";
 const ACCENTS = ["#d48b78", "#8eafbf", "#d4ba72", "#9ebaa9"];
 
 type SymbolKind = "plus" | "cross" | "circle" | "square" | "diamond" | "pill" | "dots" | "four-dots";
-type Recipe = { x: number; y: number; subX: number; subY: number; sx: number; sy: number; color: number; symbol: SymbolKind; background: 0 | 1 | 2; motion: "rise" | "blur" | "mask" | "type" | "fade"; font?: "song" | "youth"; outline?: boolean; vertical?: boolean; rule?: boolean };
+type Recipe = { x: number; y: number; subX: number; subY: number; sx: number; sy: number; color: number; symbol: SymbolKind; background: 0 | 1 | 2; motion: "rise" | "blur" | "mask" | "type" | "fade" | "stagger" | "press"; font?: "song" | "youth"; outline?: boolean; vertical?: boolean; rule?: boolean; align?: "center" };
 const RECIPES: Record<FocusPresetId, Recipe> = {
   "embedded-type": { x: .18, y: .36, subX: .19, subY: .65, sx: .76, sy: .43, color: 0, symbol: "circle", background: 2, motion: "mask", font: "youth", rule: true },
   "number-space": { x: .14, y: .3, subX: .16, subY: .66, sx: .77, sy: .35, color: 1, symbol: "circle", background: 1, motion: "rise", rule: true },
@@ -32,12 +35,10 @@ const RECIPES: Record<FocusPresetId, Recipe> = {
   chapter: { x: .36, y: .34, subX: .37, subY: .67, sx: .15, sy: .4, color: 3, symbol: "square", background: 1, motion: "type", rule: true },
   "serif-contrast": { x: .17, y: .36, subX: .18, subY: .67, sx: .78, sy: .31, color: 0, symbol: "diamond", background: 2, motion: "blur", font: "song", rule: true },
   focus: { x: .22, y: .38, subX: .23, subY: .68, sx: .75, sy: .29, color: 1, symbol: "circle", background: 2, motion: "fade", outline: true },
+  "blur-slide": { x: .5, y: .38, subX: .5, subY: .62, sx: .8, sy: .22, color: 1, symbol: "circle", background: 0, motion: "stagger", align: "center" },
+  "ink-press": { x: .5, y: .42, subX: .5, subY: .68, sx: .5, sy: .14, color: 0, symbol: "cross", background: 2, motion: "press", font: "song", align: "center" },
 };
 
-export function focusFadeRange(duration: number): [number, number, number, number] {
-  const end = Math.max(1, duration - 1);
-  return [0, Math.min(16, end * .22), end - Math.min(18, end * .22), end];
-}
 function fade(frame: number, duration: number) {
   return interpolate(frame, focusFadeRange(duration), [0, 1, 1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.bezier(0.16, 1, 0.3, 1) });
 }
@@ -45,6 +46,10 @@ function fade(frame: number, duration: number) {
 function reveal(frame: number, duration: number, offset = 0) {
   const delay = Math.min(offset, duration * .08);
   return interpolate(frame, [delay, delay + Math.min(22, Math.max(1, duration) * 0.25)], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.bezier(0.16, 1, 0.3, 1) });
+}
+
+function unitProgress(frame: number, start: number, span: number) {
+  return interpolate(frame, [start, start + Math.max(1, span)], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.out(Easing.cubic) });
 }
 
 function Symbol({ kind, color, size, hollow = false, style }: { kind: SymbolKind; color: string; size: number; hollow?: boolean; style?: CSSProperties }) {
@@ -81,6 +86,7 @@ export function FocusTextShot({ shot, durationInFrames }: { shot: TimelineShot; 
   const focus = shot.focusText;
   if (!focus) return null;
   const preset = focus.presetId ?? "focus";
+  const column = preset === "blur-slide" || preset === "ink-press";
   const baseRecipe = RECIPES[preset];
   const visualWidth = Math.max(1, focusVisualWidth(focus.text));
   const numberPreset = /\d/.test(focus.text);
@@ -89,23 +95,44 @@ export function FocusTextShot({ shot, durationInFrames }: { shot: TimelineShot; 
   // The project selects a fixed pair, so changing layout does not cycle colors.
   const colorSeed = Array.from(theme.accent).reduce((sum, char) => sum + char.charCodeAt(0), 0);
   const accent = ACCENTS[colorSeed % ACCENTS.length];
-  const opacity = fade(frame, durationInFrames);
+  const fadeRange = focusFadeRange(durationInFrames);
+  const opacity = column
+    ? interpolate(frame, [fadeRange[2], fadeRange[3]], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" })
+    : fade(frame, durationInFrames);
   const revealProgress = reveal(frame, durationInFrames);
   const contentTop = height * (shot.safeArea?.topRatio ?? 0);
   const contentHeight = Math.max(height * .2, height * (1 - Math.max(.12, shot.safeArea?.bottomRatio ?? 0)) - contentTop);
   const symbolSize = Math.min(width, height) * (width > height ? .095 : .07);
   // Leave a separate column for decoration; title and support share a grid edge.
   const titleRight = recipe.sx > recipe.x ? Math.min(.88, recipe.sx - .055) : .89;
-  const titleSize = vertical
-    ? Math.min(width * .21, contentHeight * .5 / visualWidth)
-    : Math.min(contentHeight * (visualWidth <= 2 ? .29 : .23), width * (titleRight - recipe.x) / (visualWidth * (recipe.font === "youth" ? 1.4 : 1.15)));
-  const support = focus.support;
+  const columnUnits = preset === "blur-slide" ? focusColumnUnits(focus.text, focus.emphasis) : [];
+  const measure = preset === "blur-slide" ? visualWidth + Math.max(0, columnUnits.length - 1) * 0.32 : visualWidth;
+  const titleSize = column
+    ? Math.min(contentHeight * (visualWidth <= 2 ? .26 : .18), width * FOCUS_COLUMN_WIDTH / (measure * (recipe.font === "song" ? 1.02 : 1.08)))
+    : vertical
+      ? Math.min(width * .21, contentHeight * .5 / visualWidth)
+      : Math.min(contentHeight * (visualWidth <= 2 ? .29 : .23), width * (titleRight - recipe.x) / (visualWidth * (recipe.font === "youth" ? 1.4 : 1.15)));
+  const small = column ? focusSmallCopy(shot.focusCaption, focus.support) : undefined;
+  const support = column ? undefined : focus.support;
+  const smallUnits = preset === "blur-slide" && small ? focusColumnUnits(small) : [];
+  const mainBeat = preset === "blur-slide" ? staggerLineTiming(durationInFrames, columnUnits.length, "main") : undefined;
+  const smallBeat = smallUnits.length ? staggerLineTiming(durationInFrames, smallUnits.length, "support", columnUnits.length) : undefined;
+  const pressChars = preset === "ink-press" ? Array.from(focus.text) : [];
+  const pressBeat = preset === "ink-press" ? pressGlyphTiming(durationInFrames, pressChars.length) : undefined;
+  const smallChars = small ? Array.from(small) : [];
+  const typeStart = preset === "ink-press" ? pressSupportStart(durationInFrames, pressChars.length, smallChars.length) : 0;
+  const typedCount = Math.min(smallChars.length, Math.max(0, Math.floor((frame - typeStart) / 0.7)));
+  const typeDone = typeStart + smallChars.length * 0.7;
+  const cursorOn = preset === "ink-press" && frame >= typeStart && frame < fadeRange[2] && (frame < typeDone || Math.floor(frame - typeDone) % 4 < 2);
+  const emphasisAt = focus.emphasis && focus.text.includes(focus.emphasis) ? focus.text.indexOf(focus.emphasis) : -1;
+  const emphasisLength = emphasisAt >= 0 ? Array.from(focus.emphasis ?? "").length : 0;
+  const smallSize = small ? Math.min(focusColumnFontSize(preset === "ink-press" ? "ink-press" : "blur-slide", width), width * FOCUS_COLUMN_WIDTH / Math.max(1, focusVisualWidth(small) * (preset === "ink-press" ? 0.72 : 0.62))) : 0;
   const textStyle: CSSProperties = {
     color: PAPER, fontFamily: recipe.font === "song" ? '"DOV Song", serif' : recipe.font === "youth" ? '"DOV Youth", sans-serif' : FONT, fontWeight: recipe.font ? 400 : 900, fontSize: titleSize,
     lineHeight: 1.05, letterSpacing: 0, whiteSpace: "nowrap",
   };
   const transform = vertical ? `rotate(${preset === "tilt-vertical" ? -7 : 0}deg)` : recipe.motion === "rise" ? `translateY(${(1 - revealProgress) * 24}px)` : undefined;
-  const numberProgress = interpolate(frame, [0, Math.min(durationInFrames * 0.52, 28)], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.out(Easing.cubic) });
+  const numberProgress = interpolate(frame, [0, focusCountSettleFrame(durationInFrames)], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.out(Easing.cubic) });
   const typed = recipe.motion === "type" && focus.text.length >= 5 ? Array.from(focus.text).slice(0, Math.max(1, Math.ceil(focus.text.length * revealProgress))).join("") : focus.text;
   const emphasized = !numberPreset && focus.emphasis && typed.includes(focus.emphasis);
   const emphasisStart = emphasized ? typed.indexOf(focus.emphasis!) : -1;
@@ -136,14 +163,43 @@ export function FocusTextShot({ shot, durationInFrames }: { shot: TimelineShot; 
     <div style={{ position: "absolute", left: 0, right: 0, top: contentTop, height: contentHeight }}>
     <div style={{ position: "absolute", left: "8%", top: "13%", width: Math.max(24, width * .025), height: 2, background: accent, opacity: revealProgress }} />
     {recipe.rule && <div style={{ position: "absolute", left: "13%", top: `${Math.min(.95, supportY + .1) * 100}%`, width: "48%", height: 1, background: "#ffffff29", opacity: revealProgress }} />}
-    {recipe.outline && <div style={{ position: "absolute", left: `${recipe.x * 100 + 2}%`, top: `${recipe.y * 100 - 13}%`, ...textStyle, color: "transparent", WebkitTextStroke: "1px #6d756d", opacity: revealProgress * .35 }}>{focus.text}</div>}
-    <div style={{ position: "absolute", left: `${recipe.x * 100}%`, top: `${recipe.y * 100}%`, transform, transformOrigin: "center", writingMode: vertical ? "vertical-rl" : undefined, clipPath: recipe.motion === "mask" ? `inset(0 ${Math.round((1 - revealProgress) * 100)}% 0 0)` : undefined, filter: recipe.motion === "blur" ? `blur(${(1 - revealProgress) * 12}px)` : undefined, opacity: revealProgress, ...textStyle }}>
+    {recipe.outline && !column && <div style={{ position: "absolute", left: `${recipe.x * 100 + 2}%`, top: `${recipe.y * 100 - 13}%`, ...textStyle, color: "transparent", WebkitTextStroke: "1px #6d756d", opacity: revealProgress * .35 }}>{focus.text}</div>}
+    {!column && <div style={{ position: "absolute", left: `${recipe.x * 100}%`, top: `${recipe.y * 100}%`, transform, transformOrigin: "center", writingMode: vertical ? "vertical-rl" : undefined, clipPath: recipe.motion === "mask" ? `inset(0 ${Math.round((1 - revealProgress) * 100)}% 0 0)` : undefined, filter: recipe.motion === "blur" ? `blur(${(1 - revealProgress) * 12}px)` : undefined, opacity: revealProgress, ...textStyle }}>
       {renderText()}
-    </div>
+    </div>}
+    {preset === "blur-slide" && mainBeat && <div style={{ position: "absolute", left: "50%", top: recipe.y * contentHeight, transform: "translateX(-50%)", display: "flex", gap: "0.32em", ...textStyle }}>
+      {columnUnits.map((unit, index) => {
+        const start = columnUnits.slice(0, index).reduce((sum, item) => sum + Array.from(item).length, 0);
+        const highlighted = emphasisAt >= 0 && start < emphasisAt + emphasisLength && start + Array.from(unit).length > emphasisAt;
+        const p = unitProgress(frame, mainBeat.lead + index * mainBeat.gap, mainBeat.span);
+        return <span key={index} style={{ display: "inline-block", opacity: p, color: highlighted ? accent : undefined, transform: `translateY(${(1 - p) * titleSize * 1.2}px)`, filter: `blur(${(1 - p) * titleSize * 0.3}px)` }}>{unit}</span>;
+      })}
+    </div>}
+    {preset === "ink-press" && pressBeat && <div style={{ position: "absolute", left: "50%", top: recipe.y * contentHeight, transform: "translateX(-50%)", display: "inline-flex", alignItems: "flex-end", ...textStyle, letterSpacing: "-0.01em" }}>
+      {pressChars.map((char, index) => {
+        const delay = pressBeat.lead + index * pressBeat.gap;
+        const t = interpolate(frame, [delay, delay + Math.max(1, pressBeat.span)], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.bezier(0.2, 0.7, 0.25, 1) });
+        const glint = interpolate(frame, [delay + pressBeat.span - 4, delay + pressBeat.span, delay + pressBeat.span + 4], [0, 1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+        return <span key={index} style={{ position: "relative", display: "inline-block", opacity: t, color: emphasisAt >= 0 && index >= emphasisAt && index < emphasisAt + emphasisLength ? accent : undefined, transform: `scale(${1.6 - 0.6 * t})`, transformOrigin: "center bottom", filter: `blur(${(1 - t) * 6}px)` }}>{char}<span style={{ position: "absolute", left: "50%", bottom: -4, width: `${glint * 70}%`, height: 2, transform: "translateX(-50%)", background: accent, opacity: glint, borderRadius: 2 }} /></span>;
+      })}
+    </div>}
     {preset === "masked-slice" && <div style={{ position: "absolute", left: `${recipe.x * 100}%`, top: `${recipe.y * 100}%`, width: width * .4, height: Math.max(2, titleSize * .025), background: INK, transform: `translateY(${titleSize * .6}px) rotate(-1deg)`, opacity: revealProgress }} />}
     {vertical && <div style={{ position: "absolute", left: "28%", top: "12%", width: "38%", height: "65%", border: `1px solid ${accent}55`, borderRadius: "50%", transform: "rotate(18deg)", opacity: revealProgress }} />}
     {support && <div style={{ position: "absolute", left: `${supportX * 100}%`, top: `${supportY * 100}%`, color: MUTED, fontFamily: FONT, fontSize: Math.min(Math.max(18, width * .024), width * (.9 - supportX) / Math.max(1, focusVisualWidth(support) * 1.08)), letterSpacing: width * .001, opacity: reveal(frame, durationInFrames, 8), transform: `translateY(${(1 - reveal(frame, durationInFrames, 8)) * 13}px)`, whiteSpace: "nowrap" }}>{support}</div>}
-    <Symbol kind={recipe.symbol} color={accent} size={symbolSize} hollow={recipe.symbol === "circle" || preset === "solid-outline"} style={{ left: `${recipe.sx * 100}%`, top: `${recipe.sy * 100}%`, opacity: reveal(frame, durationInFrames, 5), transform: `translateY(${(1 - reveal(frame, durationInFrames, 5)) * 12}px) scale(${.94 + .06 * reveal(frame, durationInFrames, 5)})` }} />
+    {preset === "blur-slide" && small && smallBeat && <div style={{ position: "absolute", left: "50%", top: recipe.y * contentHeight + titleSize * 1.55, transform: "translateX(-50%)", display: "flex", gap: "0.32em", color: MUTED, fontFamily: FONT, fontWeight: 400, fontSize: smallSize, whiteSpace: "nowrap" }}>
+      {smallUnits.map((unit, index) => {
+        const p = unitProgress(frame, smallBeat.lead + index * smallBeat.gap, smallBeat.span);
+        return <span key={index} style={{ display: "inline-block", opacity: p, transform: `translateY(${(1 - p) * smallSize * 0.8}px)`, filter: `blur(${(1 - p) * smallSize * 0.3}px)` }}>{unit}</span>;
+      })}
+    </div>}
+    {preset === "ink-press" && small && <div style={{ position: "absolute", left: "50%", top: recipe.y * contentHeight + titleSize * 1.55, transform: "translateX(-50%)", display: "flex", alignItems: "center", color: MUTED, fontFamily: FONT, fontWeight: 400, fontSize: smallSize, letterSpacing: shot.focusCaption ? "0.14em" : "0.04em", whiteSpace: "nowrap" }}>
+      <span>{smallChars.slice(0, typedCount).join("")}</span>
+      <span style={{ display: "inline-block", width: smallSize * 0.45, height: smallSize * 0.85, marginLeft: 4, background: accent, opacity: cursorOn ? 0.85 : 0 }} />
+    </div>}
+    {preset === "ink-press" ? <svg width={symbolSize} height={symbolSize} viewBox="0 0 64 64" style={{ position: "absolute", left: "50%", top: "8%", transform: "translateX(-50%)", opacity: interpolate(frame, [24, 34], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }) }}>
+      <line x1={32} y1={6} x2={32} y2={58} stroke={accent} strokeWidth={4} strokeLinecap="round" pathLength={100} strokeDasharray={100} strokeDashoffset={interpolate(frame, [0, 9], [100, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.bezier(0.3, 0, 0.2, 1) })} />
+      <line x1={6} y1={32} x2={58} y2={32} stroke={accent} strokeWidth={4} strokeLinecap="round" pathLength={100} strokeDasharray={100} strokeDashoffset={interpolate(frame, [8, 18], [100, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" })} />
+    </svg> : <Symbol kind={recipe.symbol} color={accent} size={symbolSize} hollow={recipe.symbol === "circle" || preset === "solid-outline"} style={{ left: `${recipe.sx * 100}%`, top: `${recipe.sy * 100}%`, opacity: reveal(frame, durationInFrames, 5), transform: `translateY(${(1 - reveal(frame, durationInFrames, 5)) * 12}px) scale(${.94 + .06 * reveal(frame, durationInFrames, 5)})` }} />}
     {width > height && ["order", "diamond", "pill", "three-dots", "four-dots", "cross-space", "chapter", "serif-contrast", "focus"].includes(preset) && <Symbol kind={recipe.symbol === "plus" ? "circle" : recipe.symbol} size={symbolSize * .42} color={secondaryAccent} hollow style={{ left: "83%", top: "70%", opacity: reveal(frame, durationInFrames, 10) }} />}
     {!recipe.rule && <div style={{ position: "absolute", left: "8%", right: "8%", bottom: "12%", height: 1, background: "#ffffff1f", opacity: revealProgress }} />}
     </div>

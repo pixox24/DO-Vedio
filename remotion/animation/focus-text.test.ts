@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { interpolate } from "remotion";
-import { focusCounterValue, focusFadeRange, isFocusTextShot } from "./focus-text";
+import { focusCounterValue, focusFadeRange, isFocusTextShot, pressGlyphTiming, staggerLineTiming } from "./focus-text";
 import type { TimelineShot } from "@/lib/core/timeline";
 
 describe("重点文字动效", () => {
@@ -19,6 +19,19 @@ describe("重点文字动效", () => {
     expect(focusCounterValue("2.5倍", .5)).toBe("1.3倍");
     expect(focusCounterValue("2024", .5)).toBe("2024");
     expect(focusCounterValue("第3次", .5)).toBe("第3次");
+  });
+  it("逐词和压印在淡出前落定，普通镜头保留词间隔", () => {
+    const comfortable = staggerLineTiming(114, 4, "main");
+    expect(comfortable.gap).toBe(3.5);
+    expect(comfortable.span).toBe(20);
+    for (const duration of [45, 90, 150]) {
+      for (const count of [1, 2, 4, 8]) {
+        const fadeAt = focusFadeRange(duration)[2];
+        for (const beat of [staggerLineTiming(duration, count, "main"), staggerLineTiming(duration, count, "support", count), pressGlyphTiming(duration, count)]) {
+          expect(beat.lead + beat.span + Math.max(0, count - 1) * beat.gap).toBeLessThanOrEqual(fadeAt + 0.05);
+        }
+      }
+    }
   });
   it("旧章节与金句也使用统一渲染入口", () => {
     expect(isFocusTextShot({ kind: "title", focusText: { text: "方向" } } as TimelineShot)).toBe(true);

@@ -5,10 +5,11 @@ import path from "path";
 import type { AddressInfo } from "net";
 import { quickHash } from "../core/hash";
 import { RENDER_OUTPUT_VERSION } from "../core/keys";
+import { renderMatches } from "../core/output-flow";
 import { toSrt } from "../core/subtitles";
 import type { Timeline } from "../core/timeline";
 import { renderEncode } from "../core/video-composition";
-import { dataDir, get, run } from "../server/db";
+import { all, dataDir, run } from "../server/db";
 import { ffmpeg, loudnormFilter, measureLoudness } from "../server/ffmpeg";
 import { assetFile, getAsset, putBuffer, putFile, tempPath } from "../server/media";
 
@@ -125,20 +126,25 @@ export async function renderTimeline(opts: {
   contentHash: string;
   animationHash: string;
   quality: Quality;
+  /** 用户明确要求再渲一遍。即使哈希一致也不复用已有文件。 */
+  force?: boolean;
+  /** 后台追上的成片。同一画幅只保留最新一份，不挤进「上一版」。 */
+  origin?: "manual" | "catch-up";
   signal: AbortSignal;
   current: () => boolean;
   progress: (p: number, msg: string) => void;
 }): Promise<RenderOutput> {
   const { timeline: t, quality } = opts;
-  const existing = get<{ id: string; video_hash: string; srt_hash: string | null; duration_ms: number; loudness: number }>(
-    "SELECT * FROM renders WHERE project_id = ? AND content_hash = ? AND quality = ? AND output_version = ? ORDER BY created_at DESC LIMIT 1",
-    opts.projectId,
-    opts.contentHash,
-    quality,
-    RENDER_OUTPUT_VERSION,
-  );
-  if (existing && getAsset(existing.video_hash)) {
-    return { renderId: existing.id, videoHash: existing.video_hash, srtHash: existing.srt_hash, durationMs: existing.duration_ms, loudness: existing.loudness };
+  if (!opts.force) {
+    const rows = all<{ id: string; video_hash: string; srt_hash: string | null; duration_ms: number; loudness: number; content_hash: string; animation_hash: string; timeline_hash: string; output_version: number }>(
+      "SELECT * FROM renders WHERE project_id = ? AND aspect = ? AND quality = ? AND output_version = ? ORDER BY created_at DESC",
+      opts.projectId,
+      t.aspect,
+      quality,
+      RENDER_OUTPUT_VERSION,
+    );
+    const existing = rows.find((row) => renderMatches({ outputVersion: row.output_version, contentHash: row.content_hash, animationHash: row.animation_hash, timelineHash: row.timeline_hash }, { contentHash: opts.contentHash, animationHash: opts.animationHash, timelineHash: opts.timelineHash }) && getAsset(row.video_hash));
+    if (existing) return { renderId: existing.id, videoHash: existing.video_hash, srtHash: existing.srt_hash, durationMs: existing.duration_ms, loudness: existing.loudness };
   }
 
   const { renderMedia, selectComposition, makeCancelSignal, ensureBrowser } = await import("@remotion/renderer");
@@ -232,8 +238,9 @@ export async function renderTimeline(opts: {
   const srt = t.cues.length ? await putBuffer(Buffer.from(toSrt(t.cues), "utf8"), { ext: "srt", mime: "application/x-subrip", probe: false, meta: { source: "render" } }) : null;
   if (!opts.current()) throw opts.signal.reason ?? new DOMException("渲染任务已取消", "AbortError");
   const loudness = after?.i ?? m.i;
+  const origin = opts.origin === "catch-up" ? "catch-up" : "manual";
   run(
-    "INSERT INTO renders (id, project_id, aspect, quality, timeline_hash, content_hash, animation_hash, video_hash, srt_hash, duration_ms, loudness, created_at, output_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO renders (id, project_id, aspect, quality, timeline_hash, content_hash, animation_hash, video_hash, srt_hash, duration_ms, loudness, created_at, output_version, origin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     renderId,
     opts.projectId,
     t.aspect,
@@ -247,6 +254,10 @@ export async function renderTimeline(opts: {
     loudness,
     Date.now(),
     RENDER_OUTPUT_VERSION,
+    origin,
   );
+  if (origin === "catch-up") {
+    run("DELETE FROM renders WHERE project_id = ? AND aspect = ? AND quality = ? AND origin = 'catch-up' AND id != ?", opts.projectId, t.aspect, quality, renderId);
+  }
   return { renderId, videoHash: video.hash, srtHash: srt?.hash ?? null, durationMs: t.durationMs, loudness };
 }

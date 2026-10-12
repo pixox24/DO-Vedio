@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Alert, Button, Dialog, Field, Icon, Select, Spinner } from "@/components/ui";
+import { Icon, Select, Spinner } from "@/components/ui";
 import { postJson } from "@/lib/client";
-import { emptyDoc, mediaUrl, type Project, type ProjectPipelineStatus, type ProjectSummary } from "@/lib/core/types";
+import { mediaUrl, type Project, type ProjectPipelineStatus, type ProjectSummary } from "@/lib/core/types";
 import { useFeedback } from "@/components/feedback";
 
 const LEGACY_KEY = "do-vedio:draft";
@@ -24,6 +24,7 @@ const statusLabels: Record<ProjectPipelineStatus, string> = {
   annotating: "标注中",
   voicing: "配音中",
   storyboard: "分镜中",
+  translating: "翻译中",
   music: "配乐中",
   rendering: "渲染中",
   ready: "已出片",
@@ -46,8 +47,6 @@ export function ProjectList() {
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<"updated" | "title">("updated");
-  const [createOpen, setCreateOpen] = useState(false);
-  const [createTitle, setCreateTitle] = useState("");
   const { confirm, toast } = useFeedback();
 
   const reload = () => fetch("/api/projects").then((r) => r.json()).then(setList, () => setList([]));
@@ -63,33 +62,19 @@ export function ProjectList() {
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  async function create(doc?: unknown) {
+  /** 导入浏览器旧草稿；仍走新建接口，因此照旧套用默认制作预设，导入后直接进入项目 */
+  async function importLegacy() {
     setBusy(true);
     setError("");
     try {
-      const p = await postJson<Project>("/api/projects", { doc });
+      const p = await postJson<Project>("/api/projects", { doc: legacy });
+      localStorage.removeItem(LEGACY_KEY);
+      setLegacy(null);
       router.push(`/projects/${p.id}`);
-      return p;
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setBusy(false);
     }
-  }
-
-  async function createFromTitle() {
-    const title = createTitle.trim();
-    if (!title) return;
-    const base = emptyDoc();
-    const p = await create({ ...base, brief: { ...base.brief, title } });
-    if (p) {
-      setCreateTitle("");
-      setCreateOpen(false);
-    }
-  }
-
-  async function importLegacy() {
-    const p = await create(legacy);
-    if (p) localStorage.removeItem(LEGACY_KEY);
   }
 
   async function remove(p: ProjectSummary) {
@@ -117,9 +102,10 @@ export function ProjectList() {
           <h1 className="mt-2 text-3xl font-semibold tracking-tight">我的项目</h1>
           <p className="mt-2 text-sm text-white/45">从一个想法到一条成片：写文案、配音、分镜、配乐、合成。</p>
         </div>
-        <button className="btn btn-primary" disabled={busy} onClick={() => setCreateOpen(true)}>
-          {busy ? <Spinner className="size-3.5" /> : <Icon name="plus" className="size-4" />} 新建项目
-        </button>
+        {/* 新建入口在首页。点这里回首页并把焦点交给输入框，避免出现第二套新建表单。 */}
+        <Link href="/" className="btn btn-primary" onClick={() => { try { sessionStorage.setItem("do-vedio:focus-composer", "1"); } catch {} }}>
+          <Icon name="plus" className="size-4" /> 新建项目
+        </Link>
       </div>
 
       {error && <p className="text-sm text-red-300/80">{error}</p>}
@@ -194,31 +180,6 @@ export function ProjectList() {
           })()}
         </>
       )}
-
-      <Dialog
-        open={createOpen}
-        onClose={() => { setCreateOpen(false); setCreateTitle(""); }}
-        title="新建项目"
-        description="先给项目起个标题，之后可以继续完善内容。"
-        footer={
-          <>
-            <Button size="sm" onClick={() => { setCreateOpen(false); setCreateTitle(""); }}>取消</Button>
-            <Button size="sm" variant="primary" loading={busy} disabled={!createTitle.trim()} onClick={createFromTitle}>创建项目</Button>
-          </>
-        }
-      >
-        <Field label="项目标题">
-          <input
-            autoFocus
-            className="input"
-            value={createTitle}
-            onChange={(event) => setCreateTitle(event.target.value)}
-            onKeyDown={(event) => { if (event.key === "Enter") createFromTitle(); }}
-            placeholder="例如：春季品牌故事"
-          />
-        </Field>
-        {error && <Alert tone="danger" size="sm" className="mt-3">{error}</Alert>}
-      </Dialog>
     </div>
   );
 }

@@ -32,8 +32,8 @@ export const moods = ["悬疑", "紧张", "轻松", "温暖", "激昂", "史诗"
 export type Mood = (typeof moods)[number];
 const moodSchema = z.enum(moods);
 
-export const voiceTagChoices = [
-  { value: "auto", label: "自动（按句子情绪）" },
+/** 句首表演标签。内容情绪不在这里；多数句子用 none，只有这一句要换念法时才选。 */
+export const deliveryTagChoices = [
   { value: "none", label: "不加标签" },
   { value: "serious", label: "严肃" },
   { value: "sad", label: "悲伤" },
@@ -45,11 +45,23 @@ export const voiceTagChoices = [
   { value: "whispers", label: "耳语" },
   { value: "very slowly", label: "非常缓慢" },
   { value: "very fast", label: "非常快速" },
+] as const;
+export const deliveryTagValues = deliveryTagChoices.map((choice) => choice.value);
+export type DeliveryTag = (typeof deliveryTagChoices)[number]["value"];
+
+export const voiceTagChoices = [
+  { value: "auto", label: "待标注" },
+  ...deliveryTagChoices,
   { value: "ssml:measured", label: "SSML · 舒展停顿" },
   { value: "ssml:compact", label: "SSML · 紧凑停顿" },
 ] as const;
 export type VoiceTag = (typeof voiceTagChoices)[number]["value"];
 const voiceTagSchema = z.enum(voiceTagChoices.map((choice) => choice.value) as [VoiceTag, ...VoiceTag[]]);
+
+/** Qwen-Audio 接受自由全片说明。CosyVoice 系统音色和 Gemini 不发送。 */
+export function acceptsFreeVoiceInstruction(model: string) {
+  return model.startsWith("qwen-audio-");
+}
 
 /** 一段朗读片段：say 为替换读法（如 “2025” → “二零二五”），缺省按原文朗读 */
 export const spanSchema = z.object({ text: z.string(), say: z.string().optional() });
@@ -95,6 +107,8 @@ export const p1ShotKinds = ["title", "quote", "placeholder", "upload"] as const 
 
 export const motions = ["zoom-in", "zoom-out", "pan-left", "pan-right", "none"] as const;
 export type Motion = (typeof motions)[number];
+export const transitionIns = ["cut", "fade", "wipe", "whip", "push", "dissolve"] as const;
+export type TransitionIn = (typeof transitionIns)[number];
 
 /**
  * 旧动画家族。只为读取已保存的项目保留，预览和成片不再使用。
@@ -177,6 +191,7 @@ export type FocusLayoutMode = (typeof focusLayoutModes)[number];
 export const focusPresetIds = [
   "embedded-type", "number-space", "masked-slice", "vertical-arc", "offset-fade", "time-scale", "tilt-vertical", "solid-outline",
   "order", "diamond", "pill", "three-dots", "steps", "four-dots", "cross-space", "chapter", "serif-contrast", "focus",
+  "blur-slide", "ink-press",
 ] as const;
 export type FocusPresetId = (typeof focusPresetIds)[number];
 export const focusTextSchema = z.object({
@@ -187,6 +202,14 @@ export const focusTextSchema = z.object({
   presetId: z.enum(focusPresetIds).optional(),
 }).strict();
 export type FocusText = z.infer<typeof focusTextSchema>;
+
+/** 一部片子自带的文字动画。每一格最多三条；三格都空等于没配盘。 */
+export const motionPaletteSchema = z.object({
+  opening: z.array(z.enum(focusPresetIds)).max(3).default([]),
+  statement: z.array(z.enum(focusPresetIds)).max(3).default([]),
+  number: z.array(z.enum(focusPresetIds)).max(3).default([]),
+});
+export type MotionPalette = z.infer<typeof motionPaletteSchema>;
 
 export const shotAssetVariantSchema = z.object({
   assetId: z.string(), promptHash: z.string(), aspect: z.enum(aspects), width: z.number().int().positive().optional(), height: z.number().int().positive().optional(),
@@ -210,9 +233,13 @@ export const shotSchema = z.object({
   prompt: z.string().optional(),
   onScreenText: z.string().optional(),
   motion: z.enum(motions).default("zoom-in"),
+  /** 为真时，重新分镜不会改掉这条运镜。 */
+  motionLocked: z.boolean().optional(),
   animation: animationSpecSchema.optional(),
   /** 编排层决定的入场转场；模型不直接决定相邻镜头关系。 */
-  transitionIn: z.enum(["cut", "fade", "wipe", "whip", "push", "dissolve"]).optional(),
+  transitionIn: z.enum(transitionIns).optional(),
+  /** 为真时，章节开头也不会改掉这条转场。 */
+  transitionLocked: z.boolean().optional(),
   importance: z.union([z.literal(1), z.literal(2), z.literal(3)]).default(1),
   assetId: z.string().optional(),
   assetVariants: z.partialRecord(z.enum(aspects), shotAssetVariantSchema).default({}),
@@ -442,8 +469,10 @@ export const voiceSettingsSchema = z.object({
   volume: z.number().int().min(0).max(100).default(50),
   /** 合成粒度：line = 逐句；paragraph = 按段落合成再切成单句（更连贯，改一句会整段重录） */
   granularity: z.enum(["line", "paragraph"]).default("line"),
-  /** 可选的自然语言表达控制；Qwen-Audio 模型会原样透传。 */
+  /** 全片朗读说明。Qwen-Audio 放进 instruction；空着时由配音前的步骤补一句。 */
   instruction: z.string().trim().max(500).default(""),
+  /** user：手写，参与开工确认。generated：配音前自动写入，不因此要求重新确认。 */
+  instructionSource: z.enum(["user", "generated"]).default("user"),
   /** Google Gemini 的服务商参数；正文与表达指令保持分离。 */
   google: z.object({
     stylePrompt: z.string().trim().max(1000).default(""),
@@ -501,6 +530,8 @@ export const projectDocSchema = z.object({
   shots: z.array(shotSchema).default([]),
   /** 项目的画面风格：风格库中某张卡的快照，可在项目里微调；为空时生图前自动采用推荐风格 */
   visualStyle: visualStyleSchema.nullable().default(null),
+  /** 本片文字动画。为空时智能匹配仍从全部配方里挑。 */
+  motionPalette: motionPaletteSchema.nullable().default(null),
   characters: z.array(characterCardSchema).default([]),
   castAnalysis: castAnalysisSchema.nullable().default(null),
   scenes: z.array(sceneCardSchema).default([]),
@@ -518,7 +549,7 @@ export type Project = {
   updatedAt: number;
   doc: ProjectDoc;
 };
-export type ProjectPipelineStatus = "empty" | "script" | "annotating" | "voicing" | "storyboard" | "music" | "rendering" | "ready" | "failed";
+export type ProjectPipelineStatus = "empty" | "script" | "annotating" | "voicing" | "storyboard" | "translating" | "music" | "rendering" | "ready" | "failed";
 export type ProjectSummary = Omit<Project, "doc"> & {
   minutes: number;
   segments: number;

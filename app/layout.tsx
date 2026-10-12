@@ -35,6 +35,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <FeedbackProvider>
         <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-ink/70 backdrop-blur-xl">
           <div className="mx-auto flex min-h-16 max-w-[1440px] flex-wrap items-center justify-between gap-2 px-4 py-2 sm:px-6">
+            {/* Logo 回首页（输入区），与「项目」指向的列表页分开 */}
             <Link href="/" className="flex items-center gap-2.5">
               <span className="grid size-7 place-items-center rounded-lg bg-accent text-[13px] font-black text-black">D</span>
               <span className="text-[15px] font-semibold tracking-tight">

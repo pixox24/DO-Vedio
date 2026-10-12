@@ -1,0 +1,294 @@
+[
+  {
+    "name": "omd-orchestrator",
+    "model": "gpt-6.1-sol",
+    "effort": "ultra",
+    "sandbox": "workspace-write",
+    "description": "任务编排与交付负责人；按固定角色分配任务、维护依赖、写锁和验收记录。",
+    "allowed_files": [
+      "docs/viral-recreation-tasks.md",
+      "docs/viral-recreation-status.md"
+    ],
+    "excluded_files": [],
+    "scope_notes": "任务范围需再收窄；excluded_files 优先。路径是协作约束，不是 OS 权限。[id] 以目录名原样解释。"
+  },
+  {
+    "name": "omd-master",
+    "model": "gpt-6.1-sol",
+    "effort": "ultra",
+    "sandbox": "workspace-write",
+    "description": "产品与设计决策负责人；冻结首版范围、默认规则与可观察的完成条件。",
+    "allowed_files": [
+      "docs/viral-recreation-spec.md",
+      "docs/viral-recreation-decisions.md"
+    ],
+    "excluded_files": [],
+    "scope_notes": "任务范围需再收窄；excluded_files 优先。路径是协作约束，不是 OS 权限。[id] 以目录名原样解释。"
+  },
+  {
+    "name": "omd-ux-engineer",
+    "model": "gpt-6.1-sol",
+    "effort": "ultra",
+    "sandbox": "workspace-write",
+    "description": "架构契约、前端业务交互与版本状态负责人；处理草稿、过期状态、锁定和跨模式一致性。",
+    "allowed_files": [
+      "docs/viral-architecture.md",
+      "lib/viral/types.ts",
+      "lib/viral/types.test.ts",
+      "lib/viral/schemas.ts",
+      "lib/viral/schemas.test.ts",
+      "lib/viral/state.ts",
+      "lib/viral/state.test.ts",
+      "lib/viral/invalidation.ts",
+      "lib/viral/invalidation.test.ts",
+      "lib/viral/duration.ts",
+      "lib/viral/duration.test.ts",
+      "app/viral/**",
+      "components/viral/**",
+      "components/home-composer.tsx",
+      "app/page.tsx",
+      "components/nav.tsx",
+      "tests/viral-ui/**"
+    ],
+    "excluded_files": [
+      "components/viral/presentational/**",
+      "components/viral/copy.ts",
+      "app/viral/viral.module.css"
+    ],
+    "scope_notes": "任务范围需再收窄；excluded_files 优先。路径是协作约束，不是 OS 权限。[id] 以目录名原样解释。"
+  },
+  {
+    "name": "omd-backend-engineer",
+    "model": "gpt-6.1-sol",
+    "effort": "ultra",
+    "sandbox": "workspace-write",
+    "description": "持久化、任务执行与 API 负责人；处理输入快照、续作、取消和过期写入。",
+    "allowed_files": [
+      "lib/server/viral/**",
+      "lib/pipeline/viral/**",
+      "app/api/viral/**",
+      "lib/server/db.ts",
+      "lib/server/db.test.ts",
+      "lib/server/migrations.ts",
+      "lib/server/migrations.test.ts",
+      "lib/server/jobs.ts",
+      "lib/server/jobs.test.ts",
+      "tests/viral-persistence/**",
+      "tests/viral-jobs/**"
+    ],
+    "excluded_files": [
+      "lib/server/viral/handoff.ts",
+      "lib/server/viral/handoff.test.ts",
+      "app/api/viral/[id]/adopt/route.ts",
+      "app/api/viral/[id]/sync/route.ts",
+      "lib/pipeline/viral/stages/**"
+    ],
+    "scope_notes": "任务范围需再收窄；excluded_files 优先。路径是协作约束，不是 OS 权限。[id] 以目录名原样解释。"
+  },
+  {
+    "name": "omd-content-engineer",
+    "model": "gpt-6.1-sol",
+    "effort": "ultra",
+    "sandbox": "workspace-write",
+    "description": "内容引擎与事实、原创检查负责人；实现参考隔离、新角度、风格与最终稿检查。",
+    "allowed_files": [
+      "lib/viral/analysis.ts",
+      "lib/viral/analysis.test.ts",
+      "lib/viral/angles.ts",
+      "lib/viral/angles.test.ts",
+      "lib/viral/evidence.ts",
+      "lib/viral/evidence.test.ts",
+      "lib/viral/generation.ts",
+      "lib/viral/generation.test.ts",
+      "lib/viral/review.ts",
+      "lib/viral/review.test.ts",
+      "lib/viral/style.ts",
+      "lib/viral/style.test.ts",
+      "lib/viral/prompts.ts",
+      "lib/viral/prompts.test.ts",
+      "lib/viral/export.ts",
+      "lib/viral/export.test.ts",
+      "lib/pipeline/viral/stages/**",
+      "tests/viral-content/**"
+    ],
+    "excluded_files": [],
+    "scope_notes": "任务范围需再收窄；excluded_files 优先。路径是协作约束，不是 OS 权限。[id] 以目录名原样解释。"
+  },
+  {
+    "name": "omd-video-integrator",
+    "model": "gpt-6.1-sol",
+    "effort": "ultra",
+    "sandbox": "workspace-write",
+    "description": "视频交接与最终集成负责人；处理幂等采用、已有制作冲突和非破坏性同步。",
+    "allowed_files": [
+      "lib/server/viral/handoff.ts",
+      "lib/server/viral/handoff.test.ts",
+      "app/api/viral/[id]/adopt/route.ts",
+      "app/api/viral/[id]/sync/route.ts",
+      "lib/server/projects.ts",
+      "lib/server/versions.ts",
+      "app/api/projects/route.ts",
+      "app/api/projects/route.test.ts",
+      "app/projects/[id]/video/page.tsx",
+      "components/video-studio.tsx",
+      "tests/viral-handoff/**",
+      "lib/changelog.ts"
+    ],
+    "excluded_files": [],
+    "scope_notes": "任务范围需再收窄；excluded_files 优先。路径是协作约束，不是 OS 权限。[id] 以目录名原样解释。"
+  },
+  {
+    "name": "omd-ui-junior",
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "sandbox": "workspace-write",
+    "description": "保留历史名称的纯展示组件 Agent；已升级 Sol 6.1，不承担关键逻辑。",
+    "allowed_files": [
+      "components/viral/presentational/**",
+      "app/viral/viral.module.css",
+      "docs/viral-wireframes.md"
+    ],
+    "excluded_files": [],
+    "scope_notes": "任务范围需再收窄；excluded_files 优先。路径是协作约束，不是 OS 权限。[id] 以目录名原样解释。"
+  },
+  {
+    "name": "omd-ux-writer",
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "sandbox": "workspace-write",
+    "description": "界面文案负责人；明确输入、阶段、问题与可恢复操作。",
+    "allowed_files": [
+      "components/viral/copy.ts",
+      "docs/viral-copy.md"
+    ],
+    "excluded_files": [],
+    "scope_notes": "任务范围需再收窄；excluded_files 优先。路径是协作约束，不是 OS 权限。[id] 以目录名原样解释。"
+  },
+  {
+    "name": "omd-microcopy",
+    "model": "gpt-6.1-sol",
+    "effort": "ultra",
+    "sandbox": "read-only",
+    "description": "独立微文案审查员；核对按钮、错误和高影响提示与实际行为一致。",
+    "allowed_files": [],
+    "excluded_files": [],
+    "scope_notes": "任务范围需再收窄；excluded_files 优先。路径是协作约束，不是 OS 权限。[id] 以目录名原样解释。"
+  },
+  {
+    "name": "omd-critic",
+    "model": "gpt-6.1-sol",
+    "effort": "ultra",
+    "sandbox": "read-only",
+    "description": "独立高风险审查员；审查契约、事实隔离、并发版本、持久化和幂等交接。",
+    "allowed_files": [],
+    "excluded_files": [],
+    "scope_notes": "任务范围需再收窄；excluded_files 优先。路径是协作约束，不是 OS 权限。[id] 以目录名原样解释。"
+  },
+  {
+    "name": "omd-final-qa",
+    "model": "gpt-6.1-sol",
+    "effort": "ultra",
+    "sandbox": "read-only",
+    "description": "独立终验 Agent；按 A01–A32 及真实制作闭环提供证据和未覆盖项。",
+    "allowed_files": [],
+    "excluded_files": [],
+    "scope_notes": "任务范围需再收窄；excluded_files 优先。路径是协作约束，不是 OS 权限。[id] 以目录名原样解释。"
+  },
+  {
+    "name": "omd-designer-review",
+    "model": "gpt-6.1-sol",
+    "effort": "ultra",
+    "sandbox": "read-only",
+    "description": "独立视觉与交互审查员；核对结果优先布局、模式一致性与响应式状态。",
+    "allowed_files": [],
+    "excluded_files": [],
+    "scope_notes": "任务范围需再收窄；excluded_files 优先。路径是协作约束，不是 OS 权限。[id] 以目录名原样解释。"
+  },
+  {
+    "name": "omd-a11y-auditor",
+    "model": "gpt-6.1-sol",
+    "effort": "ultra",
+    "sandbox": "read-only",
+    "description": "独立无障碍审查员；验证标签、键盘、焦点、状态播报和可达性。",
+    "allowed_files": [],
+    "excluded_files": [],
+    "scope_notes": "任务范围需再收窄；excluded_files 优先。路径是协作约束，不是 OS 权限。[id] 以目录名原样解释。"
+  },
+  {
+    "name": "omd-persona-tester",
+    "model": "gpt-6.1-sol",
+    "effort": "ultra",
+    "sandbox": "read-only",
+    "description": "独立用户场景测试员；测试快捷低介入和工作台可控编辑的完整旅程。",
+    "allowed_files": [],
+    "excluded_files": [],
+    "scope_notes": "任务范围需再收窄；excluded_files 优先。路径是协作约束，不是 OS 权限。[id] 以目录名原样解释。"
+  },
+  {
+    "name": "omd-ux-researcher",
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "sandbox": "workspace-write",
+    "description": "产品与使用证据研究员；补充资料、区分观察与假设，不决定高风险实现。",
+    "allowed_files": [
+      "docs/viral-research.md",
+      "docs/viral-quality-protocol.md"
+    ],
+    "excluded_files": [],
+    "scope_notes": "任务范围需再收窄；excluded_files 优先。路径是协作约束，不是 OS 权限。[id] 以目录名原样解释。"
+  },
+  {
+    "name": "omd-asset-curator",
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "sandbox": "workspace-write",
+    "description": "资源整理与资产 Agent；选择适合现有设计体系的图标和辅助素材。",
+    "allowed_files": [
+      "public/viral/**",
+      "docs/viral-assets.md"
+    ],
+    "excluded_files": [
+      "public/viral/generated/**"
+    ],
+    "scope_notes": "任务范围需再收窄；excluded_files 优先。路径是协作约束，不是 OS 权限。[id] 以目录名原样解释。"
+  },
+  {
+    "name": "omd-codex-image",
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "sandbox": "workspace-write",
+    "description": "图像需求与资产交付 Agent；将已授权画面要求整理为可审阅资产。",
+    "allowed_files": [
+      "public/viral/generated/**",
+      "docs/viral-image-brief.md"
+    ],
+    "excluded_files": [],
+    "scope_notes": "任务范围需再收窄；excluded_files 优先。路径是协作约束，不是 OS 权限。[id] 以目录名原样解释。"
+  },
+  {
+    "name": "omd-kr-writer",
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "sandbox": "workspace-write",
+    "description": "韩语内容作者；基于明确任务和真实资料调整语气与长文表达。",
+    "allowed_files": [
+      "docs/locales/ko/**"
+    ],
+    "excluded_files": [],
+    "scope_notes": "任务范围需再收窄；excluded_files 优先。路径是协作约束，不是 OS 权限。[id] 以目录名原样解释。"
+  },
+  {
+    "name": "omd-locale-adapter",
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "sandbox": "workspace-write",
+    "description": "本地化作者；在指定语言与地区适配内容，保留事实和功能语义。",
+    "allowed_files": [
+      "docs/locales/en/**",
+      "docs/locales/ja/**",
+      "docs/locales/zh-TW/**"
+    ],
+    "excluded_files": [],
+    "scope_notes": "任务范围需再收窄；excluded_files 优先。路径是协作约束，不是 OS 权限。[id] 以目录名原样解释。"
+  }
+]

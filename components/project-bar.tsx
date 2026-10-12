@@ -43,7 +43,7 @@ export function ProjectBar({ id, store, title, active }: { id: string; store: St
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3 text-sm">
-          <Link href="/" className="text-white/40 hover:text-white">
+          <Link href="/projects" className="text-white/40 hover:text-white">
             项目
           </Link>
           <span className="text-white/20">/</span>

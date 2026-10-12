@@ -16,6 +16,15 @@ describe("production safety helpers", () => {
     expect(setupFingerprint(doc.settings)).toBe(setupFingerprint({ ...doc.settings }));
   });
 
+  it("keeps setup confirmation when a generated reading direction is filled in", () => {
+    const doc = emptyDoc();
+    const fingerprint = setupFingerprint(doc.settings);
+    const generated = { ...doc.settings, voice: { ...doc.settings.voice, instruction: "沉稳、老练，语重心长。", instructionSource: "generated" as const } };
+    expect(setupConfirmationMatches(fingerprint, generated)).toBe(true);
+    const edited = { ...generated, voice: { ...generated.voice, instructionSource: "user" as const } };
+    expect(setupConfirmationMatches(fingerprint, edited)).toBe(false);
+  });
+
   it("keeps setup confirmation when only the preview aspect changes", () => {
     const doc = emptyDoc();
     doc.settings.aspects = ["16:9", "9:16"];

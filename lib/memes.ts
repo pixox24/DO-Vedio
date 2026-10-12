@@ -43,6 +43,45 @@ export const memeCategories = { hot: "热梗", daily: "日常口语", emotion: "
 export type MemeCategory = keyof typeof memeCategories;
 export const memeCategoryIds = Object.keys(memeCategories) as [MemeCategory, ...MemeCategory[]];
 
+function categoryFromLabel(label: string): MemeCategory | undefined {
+  const hit = (Object.entries(memeCategories) as [MemeCategory, string][]).find(([, name]) => name === label);
+  return hit?.[0];
+}
+
+/**
+ * 词表直接拆开，不调用模型。
+ * 斜杠（/、／）和空白都是分隔；一行如果只写类别名，后面的词用这个类别，直到下一个类别名。
+ */
+export function parseTermList(text: string, fallback: MemeCategory = "daily"): { term: string; category: MemeCategory }[] {
+  let category = fallback;
+  const out: { term: string; category: MemeCategory }[] = [];
+  const seen = new Set<string>();
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || /^[─—\-=_\s]+$/.test(line)) continue;
+    const heading = line.replace(/^#+\s*/, "");
+    const headed = categoryFromLabel(heading);
+    if (headed) {
+      category = headed;
+      continue;
+    }
+    for (const piece of line.split(/[/／\s]+/)) {
+      const term = piece.trim().replace(/^[，。、；;,.]+|[，。、；;,.]+$/g, "");
+      if (!term || term.length > 24 || /[<>\u0000-\u001f\u007f]/.test(term)) continue;
+      const key = normalizeTerm(term);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push({ term, category });
+    }
+  }
+  return out;
+}
+
+/** 词表拆出来的一条：只有词和类别，含义留空，等用户自己补 */
+export function termListEntry(term: string, category: MemeCategory): MemeInput {
+  return { term, variants: [], kind: "word", category, meaning: "", usage: "", example: "", tone: "", platform: "", since: "", heat: "fading", risk: "safe", say: "", circle: "" };
+}
+
 export function enabledMemeCategories(hotEnabled: boolean, groundedEnabled: boolean): MemeCategory[] {
   return [
     ...(hotEnabled ? ["hot" as const] : []),
@@ -310,6 +349,42 @@ export const BURNED_MEMES = [
 ];
 
 // ---------- 粘贴导入 ----------
+
+/** 一次请求里联网核实的热梗上限。每条热梗单独搜索，再多会顶满接口超时。 */
+export const MAX_VERIFY_HOT_PER_IMPORT = 50;
+/** 不联网的一批最多写多少条。口语词库按这个大小分批入库。 */
+export const MAX_IMPORT_BATCH = 200;
+
+export type ImportBatch = { items: MemeInput[]; verify: boolean };
+
+/** 把勾选结果拆成多次请求：口语本地分批写入；要核实的热梗每批不超过 50。 */
+export function planImportBatches(items: MemeInput[], verifyHot: boolean): ImportBatch[] {
+  const chunks = (list: MemeInput[], size: number) => {
+    const out: MemeInput[][] = [];
+    for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size));
+    return out;
+  };
+  if (!items.length) return [];
+  if (!verifyHot) return chunks(items, MAX_IMPORT_BATCH).map((part) => ({ items: part, verify: false }));
+  const hot = items.filter((m) => m.category === "hot");
+  const rest = items.filter((m) => m.category !== "hot");
+  return [
+    ...chunks(rest, MAX_IMPORT_BATCH).map((part) => ({ items: part, verify: false })),
+    ...chunks(hot, MAX_VERIFY_HOT_PER_IMPORT).map((part) => ({ items: part, verify: true })),
+  ];
+}
+
+/** 粘贴导入确认入库的请求体。客户端按 planImportBatches 拆批，这里挡住单次过大的请求。 */
+export const memeImportRequestSchema = z.object({
+  items: z.array(memeInputSchema).min(1, "请至少勾选一个梗").max(MAX_IMPORT_BATCH, `一次最多写入 ${MAX_IMPORT_BATCH} 条`),
+  /** 联网核实热度和流行时间（只更新这两项，不判断真假）。只作用于本批里的热梗。 */
+  verify: z.boolean().default(true),
+}).superRefine((value, ctx) => {
+  const hot = value.items.filter((item) => item.category === "hot").length;
+  if (value.verify && hot > MAX_VERIFY_HOT_PER_IMPORT) {
+    ctx.addIssue({ code: "custom", message: `一次最多联网核实 ${MAX_VERIFY_HOT_PER_IMPORT} 个热梗`, path: ["items"] });
+  }
+});
 
 /** 从用户粘贴的文章、评论、弹幕里抽取的梗 */
 export const memeImportSchema = z.object({

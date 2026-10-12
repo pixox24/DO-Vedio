@@ -1,31 +1,39 @@
 import { randomUUID } from "crypto";
 import { annotateKey, RENDER_OUTPUT_VERSION, renderKey } from "../core/keys";
+import { acceptsFreeVoiceInstruction } from "../core/types";
 import { stampShots } from "../core/shots";
-import { contentHash, timelineHash } from "../core/timeline";
+import { renderMatches, type TimelineHashes } from "../core/output-flow";
+import { animationHash, contentHash, timelineHash } from "../core/timeline";
 import type { Aspect, Job, ProjectDoc } from "../core/types";
 import { outputSpecForRequest } from "../core/output-spec";
-import { cacheHas, cacheMany, projectSpend } from "../server/cache";
+import { cacheDelete, cacheGet, cacheHas, cacheMany, projectSpend } from "../server/cache";
 import { all, get, run } from "../server/db";
-import { enqueue, latestJobByKey } from "../server/jobs";
+import { cancelCatchUpJobs, enqueue, latestJobByKey } from "../server/jobs";
 import { effectiveLexicon } from "../server/lexicon";
 import { getProject, mutateProject } from "../server/projects";
 import { lineTtsKeys, loadArtifacts, timelineFor } from "./artifacts";
+import { pickTextModelId } from "../core/text-model";
+import { subtitleTranslateKey, subtitleTranslateUnits } from "../core/subtitle/translate-plan";
 import { listTextModels } from "../providers/registry";
 import { estimateLlmCost } from "./pricing";
+import { estimateSubtitleTranslateCost } from "./subtitle-translate";
 import { ttsJobKeyOf, ttsSteps } from "./tts-jobs";
 import type { Quality } from "./render";
 import { staleRanges } from "./stages/storyboard";
 import { castSourceHash } from "../core/cast";
+import { voiceDirectionKey, type VoiceDirectionCache } from "./voice-direction";
 
 /**
  * 对账式编排：比较「目标」和「现状」，补上缺的任务。可以反复调用，不会重复提交。
  *   文案 → 句子（同步，纯规则）
  *   句子没标注 → annotate；句子没配音 → tts；文案变了 → cast（识别角色）
  *   配音齐了且角色识别完：没分镜或分镜过期 → storyboard；没配乐 → music
- *   都齐了且目标是成片 → 每个画幅一个 render
+ *   双语开着且有句子没译完 → subtitle-translate（与配音、分镜并行，不重复译已对上的句子）
+ *   都齐了且目标是成片或样片 → 每个画幅一个 render。双语没译完时不排渲染
+ *   compose（确认开工）停在渲染之前。生成成片把同一目标改成 render 后再排渲染
  */
 
-export type Goal = { until: "preview" | "render"; aspects: Aspect[]; quality: Quality; goalId?: string };
+export type Goal = { until: "preview" | "compose" | "render"; aspects: Aspect[]; quality: Quality; goalId?: string; forceRender?: boolean };
 
 export type PlanStep = { stage: string; key: string; target: string; input: unknown; cost: number; priority: number };
 export type Plan = { steps: PlanStep[]; currentKeys: string[]; waiting: string[]; ready: { preview: boolean; render: boolean }; costYuan: number };
@@ -34,9 +42,7 @@ export { syncLines } from "../core/sync";
 import { syncLines } from "../core/sync";
 
 export function textModelId(doc: ProjectDoc) {
-  const models = listTextModels();
-  const selected = doc.settings.modelId || doc.modelId;
-  return models.find((model) => model.id === selected)?.id ?? models[0]?.id ?? "";
+  return pickTextModelId([doc.settings.modelId, doc.modelId], listTextModels());
 }
 
 /** 标注状态：记在 cache 里（按段落文本 + 词典 + 模型） */
@@ -69,6 +75,33 @@ function annotateSteps(doc: ProjectDoc, projectId: string): PlanStep[] {
   return steps;
 }
 
+/** 配音口吻：各章标注完、文本框仍空、且当前是 Qwen-Audio 时补一句。失败缓存让本次制作继续配音。 */
+export function voiceDirectionPlanStep(doc: ProjectDoc, projectId: string): PlanStep | null {
+  const modelId = textModelId(doc);
+  const voice = doc.settings.voice;
+  if (!modelId || !acceptsFreeVoiceInstruction(voice.model) || voice.instruction.trim()) return null;
+  const key = voiceDirectionKey(doc, modelId);
+  const cached = cacheGet<VoiceDirectionCache>(key);
+  if (cached?.instruction === null) return null;
+  const chars = doc.lines.reduce((sum, line) => sum + line.text.length, 0);
+  return {
+    stage: "voice-direction",
+    key: `${key}:${projectId}`,
+    target: "配音口吻",
+    input: { projectId, modelId },
+    cost: cached?.instruction ? 0 : estimateLlmCost(modelId, 800 + chars, 80),
+    priority: 3,
+  };
+}
+
+/** 用户再次开始制作时，允许上次失败的全片说明重试一次。 */
+export function retryVoiceDirection(doc: ProjectDoc) {
+  const modelId = textModelId(doc);
+  if (!modelId || !acceptsFreeVoiceInstruction(doc.settings.voice.model) || doc.settings.voice.instruction.trim()) return;
+  const key = voiceDirectionKey(doc, modelId);
+  if (cacheGet<VoiceDirectionCache>(key)?.instruction === null) cacheDelete(key);
+}
+
 function currentAnnotateKeys(doc: ProjectDoc, projectId: string) {
   const modelId = textModelId(doc);
   if (!modelId) return [];
@@ -94,14 +127,21 @@ export function planPipeline(projectId: string, doc: ProjectDoc, goal: Goal): Pl
   const annotating = ann.length > 0;
   if (annotating) waiting.push("等待断句标注完成");
 
-  // 2) 配音
+  const direction = annotating ? null : voiceDirectionPlanStep(doc, projectId);
+  if (direction) {
+    steps.push(direction);
+    waiting.push("等待配音口吻");
+  }
+
+  // 2) 配音（等标注和全片说明写完，说明才会进缓存键）
   const keys = lineTtsKeys(doc, projectId);
   const hits = cacheMany(keys.map((k) => k.key));
   const missing = keys.filter((k) => !hits.has(k.key));
+  const voicingBlocked = annotating || !!direction;
   // 第一个缺失的配音优先，让预览尽快有声音
-  if (!annotating) steps.push(...ttsSteps(doc, projectId, missing).map((s, idx) => ({ ...s, priority: 4 + Math.min(idx, 1) })));
-  const voiced = !annotating && missing.length === 0;
-  if (!voiced && !annotating) waiting.push(`还有 ${missing.length} 句没有配音`);
+  if (!voicingBlocked) steps.push(...ttsSteps(doc, projectId, missing).map((s, idx) => ({ ...s, priority: 4 + Math.min(idx, 1) })));
+  const voiced = !voicingBlocked && missing.length === 0;
+  if (!voiced && !voicingBlocked) waiting.push(`还有 ${missing.length} 句没有配音`);
 
   // 3) 选角（只依赖文案，和配音并行；分镜要知道有哪些角色）
   const modelId = textModelId(doc);
@@ -134,11 +174,30 @@ export function planPipeline(projectId: string, doc: ProjectDoc, goal: Goal): Pl
   }
   if (!shotsReady && voiced) waiting.push("等待分镜");
 
-  // 配乐由用户在面板里选定，不选也不挡住预览和成片。
-  const preview = voiced && shotsReady;
+  // 双语开着才翻译。译文已对上口播时不再调用模型。关着时不排这一步。
+  const translateUnits = doc.settings.subtitle.bilingual ? subtitleTranslateUnits(doc.lines) : [];
+  const translationsReady = translateUnits.length === 0;
+  if (!translationsReady && modelId) {
+    steps.push({
+      stage: "subtitle-translate",
+      key: subtitleTranslateKey(projectId, doc.lines),
+      target: `翻译 ${translateUnits.length} 句`,
+      input: { projectId, modelId },
+      cost: estimateSubtitleTranslateCost(modelId, translateUnits),
+      priority: 4,
+    });
+    waiting.push(`还有 ${translateUnits.length} 句没有翻译`);
+  } else if (!translationsReady && !waiting.includes("没有可用文本模型，请在模型中心配置并启用")) {
+    waiting.push("没有可用文本模型，请在模型中心配置并启用");
+  }
 
-  // 6) 渲染
-  if (preview && (goal.until === "preview" || goal.until === "render")) {
+  // 配乐由用户在面板里选定，不选也不挡住预览和成片。
+  // 双语没译完时不排渲染：渲染键在入队时就按当前文稿算好，译文还没写回会做出没有副行的成片。
+  const preview = voiced && shotsReady && translationsReady;
+
+  // 6) 渲染。确认开工（compose）不排这一步。
+  const scheduleRender = goal.until === "preview" || goal.until === "render";
+  if (preview && scheduleRender) {
     // preview 目标也要生成一条 draft，完成后自动暂停；render 目标使用用户选择的画质。
     const renderQuality = goal.until === "preview" ? "draft" : goal.quality;
     for (const aspect of goal.aspects) {
@@ -146,13 +205,15 @@ export function planPipeline(projectId: string, doc: ProjectDoc, goal: Goal): Pl
       const t = timelineFor(doc, projectId, spec.id);
       const th = timelineHash(t);
       const ch = contentHash(t);
-      const done = get<{ id: string }>("SELECT id FROM renders WHERE project_id = ? AND content_hash = ? AND quality = ? AND output_version = ?", projectId, ch, renderQuality, RENDER_OUTPUT_VERSION);
-      if (done) continue;
-      steps.push({ stage: "render", key: `${renderKey(th, renderQuality, spec)}:${spec.id}`, target: `${aspect} ${renderQuality === "final" ? "成片" : "样片"}`, input: { projectId, aspect, outputSpecId: spec.id, quality: renderQuality }, cost: 0, priority: 7 });
+      const ah = animationHash(t);
+      const current: TimelineHashes = { contentHash: ch, animationHash: ah, timelineHash: th };
+      if (!goal.forceRender && hasCurrentRender(projectId, aspect, renderQuality, current)) continue;
+      steps.push({ stage: "render", key: `${renderKey(th, renderQuality, spec)}:${spec.id}`, target: `${aspect} ${renderQuality === "final" ? "成片" : "样片"}`, input: { projectId, aspect, outputSpecId: spec.id, quality: renderQuality, force: goal.forceRender === true }, cost: 0, priority: 7 });
     }
   }
 
   const currentKeys = currentAnnotateKeys(doc, projectId);
+  if (direction) currentKeys.push(direction.key);
   // 必须用任务键（段落模式是块键），不能用成员句键：任务是以块为单位提交的，
   // 用句键会导致 JobStrip 匹配不到任何任务——进度显示 0、没有取消入口，
   // 且 running 判定漏掉配音（主按钮不禁用、「停止」不出现）。
@@ -163,7 +224,8 @@ export function planPipeline(projectId: string, doc: ProjectDoc, goal: Goal): Pl
     const sig = JSON.stringify(doc.lines.map((line) => line.id + line.text)) + JSON.stringify(doc.shots.map((shot) => shot.id + shot.sourceHash + shot.locked));
     currentKeys.push(`storyboard:${projectId}:${hashStr(sig)}`);
   }
-  if (preview) {
+  if (doc.settings.subtitle.bilingual) currentKeys.push(subtitleTranslateKey(projectId, doc.lines));
+  if (preview && scheduleRender) {
     const renderQuality = goal.until === "preview" ? "draft" : goal.quality;
     for (const aspect of goal.aspects) {
       const spec = outputSpecForRequest(doc.settings, undefined, aspect);
@@ -172,6 +234,18 @@ export function planPipeline(projectId: string, doc: ProjectDoc, goal: Goal): Pl
     }
   }
   return { steps, currentKeys, waiting, ready: { preview, render: preview && goal.until === "render" }, costYuan: steps.reduce((s, x) => s + x.cost, 0) };
+}
+
+/** 已有成片同时对上内容、动画和输出版本时，不再排一次渲染。强制重渲由调用方跳过这里。 */
+function hasCurrentRender(projectId: string, aspect: string, quality: Quality, current: TimelineHashes) {
+  const rows = all<{ content_hash: string; animation_hash: string; timeline_hash: string; output_version: number }>(
+    "SELECT content_hash, animation_hash, timeline_hash, output_version FROM renders WHERE project_id = ? AND aspect = ? AND quality = ? AND output_version = ?",
+    projectId,
+    aspect,
+    quality,
+    RENDER_OUTPUT_VERSION,
+  );
+  return rows.some((row) => renderMatches({ outputVersion: row.output_version, contentHash: row.content_hash, animationHash: row.animation_hash, timelineHash: row.timeline_hash }, current));
 }
 
 function hashStr(s: string) {
@@ -253,8 +327,16 @@ function block(projectId: string, reason: string) {
 
 /** 开始或继续自动推进 */
 export function drive(projectId: string, goal: Goal, confirmBudget = false) {
-  const persisted = setGoal(projectId, goal, confirmBudget)!;
-  const r = produce(projectId, persisted, { confirmBudget, retryFailed: true, goalId: persisted.goalId });
+  cancelCatchUpJobs(projectId);
+  const project = getProject(projectId);
+  if (project) retryVoiceDirection(project.doc);
+  // 强制重渲只作用于这一次提交。写进目标的话，每完成一步都会再渲一遍。
+  const { forceRender, ...stored } = goal;
+  // 开工已经在跑时，生成成片只把目标改成渲染，沿用原来的目标编号，避免整条流水线再提交一遍。
+  const existing = getGoal(projectId);
+  const carried = existing?.goal.goalId && existing.goal.until === "compose" && stored.until === "render" ? existing.goal.goalId : undefined;
+  const persisted = setGoal(projectId, carried ? { ...stored, goalId: carried } : stored, confirmBudget)!;
+  const r = produce(projectId, forceRender ? { ...persisted, forceRender: true } : persisted, { confirmBudget, retryFailed: true, goalId: persisted.goalId });
   settle(projectId, r);
   return r;
 }

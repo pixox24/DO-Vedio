@@ -15,6 +15,10 @@ export function cachePut(key: string, stage: string, result: unknown) {
   run("INSERT OR REPLACE INTO cache (key, stage, result, created_at) VALUES (?, ?, ?, ?)", key, stage, json(result), Date.now());
 }
 
+export function cacheDelete(key: string) {
+  run("DELETE FROM cache WHERE key = ?", key);
+}
+
 /** 批量读取，返回 key → 结果 */
 export function cacheMany<T>(keys: string[]): Map<string, T> {
   const out = new Map<string, T>();

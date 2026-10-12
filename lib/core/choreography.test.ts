@@ -25,6 +25,12 @@ describe("choreograph", () => {
     expect(result[1].transitionIn).toBe("whip");
   });
 
+  it("锁定的转场在章节开头也保留", () => {
+    const locked = { ...shot("b", "b"), transitionIn: "cut" as const, transitionLocked: true };
+    const result = choreograph([shot("a", "a"), locked], lines, times, motionProfile("geometric-editorial"));
+    expect(result[1].transitionIn).toBe("cut");
+  });
+
   it("同一章内不因旧动画家族额外加转场", () => {
     const same = lines.map((line) => ({ ...line, segmentIndex: 0 }));
     const result = choreograph([shot("a", "a"), shot("b", "b")], same, times, defaultMotionProfile);

@@ -5,7 +5,7 @@
 import { useEffect, useId, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { AutoTextarea, Button, Field, Icon, SegmentedControl, Select, Spinner } from "@/components/ui";
 import { postJson } from "@/lib/client";
-import { type VoiceSettings } from "@/lib/core/types";
+import { acceptsFreeVoiceInstruction, type VoiceSettings } from "@/lib/core/types";
 import { voiceIdAfterModelChange, voiceNameError, voiceParamError } from "@/lib/core/voice-book";
 import { costLabel } from "@/lib/core/interaction";
 import { paragraphSupported } from "@/lib/core/blocks";
@@ -540,14 +540,14 @@ export function VoicePanel({ id, store, draft, setDraft, onChanged, change, setC
                 <Slider label="音量" value={voice.volume} min={0} max={100} step={1} defaultValue={DEFAULT_VOLUME} format={(v) => String(v)} disabled={pending} onChange={(volume) => updateVoice({ volume })} />
               </fieldset>
 
-              <Field label="表达" hint={voice.provider === "google-gemini" ? "暂不生效" : undefined}>
+              <Field label="表达" hint={voice.provider === "google-gemini" ? "暂不生效" : acceptsFreeVoiceInstruction(voice.model) ? undefined : "系统音色不接受自由说明"}>
                 <AutoTextarea
                   value={voice.provider === "google-gemini" ? voice.google?.stylePrompt ?? "" : voice.instruction}
-                  onChange={(event) => updateVoice({ instruction: event.target.value })}
+                  onChange={(event) => updateVoice({ instruction: event.target.value, instructionSource: "user" })}
                   className="input min-h-16 py-2.5 leading-6"
                   placeholder="例如：沉稳、清晰，略带悬念"
                   maxLength={voice.provider === "google-gemini" ? 1000 : 500}
-                  disabled={voice.provider === "google-gemini" || pending}
+                  disabled={voice.provider === "google-gemini" || !acceptsFreeVoiceInstruction(voice.model) || pending}
                 />
               </Field>
             </div>

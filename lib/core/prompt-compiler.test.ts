@@ -97,6 +97,26 @@ describe("镜头编译", () => {
     expect(compileShotPrompt(doc, { ...shot, prompt: "电影感的客厅" }).slots.content).toBe("电影感的客厅");
   });
 
+  it("自定义提示词里的看手机也会改朝向", () => {
+    const content = compileShotPrompt(doc, { ...shot, prompt: "她低头看手机，屏幕显示余额一万二" }).slots.content;
+    expect(content.startsWith("手机侧对镜头")).toBe(true);
+    expect(content).toContain("半透明磨砂");
+    expect(content).not.toContain("一万二");
+    expect(content).not.toContain("摄像头");
+  });
+
+  it("手指特写编译后是屏幕而不是背面", () => {
+    const content = compileShotPrompt(doc, {
+      ...shot,
+      shotSize: "extreme-close",
+      prompt: "手指在手机设置界面操作，观众从侧后方看到手机背面，摄像头模组清晰，屏幕转向持机者，屏幕内容不可见",
+    }).slots.content;
+    expect(content).toContain("抽象色块");
+    expect(content).toContain("脸不入画");
+    expect(content).not.toContain("摄像头");
+    expect(content).not.toContain("背面");
+  });
+
   it("换风格后已生成的图片过期", () => {
     const generated = { ...shot, assetId: "img", assetPromptHash: compileShotPrompt(doc, shot).hash };
     expect(assetStale(doc, generated)).toBe(false);

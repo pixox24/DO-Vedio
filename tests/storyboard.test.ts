@@ -129,6 +129,14 @@ describe("分镜提示词", () => {
     expect(p.instructions).toContain("不要输出 card、onScreenText、title 或 quote");
     expect(p.instructions).toContain("最多 8 个等价汉字宽度");
     expect(p.instructions).toContain("禁止只截取前八字");
+    expect(p.instructions).toContain("【屏幕朝向】");
+    expect(p.instructions).toContain("半透明磨砂");
+    expect(p.instructions).toContain("不要写「屏幕显示」");
+    expect(p.instructions).toContain("抽象色块");
+    expect(p.instructions).toContain("脸不入画");
+    expect(p.instructions).toContain("表盘朝向眼睛");
+    expect(p.instructions).not.toContain("摄像头模组可见");
+    expect(p.instructions).toContain("不要新增字段");
     expect(p.instructions).not.toContain("card.variant=qa");
     expect(p.instructions).not.toContain("card.variant=cta");
   });

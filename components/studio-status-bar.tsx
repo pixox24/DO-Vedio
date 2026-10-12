@@ -15,13 +15,15 @@ export type StudioStatus = {
   voice?: { ready: number; total: number; failed: number; onOpen: () => void } | null;
   /** 各画幅成片是否已过期；只显示当前已计算过状态的画幅 */
   renderStale?: Partial<Record<"16:9" | "9:16", boolean>>;
+  /** 成片是否正在自己跟上，或已经跟上 */
+  renderFollow?: "running" | "fresh" | null;
   /** 已花费 */
   spend: number;
   /** 生成服务是否在线 */
   online: boolean | null;
 };
 
-export function StudioStatusBar({ voice, renderStale, spend, online }: StudioStatus) {
+export function StudioStatusBar({ voice, renderStale, renderFollow = null, spend, online }: StudioStatus) {
   const items: { key: string; tone: "accent" | "warn" | "muted"; text: string; onClick?: () => void }[] = [];
 
   if (voice && voice.total > 0) {
@@ -38,8 +40,8 @@ export function StudioStatusBar({ voice, renderStale, spend, online }: StudioSta
     const freshAspects = renderAspects.filter((aspect) => !renderStale?.[aspect]);
     items.push({
       key: "render",
-      tone: staleAspects.length ? "warn" : "accent",
-      text: [...freshAspects.map((aspect) => `${aspect} 最新`), ...staleAspects.map((aspect) => `${aspect} 需重渲染`)].join(" · "),
+      tone: renderFollow === "running" || staleAspects.length === 0 ? "accent" : "warn",
+      text: renderFollow === "running" ? "成片在跟上" : renderFollow === "fresh" ? "成片已跟上" : [...freshAspects.map((aspect) => `${aspect} 最新`), ...staleAspects.map((aspect) => `${aspect} 需重渲染`)].join(" · "),
     });
   }
   items.push({ key: "spend", tone: "muted", text: `已花费 ¥${spend.toFixed(2)}` });

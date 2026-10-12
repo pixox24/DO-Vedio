@@ -1,0 +1,74 @@
+import type { ModelInfo, StyleTemplate } from "@/lib/types";
+import type { estimateScriptDuration } from "@/lib/viral/duration";
+import type { ViralAdoptionAssessment } from "@/lib/viral/state";
+import type { ViralAngle, ViralAspectRatio, ViralCommand, ViralDraft, ViralInput, ViralMaterial, ViralMode, ViralOutline, ViralPlatform, ViralScriptVersion, ViralSegment, ViralSyncImpact } from "@/lib/viral/types";
+
+export type ViralViewStage = "reference" | "task" | "angles" | "style" | "outline" | "script" | "review";
+export type ViralFocusRequest = { token: number; target: "sync" | "result" | "field"; field?: string };
+export type ViralMemeCandidate = { id: string; name: string; text: string };
+/** Presentation consumes decisions and callbacks. It never computes stale/acceptance state or calls APIs. */
+export type ViralWorkspaceViewProps = {
+  draft: ViralDraft;
+  version: ViralScriptVersion | null;
+  candidate: ViralScriptVersion | null;
+  recentDrafts: { id: string; title: string; updatedAt: string; running: boolean }[];
+  models: ModelInfo[];
+  modelsLoading: boolean;
+  /** Model discovery and the new draft's default preferences are settled before any generation submit. */
+  commandsReady: boolean;
+  templates: StyleTemplate[];
+  loading: boolean;
+  busy: boolean;
+  locked: boolean;
+  saveState: "idle" | "saving" | "saved" | "error" | "conflict";
+  error: string;
+  errorRecoveryLabel: string | null;
+  onErrorRecovery: (() => void) | null;
+  fieldErrors: Record<string, string>;
+  /** A new token is emitted only by an explicit user flow, never by polling or autosave. */
+  focusRequest: ViralFocusRequest | null;
+  memeCandidates: ViralMemeCandidate[];
+  memesLoading: boolean;
+  memesError: string;
+  statusText: string;
+  viewStage: ViralViewStage;
+  staleReasons: string[];
+  assessment: ViralAdoptionAssessment;
+  estimate: ReturnType<typeof estimateScriptDuration> | null;
+  adoptionLabel: string;
+  adoptionDisabled: boolean;
+  /** Real production state for an explicit synchronization choice; null means no preview open. */
+  syncImpact: ViralSyncImpact | null;
+  onInputPatch: (patch: Partial<ViralInput>) => void;
+  onPlatform: (platform: ViralPlatform) => void;
+  onDuration: (seconds: number) => void;
+  onAspectRatio: (ratio: ViralAspectRatio) => void;
+  onTemplate: (templateId: string) => void;
+  onMeme: (id: string, selected: boolean) => void;
+  onReloadMemes: () => void;
+  onMaterialsText: (text: string) => void;
+  onMaterial: (index: number, patch: Partial<ViralMaterial>) => void;
+  onAddMaterial: () => void;
+  onRemoveMaterial: (index: number) => void;
+  onMode: (mode: ViralMode) => void;
+  onStage: (stage: ViralViewStage) => void;
+  onCommand: (command: ViralCommand, rewrite?: { segmentId: string; instruction: string }) => void;
+  onSelectAngle: (id: string) => void;
+  onMechanism: (id: string, enabled: boolean) => void;
+  onAngle: (angle: ViralAngle) => void;
+  onOutline: (outline: ViralOutline) => void;
+  onScript: (script: { title: string; segments: ViralSegment[] }) => void;
+  onSelectVersion: (id: string) => void;
+  onRestoreVersion: (id: string) => void;
+  onAdoptCandidate: () => void;
+  onResolveIssue: (issueId: string, action: "evidence" | "revised" | "citation", note: string, materialIds: string[]) => void;
+  onAdopt: () => void;
+  onSync: (strategy: "replace" | "new_project") => void;
+  onCancelSync: () => void;
+  onCopy: () => void;
+  onExport: () => void;
+  onSave: () => void;
+  onReload: () => void;
+  onNew: () => void;
+  onOpenDraft: (id: string) => void;
+};

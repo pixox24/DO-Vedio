@@ -52,9 +52,10 @@ function projectStatus(project: Project, activeJob?: { stage: string; updated_at
   const latestPipelineAt = Math.max(activeJob?.updated_at ?? 0, failedJob?.updated_at ?? 0);
   if (failedJob && failedJob.updated_at >= (activeJob?.updated_at ?? 0) && failedJob.updated_at >= (latestRenderAt ?? 0)) return "failed";
   if (activeJob && activeJob.updated_at >= (latestRenderAt ?? 0)) {
-    if (activeJob.stage === "annotate") return "annotating";
+    if (activeJob.stage === "annotate" || activeJob.stage === "voice-direction") return "annotating";
     if (isTtsStage(activeJob.stage)) return "voicing";
     if (activeJob.stage === "storyboard") return "storyboard";
+    if (activeJob.stage === "subtitle-translate") return "translating";
     if (activeJob.stage === "music") return "music";
     if (activeJob.stage === "render") return "rendering";
   }
@@ -79,6 +80,16 @@ export class RevisionConflict extends Error {
   constructor(public current: Project) {
     super("文档已在别处修改");
   }
+}
+
+/** Caller owns the transaction; used when a script handoff and its mapping must commit together. */
+export function saveProjectWithinTx(id: string, doc: ProjectDoc, baseRevision: number): Project {
+  const current = getProject(id);
+  if (!current) throw new Error("项目不存在");
+  if (current.revision !== baseRevision) throw new RevisionConflict(current);
+  const clean = projectDocSchema.parse(doc);
+  run("UPDATE projects SET doc = ?, title = ?, revision = revision + 1, updated_at = ? WHERE id = ? AND revision = ?", json(clean), titleOf(clean), Date.now(), id, baseRevision);
+  return getProject(id)!;
 }
 
 /**

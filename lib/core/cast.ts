@@ -258,17 +258,18 @@ export function lookAt(card: CharacterCard, lineId: string | undefined, lines: P
 
 /**
  * 身份锚：只写可见、稳定的特征（性格和背景不写），同一造型下每个镜头逐字相同。
+ * 它会被逐字放进这个造型的每一个镜头，所以只写外貌和穿戴：不写持有物、动作、表情、姿势和地点，
+ * 否则会和当镜的动作抢手（例如「带着手机」撞上「双手举秤」就会画出第三只手）。
  * 这是纯文本模型保持一致的关键；支持参考图的模型再加上定妆图。
  */
 export function anchorText(card: CharacterCard, look?: Look): string {
   const wardrobe = look?.wardrobe || card.wardrobe;
-  const props = look?.props;
   const who = `${card.era ? `${card.era}的` : ""}${card.ageRange}${card.gender}`;
   if (card.presentation !== "full") {
     const parts = [who, card.occupation, card.build, wardrobe && `穿着${wardrobe}`, ...card.signature].filter(Boolean);
     return `${card.name}：只拍${presentationLabels[card.presentation]}，不出现可辨认的正脸${parts.length ? `；${parts.join("，")}` : ""}`;
   }
-  const parts = [who, card.region, card.occupation, card.hair, card.eyes, card.faceShape, card.facialHair, card.marks, card.build, card.height, card.appearance, ...card.signature, wardrobe && `穿着${wardrobe}`, props && `带着${props}`].map((x) => x?.trim()).filter(Boolean);
+  const parts = [who, card.region, card.occupation, card.hair, card.eyes, card.faceShape, card.facialHair, card.marks, card.build, card.height, card.appearance, ...card.signature, wardrobe && `穿着${wardrobe}`].map((x) => x?.trim()).filter(Boolean);
   return parts.length ? `${card.name}：${parts.join("，")}` : card.name;
 }
 

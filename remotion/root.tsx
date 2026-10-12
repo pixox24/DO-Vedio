@@ -26,6 +26,7 @@ const empty: Timeline = {
   subtitleBlocks: [],
   music: [],
   sfx: [],
+  sfxSources: {},
   subtitle: DEFAULT_SUBTITLE_CONFIG,
   aiLabel: { enabled: true, position: "top-right" },
   issues: [],

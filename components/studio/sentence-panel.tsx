@@ -1,9 +1,18 @@
 "use client";
 
 // 句子面板：逐句配音、重录、段落模式、筛选与批量操作。
+//
+// 版面的主次写在结构里，不靠字重堆：
+//   1. 顶部动作区：一句话说清「现在缺什么」，并把当前真正该做的那件事做成主按钮；
+//   2. 状态行：计数、进度、批量进度都只占一行——它随状态切换内容，不额外再堆一张卡片；
+//   3. 工具行：搜索、筛选、展开控制；
+//   4. 列表区：章节 → 段落 →（段落配音的）块 → 句子，四层各自的层级落在缩进、字号和分隔线上。
+//
+// 句子行只留三个动作：定位、试听、重录、展开。锁定、旁白表达、词典、单独录制都属于
+// 「偶尔才调一次」的设置，收进展开层，行上只标状态。原文与朗读文本不同时才显示朗读行。
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { AudioButton, Icon, Select, Spinner } from "@/components/ui";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { AudioButton, Button, Icon, Select, Spinner } from "@/components/ui";
 import { postJson } from "@/lib/client";
 import { voiceTagChoices, type Job, type ProjectDoc, type VoiceTag } from "@/lib/core/types";
 import { isTtsStage, lineSpeech, ttsRequestForLine } from "@/lib/core/keys";
@@ -13,25 +22,61 @@ import { costSuffix, costSuffixAtLeast, needsConfirm } from "@/lib/core/interact
 import { useFeedback } from "@/components/feedback";
 import { costLabelText, jobBatchId, type LineInfo, type ProjectStore } from "./shared";
 
+type Entry = { item: LineInfo; line: ProjectDoc["lines"][number]; index: number };
+/** 段落配音模式下同一块的句子；逐句模式下每一项只有一句 */
+type BlockGroup = { key: string; block: LineInfo["block"]; items: Entry[] };
+type ParagraphGroup = { key: string; paragraph: number; segment: number; groups: BlockGroup[] };
+type ChapterGroup = { segment: number; paragraphs: ParagraphGroup[]; count: number; voiced: number; missing: number };
+type LineFilter = "all" | "missing" | "paragraph";
+type LexDraft = { lineId: string; word: string; say: string; busy: boolean; preview: string };
+
+/** 句子上能做的事。收成一个对象，避免把十几个回调逐个穿过四层组件 */
+type RowApi = {
+  seek: (lineId: string) => void;
+  revoice: (lineId: string) => void;
+  toggleLock: (lineId: string) => void;
+  toggleIsolated: (lineId: string) => void;
+  setVoiceTag: (lineId: string, tag: VoiceTag) => void;
+  toggleExpand: (lineId: string) => void;
+  openLex: (lineId: string, word: string, say: string) => void;
+  closeLex: () => void;
+  editLex: (patch: Partial<Pick<LexDraft, "word" | "say">>) => void;
+  saveLex: () => void;
+  previewLex: () => void;
+};
+
+/** 用 grid 行高过渡展开，收起时 inert，收起的内容不会抢焦点 */
+function Collapse({ open, children, className = "" }: { open: boolean; children: ReactNode; className?: string }) {
+  return (
+    <div inert={!open} className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none ${className}`} style={{ gridTemplateRows: open ? "1fr" : "0fr", opacity: open ? 1 : 0 }}>
+      <div className="min-h-0 overflow-hidden">
+        {/* 留出焦点环的空间，否则 overflow 会把输入框的光圈裁掉 */}
+        <div className="-m-1 p-1">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+/** 试听按钮的通道：同一时刻只有一句在播，点新的会停掉前一句 */
+const AUDIO_CHANNEL = "sentences";
+
 export function SentencePanel({ id, store, jobs, onChanged, onSeek }: { id: string; store: ProjectStore; jobs?: Map<string, Job>; onChanged?: () => void; onSeek?: (lineId: string) => void }) {
   const [lines, setLines] = useState<LineInfo[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [lexWord, setLexWord] = useState("");
-  const [lexSay, setLexSay] = useState("");
-  const [lexBusy, setLexBusy] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [lex, setLex] = useState<LexDraft | null>(null);
   const [error, setError] = useState("");
-  const [lexOpen, setLexOpen] = useState(false);
-  const [selectionPoint, setSelectionPoint] = useState({ x: 0, y: 0 });
-  const [previewSrc, setPreviewSrc] = useState("");
   const [batchBusy, setBatchBusy] = useState<"all" | "missing" | null>(null);
   /** 本次提交的配音批次；用它显示进度、停止本次 */
   const [batch, setBatch] = useState<{ id: string; mode: "all" | "missing"; at: number } | null>(null);
   const [batchStopping, setBatchStopping] = useState(false);
   const [lineQuery, setLineQuery] = useState("");
-  const [lineFilter, setLineFilter] = useState<"all" | "missing" | "paragraph">("all");
+  const [lineFilter, setLineFilter] = useState<LineFilter>("all");
   const [collapsedParagraphs, setCollapsedParagraphs] = useState<Set<string>>(new Set());
-  const lineRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [collapsedChapters, setCollapsedChapters] = useState<Set<number>>(new Set());
+  const [activeChapter, setActiveChapter] = useState<number | null>(null);
+  const sectionRefs = useRef(new Map<number, HTMLElement>());
+  const listRef = useRef<HTMLDivElement>(null);
   /** 只有 Worker 成功写入新音频后才出现「撤销」，避免撤销半成品或失败任务。 */
   const [pendingUndo, setPendingUndo] = useState<{ jobIds: string[]; keys: string[]; label: string } | null>(null);
   const { confirm, toast } = useFeedback();
@@ -39,7 +84,7 @@ export function SentencePanel({ id, store, jobs, onChanged, onSeek }: { id: stri
   const voiceSettings = store.doc?.settings.voice;
   const capabilities = lines[0]?.capabilities ?? [];
   const supportsEmotionTags = capabilities.includes("emotion-tags");
-  const supportsStylePrompt = capabilities.includes("style-prompt");
+  const paragraphMode = !!voiceSettings && voiceSettings.granularity === "paragraph" && paragraphSupported(voiceSettings);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -72,6 +117,7 @@ export function SentencePanel({ id, store, jobs, onChanged, onSeek }: { id: stri
 
   /** 还没有配音的句子数（按钮上的「补齐缺失」用） */
   const missingCount = lines.filter((item) => !item.audio).length;
+  const voicedCount = lines.length - missingCount;
 
   /**
    * 本次配音批次的实时进度。jobs 里同一个 key 可能有历史任务，
@@ -183,11 +229,10 @@ export function SentencePanel({ id, store, jobs, onChanged, onSeek }: { id: stri
     const candidates = mode === "all" ? lines : lines.filter((item) => !item.audio);
     const count = candidates.length;
     if (!count) return;
-    const paragraphMode = !!voiceSettings && voiceSettings.granularity === "paragraph" && paragraphSupported(voiceSettings);
-    const jobs = paragraphMode ? new Set(candidates.map((item) => item.block?.key ?? item.id)).size : count;
+    const jobsCount = paragraphMode ? new Set(candidates.map((item) => item.block?.key ?? item.id)).size : count;
     const cost = batchCostOf(candidates);
     const label = mode === "all" ? "全部重录" : "补齐缺失配音";
-    const countLabel = paragraphMode ? `${count} 句，合并为 ${jobs} 个段落任务` : `${count} 句`;
+    const countLabel = paragraphMode ? `${count} 句，合并为 ${jobsCount} 个段落任务` : `${count} 句`;
     // 段落模式下块内缺一句也要整块重录，按句累加会低估，用「起」标注
     const costText = costLabelText(cost);
     const message = mode === "all"
@@ -260,25 +305,24 @@ export function SentencePanel({ id, store, jobs, onChanged, onSeek }: { id: stri
   }
 
   async function addLexicon() {
-    if (!selected || !lexWord.trim() || !lexSay.trim()) return;
-    setLexBusy(true);
+    if (!lex || !lex.word.trim() || !lex.say.trim()) return;
+    const current = lex;
+    setLex({ ...current, busy: true });
     setError("");
     try {
-      await postJson("/api/lexicon", { scope: id, word: lexWord.trim(), say: lexSay.trim() });
-      setLexOpen(false);
-      setLexWord("");
-      setLexSay("");
-      setError("词典已保存，正在重新排队本句配音…");
+      await postJson("/api/lexicon", { scope: id, word: current.word.trim(), say: current.say.trim() });
+      setLex(null);
       try {
-        await postJson(`/api/projects/${id}/lines/${selected}`, {});
+        await postJson(`/api/projects/${id}/lines/${current.lineId}`, {});
+        toast("词典已保存，正在重新排队本句配音", "success");
         onChanged?.();
         await refresh();
-        setError("");
-      } catch { setError("词典已保存，但本句重新配音排队失败。请点击本句“重录”重试。"); }
+      } catch {
+        toast("词典已保存，但本句重新配音排队失败。请点这一句的「重录」重试。", "error");
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLexBusy(false);
+      setLex((cur) => (cur ? { ...cur, busy: false } : cur));
     }
   }
 
@@ -289,32 +333,31 @@ export function SentencePanel({ id, store, jobs, onChanged, onSeek }: { id: stri
     if (!element.contains(range.startContainer) || !element.contains(range.endContainer)) return;
     const word = cleanSelectedWord(selection.toString());
     if (!word) return;
-    const rect = range.getBoundingClientRect();
-    setSelected(lineId);
-    setLexWord(word);
-    setLexSay(word);
-    setSelectionPoint({ x: Math.min(rect.left, window.innerWidth - 145), y: Math.min(rect.bottom + 8, window.innerHeight - 48) });
-    setLexOpen(false);
+    // 划词即展开这一句的词典输入，不再飘一个按钮：用户已经用行动表达了意图
+    setExpandedId(lineId);
+    setLex({ lineId, word, say: word, busy: false, preview: "" });
   }
 
   async function previewLexicon() {
-    const line = store.doc?.lines.find((l) => l.id === selected);
-    if (!line || !lexWord.trim() || !lexSay.trim()) return;
-    setLexBusy(true);
+    const line = store.doc?.lines.find((l) => l.id === lex?.lineId);
+    if (!line || !lex?.word.trim() || !lex.say.trim()) return;
+    const current = lex;
+    setLex({ ...current, busy: true });
     try {
       const rows = await fetch(`/api/lexicon?projectId=${encodeURIComponent(id)}`).then((r) => r.json()) as { scope: string; word: string; say: string }[];
       const entries = new Map(rows.sort((a, b) => Number(a.scope === id) - Number(b.scope === id)).map((r) => [r.word, r.say]));
-      entries.set(lexWord.trim(), lexSay.trim());
+      entries.set(current.word.trim(), current.say.trim());
       const text = lineSpeech(line, [...entries].map(([word, say]) => ({ word, say }))).spoken;
       const preview = ttsRequestForLine(text, line, store.doc!.settings.voice.model);
       const { src } = await postJson<{ src: string }>("/api/voices/preview", { voice: store.doc!.settings.voice, text: preview.text, textType: preview.textType });
-      setPreviewSrc(src);
+      setLex((cur) => (cur ? { ...cur, preview: src, busy: false } : cur));
       new Audio(src).play().catch(() => setError("试听播放失败"));
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
-    finally { setLexBusy(false); }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setLex((cur) => (cur ? { ...cur, busy: false } : cur));
+    }
   }
 
-  const paragraphMode = !!voiceSettings && voiceSettings.granularity === "paragraph" && paragraphSupported(voiceSettings);
   const missingLines = lines.filter((item) => !item.audio);
   const missingCost = batchCostOf(missingLines);
   const missingCostSuffix = paragraphMode
@@ -340,7 +383,7 @@ export function SentencePanel({ id, store, jobs, onChanged, onSeek }: { id: stri
     const isolated = !line.ttsIsolated;
     setError("");
     try {
-      store.setDoc((doc) => ({ ...doc, lines: doc.lines.map((item) => item.id === lineId ? { ...item, ttsIsolated: isolated } : item) }));
+      store.setDoc((doc) => ({ ...doc, lines: doc.lines.map((item) => (item.id === lineId ? { ...item, ttsIsolated: isolated } : item)) }));
       if ((await store.flush()) == null) throw new Error("句子设置保存失败，请重试");
       await postJson(`/api/projects/${id}/lines/tts`, { mode: "missing" });
       toast(isolated ? `已单独录制本句，同段其余 ${count - 1} 句将重新合成` : `已恢复段落录制，同段其余 ${count - 1} 句将重新合成`, "info");
@@ -352,27 +395,29 @@ export function SentencePanel({ id, store, jobs, onChanged, onSeek }: { id: stri
   }
 
   const lineById = new Map(store.doc?.lines.map((l) => [l.id, l]) ?? []);
-  const entries = lines.flatMap((item, index) => {
+  const entries: Entry[] = lines.flatMap((item, index) => {
     const line = lineById.get(item.id);
     return line ? [{ item, line, index }] : [];
   });
-  const selectedLineIndex = selected ? store.doc?.lines.findIndex((line) => line.id === selected) ?? -1 : -1;
-  const selectedParagraph = selectedLineIndex >= 0 ? paragraphNumbers[selectedLineIndex] : -1;
+  const expandedLineIndex = expandedId ? store.doc?.lines.findIndex((line) => line.id === expandedId) ?? -1 : -1;
+  const expandedParagraph = expandedLineIndex >= 0 ? paragraphNumbers[expandedLineIndex] : -1;
   const normalizedQuery = lineQuery.trim().toLocaleLowerCase();
+  const searching = normalizedQuery.length > 0;
   const visibleEntries = entries.filter(({ item, line, index }) => {
     const matchesQuery = !normalizedQuery || `${line.text} ${item.spoken}`.toLocaleLowerCase().includes(normalizedQuery);
     const matchesFilter = lineFilter === "all"
       || (lineFilter === "missing" && !item.audio)
-      || (lineFilter === "paragraph" && selectedParagraph >= 0 && paragraphNumbers[index] === selectedParagraph && line.segmentIndex === store.doc?.lines[selectedLineIndex]?.segmentIndex);
+      || (lineFilter === "paragraph" && expandedParagraph >= 0 && paragraphNumbers[index] === expandedParagraph && line.segmentIndex === store.doc?.lines[expandedLineIndex]?.segmentIndex);
     return matchesQuery && matchesFilter;
   });
-  const groups: { items: typeof entries; block: NonNullable<LineInfo["block"]> | null }[] = [];
+
+  const groups: BlockGroup[] = [];
   for (const entry of visibleEntries) {
     const previous = groups.at(-1);
     if (entry.item.block && previous?.block?.key === entry.item.block.key) previous.items.push(entry);
-    else groups.push({ items: [entry], block: entry.item.block });
+    else groups.push({ key: entry.item.block?.key ?? entry.item.id, block: entry.item.block, items: [entry] });
   }
-  const paragraphGroups: { key: string; paragraph: number; segment: number; groups: typeof groups }[] = [];
+  const paragraphGroups: ParagraphGroup[] = [];
   for (const group of groups) {
     const first = group.items[0];
     const paragraph = paragraphNumbers[first.index] ?? -1;
@@ -382,26 +427,82 @@ export function SentencePanel({ id, store, jobs, onChanged, onSeek }: { id: stri
     if (current?.key === key) current.groups.push(group);
     else paragraphGroups.push({ key, paragraph, segment, groups: [group] });
   }
+  const chapters: ChapterGroup[] = [];
+  for (const paragraphGroup of paragraphGroups) {
+    let chapter = chapters.at(-1);
+    if (!chapter || chapter.segment !== paragraphGroup.segment) {
+      chapter = { segment: paragraphGroup.segment, paragraphs: [], count: 0, voiced: 0, missing: 0 };
+      chapters.push(chapter);
+    }
+    chapter.paragraphs.push(paragraphGroup);
+    for (const group of paragraphGroup.groups) {
+      for (const { item } of group.items) {
+        chapter.count += 1;
+        if (item.audio) chapter.voiced += 1;
+        else chapter.missing += 1;
+      }
+    }
+  }
+  const multiChapter = chapters.length > 1;
+  const allCollapsed = chapters.length > 0 && chapters.every((chapter) => collapsedChapters.has(chapter.segment));
+  const chapterKey = chapters.map((chapter) => chapter.segment).join(",");
 
-  const scrollToLine = (lineId: string | null) => {
-    if (!lineId) return;
-    lineRefs.current[lineId]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  /** 序号按钮：跳转预览，不改变展开状态 */
+  const seekLine = (lineId: string) => {
     onSeek?.(lineId);
   };
-
-  const isolationControl = (item: LineInfo, line: ProjectDoc["lines"][number]) => {
-    if (!paragraphMode || paragraphCountOf(line) < 2) return null;
-    const request = ttsRequestForLine(item.spoken, line, voiceSettings!.model);
-    if (request.textType || request.text !== item.spoken) return <span className="text-[11px] text-white/40">本句含表达标签，已单独成块</span>;
-    return <button className="text-xs text-white/50 hover:text-white" onClick={() => void toggleIsolated(line.id)}>{line.ttsIsolated ? "取消单独录制" : "单独录制此句"}</button>;
+  const toggleExpand = (lineId: string) => setExpandedId((current) => (current === lineId ? null : lineId));
+  const scrollToChapter = (segment: number) => {
+    setCollapsedChapters((current) => {
+      if (!current.has(segment)) return current;
+      const next = new Set(current);
+      next.delete(segment);
+      return next;
+    });
+    // scrollIntoView 会连页面和右侧整栏一起滚动。章节只在句子列表内部对齐。
+    const root = listRef.current;
+    const section = sectionRefs.current.get(segment);
+    if (root && section) {
+      const top = section.getBoundingClientRect().top - root.getBoundingClientRect().top + root.scrollTop;
+      root.scrollTo({ top, behavior: "smooth" });
+    }
+    setActiveChapter(segment);
   };
 
-  const blockStatus = (items: typeof entries) => {
+  // 章节导航跟着滚动走：只认列表容器里的可视区域
+  useEffect(() => {
+    const root = listRef.current;
+    if (!root || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver((records) => {
+      const visible = records
+        .filter((record) => record.isIntersecting)
+        .map((record) => Number((record.target as HTMLElement).dataset.segment))
+        .filter((segment) => !Number.isNaN(segment));
+      if (visible.length) setActiveChapter(Math.min(...visible));
+    }, { root, rootMargin: "-4% 0px -70% 0px", threshold: 0 });
+    for (const element of sectionRefs.current.values()) observer.observe(element);
+    return () => observer.disconnect();
+  }, [chapterKey, visibleEntries.length]);
+
+  const api: RowApi = {
+    seek: (lineId) => { seekLine(lineId); },
+    revoice: (lineId) => { void revoice(lineId); },
+    toggleLock,
+    toggleIsolated: (lineId) => { void toggleIsolated(lineId); },
+    setVoiceTag: updateVoiceTag,
+    toggleExpand,
+    openLex: (lineId, word, say) => { setExpandedId(lineId); setLex({ lineId, word, say, busy: false, preview: "" }); },
+    closeLex: () => setLex(null),
+    editLex: (patch) => setLex((current) => (current ? { ...current, ...patch } : current)),
+    saveLex: () => { void addLexicon(); },
+    previewLex: () => { void previewLexicon(); },
+  };
+
+  const blockStatuses = (items: Entry[]) => {
     const blocks = items.map(({ item }) => item.block!).filter(Boolean);
     const outcomes = blocks.map((block) => block.outcome);
     const labels: string[] = [];
-    if (outcomes.some((outcome) => outcome === null)) labels.push("未配音");
-    else if (outcomes.some((outcome) => outcome === "line")) labels.push("切分不可靠，已逐句合成");
+    if (outcomes.some((outcome) => outcome === "line")) labels.push("切分不可靠，已逐句合成");
     else if (outcomes.some((outcome) => outcome === "halved")) labels.push("已拆小合成");
     else if (outcomes.every((outcome) => outcome === "block") && blocks.every((block) => block.splitSource === "provider")) labels.push("精确切分");
     else if (outcomes.every((outcome) => outcome === "block") && blocks.every((block) => block.splitSource === "vad")) labels.push("估算切分");
@@ -409,7 +510,7 @@ export function SentencePanel({ id, store, jobs, onChanged, onSeek }: { id: stri
     return labels;
   };
 
-  const blockAudios = (group: { items: typeof entries; block: NonNullable<LineInfo["block"]> }) => {
+  const blockAudios = (group: { items: Entry[]; block: NonNullable<LineInfo["block"]> }) => {
     const unique = new Map<string, { src: string; start: number; end: number }>();
     group.items.forEach(({ item }, index) => {
       const block = item.block;
@@ -422,142 +523,436 @@ export function SentencePanel({ id, store, jobs, onChanged, onSeek }: { id: stri
     return [...unique.values()].map((audio) => ({ ...audio, label: unique.size === 1 ? "整段试听" : `试听第 ${group.items[audio.start].index + 1}–${group.items[audio.end].index + 1} 句` }));
   };
 
-  const renderLine = (entry: typeof entries[number], grouped: boolean) => {
+  const isolationFor = (item: LineInfo, line: ProjectDoc["lines"][number]) => {
+    if (!paragraphMode || paragraphCountOf(line) < 2) return null;
+    const request = ttsRequestForLine(item.spoken, line, voiceSettings!.model);
+    if (request.textType || request.text !== item.spoken) return { kind: "note" as const, text: "本句含表达标签，已单独成块" };
+    return { kind: "toggle" as const, isolated: !!line.ttsIsolated };
+  };
+
+  const busyBlocked = !!batchBusy || batchActive || batchStopping || !lines.length;
+
+  const renderRow = (entry: Entry, grouped: boolean) => {
     const { item, line, index } = entry;
-    const open = selected === item.id;
-    return <div ref={(element) => { lineRefs.current[item.id] = element; }} key={item.id} className={`rounded-xl border p-3 ${grouped ? "border-white/[0.05] bg-white/[0.015]" : open ? "border-accent/30 bg-accent/[0.04]" : "border-white/[0.07] bg-white/[0.02]"}`}>
-      <div className="flex items-start gap-3">
-        <span className="pt-0.5 text-[11px] tabular-nums text-white/30">{String(index + 1).padStart(2, "0")}</span>
-        <div className="min-w-0 flex-1 text-left">
-          <p tabIndex={0} className="select-text text-sm leading-6 text-white/85" onMouseUp={(e) => captureSelection(item.id, e.currentTarget)} onTouchEnd={(e) => captureSelection(item.id, e.currentTarget)} onKeyUp={(e) => captureSelection(item.id, e.currentTarget)}>{line.text}</p>
-          <p className="mt-1 truncate text-xs text-white/35">朗读：{item.spoken}</p>
-          <button className="mt-1 text-xs text-white/45 hover:text-white" onClick={() => { const next = open ? null : item.id; setSelected(next); scrollToLine(next); }}>{open ? "已定位" : "定位句子"}</button>
-        </div>
-        <button className={`chip h-7 px-2.5 ${line.locked ? "chip-on" : ""}`} title={line.locked ? "解锁句子" : "锁定句子"} onClick={() => toggleLock(line.id)}>
-          {line.locked ? "已锁定" : "锁定"}
-        </button>
-      </div>
-      <div className="mt-3 flex flex-wrap items-center gap-2 pl-7">
-        {item.audio ? <><AudioButton src={item.audio.src} startMs={item.audio.startMs} endMs={item.audio.endMs} /><span className="text-[11px] text-white/40">{item.audio.alignmentSource === "provider" ? "精确对齐" : "估算对齐"}</span></> : <span className="text-sm text-amber-200/80">未配音</span>}
-        {!grouped && item.job && <span className="text-xs text-white/35">{item.job.status === "running" ? "合成中" : item.job.status === "queued" ? "排队中" : item.job.error || item.job.status}</span>}
-        {!grouped && <button className="chip h-7 px-2.5" title={`重录这一句${costLabelText(revoiceCostOf(item.id))}`} onClick={() => revoice(item.id)}>重录 · 1 句{costLabelText(revoiceCostOf(item.id))}</button>}
-        {isolationControl(item, line)}
-      </div>
-      {open && (
-        <div className="mt-3 ml-7 border-t border-white/[0.06] pt-3">
-          <div className="grid gap-2 sm:grid-cols-[minmax(180px,240px)_1fr] sm:items-end">
-            <label className="block space-y-1.5">
-              <span className="label">旁白表达</span>
-              <Select className="h-8 min-h-8 py-1.5 text-xs" value={line.voiceTag ?? "auto"} disabled={!supportsEmotionTags} aria-label="旁白表达" onChange={(value) => updateVoiceTag(line.id, value as VoiceTag)}>
-                {voiceTagChoices.map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}
-              </Select>
-            </label>
-            <p className="pb-1 text-[11px] leading-5 text-white/40">{supportsEmotionTags ? line.voiceTag?.startsWith("ssml:") ? "SSML 只调节句内停顿；本句不叠加情绪标签或全局表达指令。点击「重录」试听。" : `句子情绪：${line.mood ?? "未标注"}；修改后点击本句「重录」生效。` : supportsStylePrompt ? "当前模型使用制作设置中的全局表达指令，不提供逐句情绪标签。" : "当前模型不支持逐句表达控制。"}</p>
-          </div>
-          <button className="mb-2 text-xs text-white/55 hover:text-white" onClick={() => { setLexOpen(true); setLexWord(""); setLexSay(""); }}>添加词典规则</button>
-          {lexOpen && <>
-            <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
-              <input className="input h-8 py-1.5 text-xs" value={lexWord} onChange={(e) => setLexWord(e.target.value)} placeholder="词语" />
-              <input className="input h-8 py-1.5 text-xs" value={lexSay} onChange={(e) => setLexSay(e.target.value)} placeholder="朗读为" />
-              <button className="chip h-8" disabled={lexBusy || !lexWord.trim() || !lexSay.trim()} onClick={addLexicon}>{lexBusy ? <Spinner className="size-3" /> : "保存"}</button>
-            </div>
-            <div className="mt-2 flex gap-3"><button className="text-xs text-white/60" disabled={lexBusy} onClick={previewLexicon}>试听整句</button><button className="text-xs text-white/40" onClick={() => { setLexOpen(false); setLexWord(""); }}>取消</button></div>
-            <p className="mt-2 text-[11px] text-white/45">该规则会作用于本项目中出现的同名词语。字幕原文不变。</p>
-            {previewSrc && <audio className="sr-only" src={previewSrc} />}
-          </>}
-        </div>
-      )}
-    </div>;
+    const cost = revoiceCostOf(item.id);
+    const running = item.job?.status === "running" || item.job?.status === "queued";
+    return (
+      <SentenceRow
+        key={item.id}
+        entry={entry}
+        grouped={grouped}
+        expanded={expandedId === item.id}
+        lex={lex && lex.lineId === item.id ? lex : null}
+        isolation={isolationFor(item, line)}
+        imageCount={paragraphCountOf(line)}
+        supportsEmotionTags={supportsEmotionTags}
+        costText={costLabelText(cost)}
+        api={api}
+        captureSelection={captureSelection}
+        audioHint={running ? (item.job!.status === "running" ? "合成中" : "排队中") : ""}
+        index={index}
+      />
+    );
   };
 
   return (
-    <section className="panel p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+    <section className="panel overflow-hidden">
+      <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3 px-5 pb-4 pt-5 sm:px-6">
+        <div className="min-w-0">
           <p className="label">句子</p>
           <h2 className="mt-1 text-base font-medium">句子与配音</h2>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <span className="text-xs text-white/35">{lines.length} 句</span>
-          <button className="btn btn-ghost btn-sm" disabled={!!batchBusy || batchActive || batchStopping || !lines.length} onClick={() => batchRevoice("missing")} title={missingCount ? `补齐 ${missingCount} 句没有配音的句子${costLabelText(missingCost)}` : "没有缺失的配音"}>{batchBusy === "missing" ? <Spinner className="size-3" /> : null}补齐缺失{missingCount ? ` · ${missingCostSuffix}` : ""}</button>
-          <button className="btn btn-ghost btn-sm" disabled={!!batchBusy || batchActive || batchStopping || !lines.length} onClick={() => batchRevoice("all")} title={`按当前音色重新生成全部 ${lines.length} 句${costLabelText(batchCostOf(lines))}`}>{batchBusy === "all" ? <Spinner className="size-3" /> : null}全部重录 · {lines.length} 句{costLabelText(batchCostOf(lines))}</button>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* 主按钮永远指向「现在缺的那件事」；没有缺失时不给主操作，避免为不存在的问题制造压力 */}
+          {missingCount > 0 ? (
+            <>
+              <Button size="sm" variant="primary" disabled={busyBlocked} loading={batchBusy === "missing"} icon={<Icon name="sparkle" className="size-3.5" />} onClick={() => void batchRevoice("missing")} title={`只为 ${missingCount} 句没有配音的句子生成配音${costLabelText(missingCost)}`}>
+                补齐缺失 · {missingCostSuffix}
+              </Button>
+              <Button size="sm" variant="ghost" disabled={busyBlocked} loading={batchBusy === "all"} onClick={() => void batchRevoice("all")} title={`按当前音色重新生成全部 ${lines.length} 句${costLabelText(batchCostOf(lines))}`}>
+                全部重录 · {lines.length} 句{costLabelText(batchCostOf(lines))}
+              </Button>
+            </>
+          ) : (
+            <Button size="sm" variant="ghost" disabled={busyBlocked} loading={batchBusy === "all"} icon={<Icon name="undo" className="size-3.5" />} onClick={() => void batchRevoice("all")} title={`按当前音色重新生成全部 ${lines.length} 句${costLabelText(batchCostOf(lines))}`}>
+              全部重录 · {lines.length} 句{costLabelText(batchCostOf(lines))}
+            </Button>
+          )}
         </div>
+      </header>
+
+      {/* 状态行：平时是一句结论，批量进行中就换成进度——同一块地方，不额外再堆提示条 */}
+      <div className="border-y border-hairline bg-white/[0.015] px-5 py-2.5 sm:px-6">
+        {batch && batchTotal > 0 ? (
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+              {batchActive ? <Spinner className="size-3 text-accent" /> : <Icon name="check" className="size-3.5 text-accent" />}
+              <span className="text-text">{batch.mode === "all" ? "全部重录" : "补齐缺失"}{batchActive ? "进行中" : "已结束"}</span>
+              <span className="tabular-nums text-text-muted">{batchDone}/{batchTotal}</span>
+              {batchFailed > 0 && <span className="text-danger">失败 {batchFailed}</span>}
+              {batchActive ? (
+                <Button size="sm" variant="ghost" className="ml-auto" disabled={batchStopping} loading={batchStopping} icon={<Icon name="stop" className="size-3" />} onClick={() => void stopBatch()}>
+                  停止本次
+                </Button>
+              ) : (
+                <button type="button" className="ml-auto cursor-pointer text-xs text-text-faint transition hover:text-text" onClick={() => setBatch(null)}>
+                  收起
+                </button>
+              )}
+            </div>
+            <div className="h-1 overflow-hidden rounded-full bg-white/10" role="progressbar" aria-label="本次配音进度" aria-valuemin={0} aria-valuemax={batchTotal} aria-valuenow={batchDone}>
+              <span className={`block h-full rounded-full transition-[width] duration-500 ease-out ${batchFailed && !batchActive ? "bg-warn/70" : "bg-accent"}`} style={{ width: `${batchTotal ? (batchDone / batchTotal) * 100 : 0}%` }} />
+            </div>
+            <p className="text-2xs text-text-faint">
+              {batchActive ? "已完成的任务不受影响，可随时停止" : batchFailed > 0 ? "有任务失败，可以再点一次「全部重录」重试" : "本次配音已结束"}
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+            <span className="flex items-center gap-2 text-text-muted">
+              <span className={`size-1.5 rounded-full ${missingCount ? "bg-warn" : "bg-accent"}`} />
+              已配音 <span className="tabular-nums text-text">{voicedCount}</span>/{lines.length} 句
+            </span>
+            {missingCount > 0
+              ? <span className="text-warn">还差 {missingCount} 句 · {missingCostSuffix}</span>
+              : <span className="text-text-faint">全部句子都有配音</span>}
+            <span className="text-text-faint sm:ml-auto">补齐只生成缺失的句子，已有配音继续可用</span>
+          </div>
+        )}
       </div>
-      {missingCount > 0 && (
-        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-amber-300/15 bg-amber-300/[0.04] px-3 py-2 text-xs text-amber-100/80">
-          <span>有 {missingCostSuffix} 需要重新配音</span>
-          <span className="text-amber-100/50">当前已有配音继续可用，补齐后才会替换缺失句。</span>
-        </div>
-      )}
-      {error && <p role="alert" className="mt-3 text-xs text-red-300/80">{error}</p>}
-      {batch && batchTotal > 0 && (
-        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2 text-xs">
-          {batchActive ? <Spinner className="size-3 text-accent" /> : null}
-          <span className="text-white/70">
-            {batch.mode === "all" ? "全部重录" : "补齐缺失"} · {batchDone}/{batchTotal}
-            {batchFailed ? <span className="text-red-300/80"> · 失败 {batchFailed}</span> : null}
-          </span>
-          {batchActive
-            ? <button className="chip ml-auto h-6 px-2.5 text-[11px]" disabled={batchStopping} onClick={() => void stopBatch()}>{batchStopping ? <><Spinner className="size-3" />正在停止…</> : <><Icon name="stop" className="size-3" />停止本次</>}</button>
-            : <button className="ml-auto text-[11px] text-white/35 hover:text-white" onClick={() => setBatch(null)}>收起</button>}
-          <span className="w-full text-[11px] text-white/35">
-            {batchActive ? "已完成的任务不受影响，可随时停止" : batchFailed ? "有任务失败，可点上方「重试」" : "本次配音已结束"}
-          </span>
-        </div>
-      )}
-      <div className="mt-4 grid gap-2 border-t border-white/[0.06] pt-4 sm:grid-cols-[minmax(180px,1fr)_auto_auto]">
-        <label className="relative block">
+
+      {/* 工具行 */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-hairline px-4 py-2.5 sm:px-5">
+        <label className="relative min-w-[11rem] flex-1">
           <span className="sr-only">搜索句子</span>
-          <input className="input h-9 w-full text-xs" value={lineQuery} onChange={(event) => setLineQuery(event.target.value)} placeholder="搜索文案或朗读内容" aria-label="搜索句子" />
+          <Icon name="search" className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-text-faint" />
+          <input className="input h-9 w-full pl-9 pr-8 text-xs" value={lineQuery} onChange={(event) => setLineQuery(event.target.value)} placeholder="搜索文案或朗读内容" aria-label="搜索句子" />
+          {lineQuery && (
+            <button type="button" className="absolute right-2 top-1/2 grid size-5 -translate-y-1/2 cursor-pointer place-items-center rounded-full text-text-faint transition hover:bg-white/10 hover:text-text" onClick={() => setLineQuery("")} aria-label="清空搜索">
+              <Icon name="close" className="size-3" />
+            </button>
+          )}
         </label>
-        <Select className="h-9 text-xs" value={lineFilter} onChange={(value) => setLineFilter(value as typeof lineFilter)} aria-label="筛选句子">
-          <option value="all">全部句子</option>
-          <option value="missing">缺失配音</option>
-          <option value="paragraph" disabled={selectedParagraph < 0}>当前段落</option>
-        </Select>
-        <div className="flex items-center justify-end gap-2 text-xs text-white/40">
-          <span>{visibleEntries.length}/{entries.length} 句</span>
-          <button className="chip h-8 px-2.5" disabled={!selected} onClick={() => scrollToLine(selected)}>定位当前句</button>
+        <div className="w-36 shrink-0">
+          <Select className="h-9 text-xs" value={lineFilter} onChange={(value) => setLineFilter(value as LineFilter)} aria-label="筛选句子">
+            <option value="all">全部句子</option>
+            <option value="missing">缺失配音</option>
+            <option value="paragraph" disabled={expandedParagraph < 0}>当前段落</option>
+          </Select>
         </div>
+        <span className="text-xs tabular-nums text-text-faint">{visibleEntries.length}/{entries.length} 句</span>
+        {chapters.length > 0 && (
+          <Button size="sm" variant="ghost" onClick={() => setCollapsedChapters(allCollapsed ? new Set() : new Set(chapters.map((chapter) => chapter.segment)))}>
+            {allCollapsed ? "全部展开" : "全部收起"}
+          </Button>
+        )}
       </div>
+
+      {error && <p role="alert" className="border-b border-hairline px-5 py-2 text-xs text-danger sm:px-6">{error}</p>}
+
       {loading ? (
-        <div className="flex justify-center py-8 text-white/40"><Spinner /></div>
+        <div className="flex justify-center py-12 text-white/40"><Spinner /></div>
       ) : lines.length === 0 ? (
-        <p className="py-8 text-center text-sm text-white/35">先在文案页生成稿件</p>
+        <p className="py-12 text-center text-sm text-text-faint">先在文案页生成稿件</p>
       ) : visibleEntries.length === 0 ? (
-        <p className="py-8 text-center text-sm text-white/35">没有符合条件的句子</p>
+        <div className="space-y-2 py-12 text-center">
+          <p className="text-sm text-text-faint">没有符合条件的句子</p>
+          {(searching || lineFilter !== "all") && (
+            <button type="button" className="btn-text mx-auto" onClick={() => { setLineQuery(""); setLineFilter("all"); }}>
+              清空筛选条件
+            </button>
+          )}
+        </div>
       ) : (
-        <div className="mt-4 max-h-[520px] space-y-2 overflow-y-auto pr-1">
-          {paragraphGroups.map((paragraphGroup) => {
-            const collapsed = collapsedParagraphs.has(paragraphGroup.key);
-            const paragraphEntries = paragraphGroup.groups.flatMap((group) => group.items);
-            return <div key={paragraphGroup.key} className="rounded-xl border border-white/[0.07] bg-white/[0.015] p-2">
-              <button className="flex w-full items-center justify-between gap-3 px-2 py-1 text-left text-xs text-white/65" aria-expanded={!collapsed} onClick={() => setCollapsedParagraphs((current) => { const next = new Set(current); if (next.has(paragraphGroup.key)) next.delete(paragraphGroup.key); else next.add(paragraphGroup.key); return next; })}>
-                <span className="font-medium">第 {paragraphGroup.segment + 1} 段 · {paragraphEntries.length} 句{paragraphGroup.paragraph >= 0 ? ` · 段落 ${paragraphGroup.paragraph + 1}` : ""}</span>
-                <span className="text-white/35">{collapsed ? "展开" : "收起"}</span>
-              </button>
-              {!collapsed && <div className="mt-2 space-y-2">{paragraphGroup.groups.map((group) => {
-                if (!group.block) return renderLine(group.items[0], false);
-                const statuses = blockStatus(group.items);
-                const audioGroup = { ...group, block: group.block };
-                const audios = blockAudios(audioGroup);
-                const job = group.items.find(({ item }) => item.job)?.item.job;
-                return <div key={group.block.key} className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-2">
-                  <div className="flex flex-wrap items-center gap-2 border-b border-white/[0.06] px-2 pb-2 text-xs text-white/55">
-                    <span className="font-medium text-white/75">第 {group.items[0].index + 1}–{group.items.at(-1)!.index + 1} 句 · {group.items.length} 句</span>
-                    {statuses.map((status) => <span key={status} className="chip h-6 px-2 text-[11px]">{status}</span>)}
-                    {job && <span className="text-white/40">{job.status === "running" ? "合成中" : job.status === "queued" ? "排队中" : job.error || job.status}</span>}
-                    {audios.map((audio) => <AudioButton key={`${audio.src}-${audio.start}`} src={audio.src} label={audio.label} />)}
-                    <button className="chip ml-auto h-7 px-2.5" title={`整段重录${costLabelText(revoiceCostOf(group.items[0].item.id))}`} onClick={() => revoice(group.items[0].item.id)}>重录本段 · {group.items.length} 句{costLabelText(revoiceCostOf(group.items[0].item.id))}</button>
-                  </div>
-                  <div className="mt-2 space-y-2">{group.items.map((entry) => renderLine(entry, true))}</div>
-                </div>;
-              })}</div>}
-            </div>;
-          })}
+        <div className={`grid ${multiChapter ? "lg:grid-cols-[11rem_minmax(0,1fr)]" : ""}`}>
+          {multiChapter && (
+            <nav aria-label="章节导航" className="hidden max-h-[min(70vh,780px)] overflow-y-auto border-r border-hairline px-2 py-3 lg:block">
+              <p className="label px-2 pb-2">章节</p>
+              <ul className="space-y-0.5">
+                {chapters.map((chapter) => {
+                  const active = activeChapter === chapter.segment;
+                  return (
+                    <li key={chapter.segment}>
+                      <button
+                        type="button"
+                        className={`relative flex w-full cursor-pointer flex-col gap-1.5 rounded-control px-2 py-2 text-left transition-colors ${active ? "bg-white/[0.06]" : "hover:bg-white/[0.03]"}`}
+                        aria-current={active ? "true" : undefined}
+                        onClick={() => scrollToChapter(chapter.segment)}
+                      >
+                        <span aria-hidden className={`absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-accent transition-opacity duration-200 ${active ? "opacity-100" : "opacity-0"}`} />
+                        <span className="flex items-baseline justify-between gap-2">
+                          <span className={`truncate text-xs ${active ? "text-text" : "text-text-secondary"}`}>第 {chapter.segment + 1} 章</span>
+                          <span className="shrink-0 text-2xs tabular-nums text-text-faint">{chapter.voiced}/{chapter.count}</span>
+                        </span>
+                        <span className="block h-0.5 overflow-hidden rounded-full bg-white/10">
+                          <span className={`block h-full rounded-full transition-[width] duration-500 ease-out ${chapter.missing ? "bg-warn/70" : "bg-accent/70"}`} style={{ width: `${chapter.count ? (chapter.voiced / chapter.count) * 100 : 0}%` }} />
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </nav>
+          )}
+          <div ref={listRef} className="max-h-[min(70vh,780px)] space-y-4 overflow-y-auto px-3 py-3 sm:px-4">
+            {chapters.map((chapter) => {
+              // 搜索时强制展开：命中的句子被折叠藏起来，用户会以为没搜到
+              const collapsed = !searching && collapsedChapters.has(chapter.segment);
+              return (
+                <section
+                  key={chapter.segment}
+                  data-segment={chapter.segment}
+                  ref={(element) => { if (element) sectionRefs.current.set(chapter.segment, element); else sectionRefs.current.delete(chapter.segment); }}
+                  className="space-y-2 scroll-mt-1"
+                >
+                  {multiChapter && (
+                    <button
+                      type="button"
+                      className="sticky top-0 z-[1] flex w-full cursor-pointer items-center gap-3 border-b border-hairline bg-ink/92 px-2 py-2 text-left backdrop-blur-md"
+                      aria-expanded={!collapsed}
+                      onClick={() => setCollapsedChapters((current) => {
+                        const next = new Set(current);
+                        if (next.has(chapter.segment)) next.delete(chapter.segment);
+                        else next.add(chapter.segment);
+                        return next;
+                      })}
+                    >
+                      <span className="text-xs font-medium text-text">第 {chapter.segment + 1} 章</span>
+                      <span className="text-2xs tabular-nums text-text-faint">{chapter.count} 句 · 已配音 {chapter.voiced}</span>
+                      {chapter.missing > 0 && <span className="text-2xs text-warn">缺 {chapter.missing}</span>}
+                      <Icon name="chevron" className={`ml-auto size-3.5 shrink-0 text-text-faint transition-transform duration-300 ${collapsed ? "" : "rotate-180"}`} />
+                    </button>
+                  )}
+                  <Collapse open={!collapsed}>
+                    <div className="space-y-3">
+                      {chapter.paragraphs.map((paragraphGroup) => {
+                        const paragraphEntries = paragraphGroup.groups.flatMap((group) => group.items);
+                        const paragraphCollapsed = collapsedParagraphs.has(paragraphGroup.key);
+                        const paragraphMissing = paragraphEntries.filter(({ item }) => !item.audio).length;
+                        return (
+                          <div key={paragraphGroup.key} className="space-y-1.5">
+                            {(chapter.paragraphs.length > 1 || paragraphGroup.paragraph >= 0) && (
+                              <div className="flex items-center gap-2 px-1.5 py-1">
+                                <span className="size-1 shrink-0 rounded-full bg-white/25" />
+                                <span className="text-2xs text-text-muted">{paragraphGroup.paragraph >= 0 ? `第 ${paragraphGroup.paragraph + 1} 段` : "未分段"}</span>
+                                <span className="text-2xs tabular-nums text-text-faint">{paragraphEntries.length} 句</span>
+                                {paragraphMissing > 0 && <span className="text-2xs text-warn">缺 {paragraphMissing}</span>}
+                                <span aria-hidden className="h-px flex-1 bg-white/[0.06]" />
+                                <button
+                                  type="button"
+                                  className="cursor-pointer text-2xs text-text-faint transition hover:text-text"
+                                  aria-expanded={!paragraphCollapsed}
+                                  onClick={() => setCollapsedParagraphs((current) => {
+                                    const next = new Set(current);
+                                    if (next.has(paragraphGroup.key)) next.delete(paragraphGroup.key);
+                                    else next.add(paragraphGroup.key);
+                                    return next;
+                                  })}
+                                >
+                                  {paragraphCollapsed ? "展开" : "收起"}
+                                </button>
+                              </div>
+                            )}
+                            <Collapse open={!paragraphCollapsed}>
+                              <div className="space-y-1.5">
+                                {paragraphGroup.groups.map((group) => {
+                                  if (!group.block) return renderRow(group.items[0], false);
+                                  const splitLabels = blockStatuses(group.items);
+                                  const audios = blockAudios({ items: group.items, block: group.block });
+                                  const job = group.items.find(({ item }) => item.job)?.item.job;
+                                  const voicedInBlock = group.items.filter(({ item }) => item.audio).length;
+                                  const blockCost = revoiceCostOf(group.items[0].item.id);
+                                  return (
+                                    <div key={group.key} className="rounded-surface border border-hairline bg-white/[0.015] p-1.5">
+                                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-hairline px-2 pb-2">
+                                        <span className="text-2xs font-medium text-text-secondary">第 {group.items[0].index + 1}–{group.items.at(-1)!.index + 1} 句 · {group.items.length} 句</span>
+                                        <span className={`text-2xs tabular-nums ${voicedInBlock === group.items.length ? "text-text-faint" : "text-warn"}`}>已配音 {voicedInBlock}/{group.items.length}</span>
+                                        {splitLabels.map((label) => (
+                                          <span key={label} className="inline-flex h-5 items-center rounded-full border border-line px-2 text-2xs text-text-muted">{label}</span>
+                                        ))}
+                                        {job && <span className="text-2xs text-text-muted">{job.status === "running" ? "合成中" : job.status === "queued" ? "排队中" : job.error || job.status}</span>}
+                                        {audios.map((audio) => (
+                                          <AudioButton key={`${audio.src}-${audio.start}`} src={audio.src} label={audio.label} channel={AUDIO_CHANNEL} />
+                                        ))}
+                                        <button type="button" className="chip ml-auto h-7 px-2.5" title={`整段重录${costLabelText(blockCost)}`} onClick={() => void revoice(group.items[0].item.id)}>
+                                          重录本段 · {group.items.length} 句{costLabelText(blockCost)}
+                                        </button>
+                                      </div>
+                                      <div className="space-y-0.5 pt-1.5">
+                                        {group.items.map((entry) => renderRow(entry, true))}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </Collapse>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </Collapse>
+                </section>
+              );
+            })}
+          </div>
         </div>
       )}
-      {selected && lexWord && !lexOpen && <button className="fixed z-50 rounded bg-white px-3 py-2 text-xs font-medium text-black shadow-xl max-sm:!top-auto max-sm:bottom-4 max-sm:!left-1/2 max-sm:-translate-x-1/2" style={{ left: selectionPoint.x, top: selectionPoint.y }} onMouseDown={(e) => e.preventDefault()} onClick={() => setLexOpen(true)}>设置读法</button>}
     </section>
+  );
+}
+
+/** 句子行：原文是主体，动作随状态出现，设置收进展开层 */
+function SentenceRow({
+  entry,
+  grouped,
+  expanded,
+  lex,
+  isolation,
+  imageCount,
+  supportsEmotionTags,
+  costText,
+  api,
+  captureSelection,
+  audioHint,
+  index,
+}: {
+  entry: Entry;
+  grouped: boolean;
+  expanded: boolean;
+  lex: LexDraft | null;
+  isolation: { kind: "note"; text: string } | { kind: "toggle"; isolated: boolean } | null;
+  imageCount: number;
+  supportsEmotionTags: boolean;
+  costText: string;
+  api: RowApi;
+  captureSelection: (lineId: string, element: HTMLParagraphElement) => void;
+  audioHint: string;
+  index: number;
+}) {
+  const { item, line } = entry;
+  const audio = item.audio;
+  const running = audioHint.length > 0;
+  const failed = item.job && item.job.status === "failed";
+  const spokenDiffers = item.spoken !== line.text;
+  return (
+    <div
+      className={`group/row relative rounded-control border transition-colors duration-200 ${expanded ? "border-accent/25 bg-accent/[0.03]" : "border-transparent hover:border-hairline hover:bg-white/[0.02]"}`}
+    >
+      <div className="flex items-start gap-2.5 px-2.5 py-2">
+        {/* 序号也是定位按钮：句子列表与预览之间的最短路径 */}
+        <button
+          type="button"
+          className="mt-0.5 grid size-6 shrink-0 cursor-pointer place-items-center rounded-full text-2xs tabular-nums text-text-faint transition hover:bg-white/10 hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          onClick={() => api.seek(item.id)}
+          title="在预览里定位这一句"
+          aria-label={`在预览里定位第 ${index + 1} 句`}
+        >
+          {String(index + 1).padStart(2, "0")}
+        </button>
+        <div className="min-w-0 flex-1">
+          <p
+            tabIndex={0}
+            className="select-text text-sm leading-6 text-text/85"
+            onMouseUp={(event) => captureSelection(item.id, event.currentTarget)}
+            onTouchEnd={(event) => captureSelection(item.id, event.currentTarget)}
+            onKeyUp={(event) => captureSelection(item.id, event.currentTarget)}
+          >
+            {line.text}
+          </p>
+          {spokenDiffers && <p className="mt-0.5 truncate text-2xs text-text-faint" title={item.spoken}>朗读：{item.spoken}</p>}
+          <div className={`mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1.5 transition-opacity duration-150 max-sm:opacity-100 ${expanded || running || failed || !audio ? "opacity-100" : "opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100"}`}>
+            {audio ? (
+              <>
+                <AudioButton src={audio.src} startMs={audio.startMs} endMs={audio.endMs} channel={AUDIO_CHANNEL} />
+                <span className="text-2xs text-text-faint">{audio.alignmentSource === "provider" ? "精确对齐" : "估算对齐"}</span>
+              </>
+            ) : running ? (
+              <span className="inline-flex items-center gap-1.5 text-2xs text-text-muted"><Spinner className="size-3" />{audioHint}</span>
+            ) : (
+              <span className="inline-flex h-6 items-center rounded-full border border-warn-border bg-warn-surface px-2 text-2xs text-warn">未配音</span>
+            )}
+            {failed && <span className="min-w-0 truncate text-2xs text-danger" title={item.job?.error ?? ""}>失败：{item.job?.error || "未知原因"}</span>}
+            {line.locked && (
+              <span className="text-text-faint" title="已锁定：重新断句标注不会改写这一句">
+                <Icon name="lock" className="size-3" />
+              </span>
+            )}
+            {!grouped && (
+              <button type="button" className="chip h-7 px-2.5" title={`重录这一句${costText}`} onClick={() => api.revoice(item.id)}>
+                重录{costText}
+              </button>
+            )}
+            {isolation?.kind === "toggle" && (
+              <button type="button" className="cursor-pointer text-2xs text-text-muted transition hover:text-text" onClick={() => api.toggleIsolated(item.id)}>
+                {isolation.isolated ? "取消单独录制" : "单独录制此句"}
+              </button>
+            )}
+            {isolation?.kind === "note" && <span className="text-2xs text-text-faint">{isolation.text}</span>}
+            <button
+              type="button"
+              className="ml-auto grid size-6 shrink-0 cursor-pointer place-items-center rounded-full text-text-faint transition hover:bg-white/10 hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+              aria-expanded={expanded}
+              aria-label={expanded ? `收起第 ${index + 1} 句的设置` : `展开第 ${index + 1} 句的设置`}
+              onClick={() => api.toggleExpand(item.id)}
+            >
+              <Icon name="chevron" className={`size-3.5 transition-transform duration-300 ${expanded ? "rotate-180" : ""}`} />
+            </button>
+          </div>
+        </div>
+      </div>
+      <Collapse open={expanded}>
+        <div className="ml-8 space-y-3 border-t border-hairline px-2.5 py-3">
+          <div className="grid gap-2 sm:grid-cols-[minmax(9rem,11rem)_minmax(0,1fr)] sm:items-end">
+            <label className="block space-y-1.5">
+              <span className="label">旁白表达</span>
+              <Select className="h-8 min-h-8 py-1.5 text-xs" value={line.voiceTag ?? "auto"} disabled={!supportsEmotionTags} aria-label="旁白表达" onChange={(value) => api.setVoiceTag(item.id, value as VoiceTag)}>
+                {voiceTagChoices.filter((choice) => choice.value !== "auto" || !line.voiceTag || line.voiceTag === "auto").map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}
+              </Select>
+            </label>
+            <p className="pb-1 text-2xs leading-5 text-text-faint">
+              {supportsEmotionTags
+                ? line.voiceTag?.startsWith("ssml:")
+                  ? "SSML 只调节句内停顿，不叠加情绪标签或全片说明。"
+                  : `内容情绪：${line.mood ?? "未标注"}，用于分镜和字幕。只在这一句要换念法时才选。`
+                : "当前模型不使用逐句标签。"}
+            </p>
+          </div>
+          <div className="space-y-2">
+            {lex ? (
+              <>
+                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                  <input className="input h-8 py-1.5 text-xs" value={lex.word} onChange={(event) => api.editLex({ word: event.target.value })} placeholder="词语" aria-label="词语" autoFocus />
+                  <input className="input h-8 py-1.5 text-xs" value={lex.say} onChange={(event) => api.editLex({ say: event.target.value })} placeholder="朗读为" aria-label="朗读为" />
+                  <Button size="sm" variant="primary" disabled={lex.busy || !lex.word.trim() || !lex.say.trim()} loading={lex.busy} onClick={api.saveLex}>
+                    保存
+                  </Button>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <button type="button" className="btn-text" disabled={lex.busy} onClick={api.previewLex}>试听整句</button>
+                  {lex.preview && <AudioButton src={lex.preview} label="重听" channel={AUDIO_CHANNEL} />}
+                  <button type="button" className="btn-text hover:text-text-muted" onClick={api.closeLex}>取消</button>
+                </div>
+                <p className="text-2xs leading-5 text-text-faint">该规则作用于本项目里出现的同名词语；字幕原文不变。保存后会重新排队这一句的配音。</p>
+              </>
+            ) : (
+              <button type="button" className="btn-text" onClick={() => api.openLex(item.id, "", "")}>
+                <Icon name="plus" className="size-3.5" />
+                添加词典规则
+              </button>
+            )}
+          </div>
+          <div className="flex items-start justify-between gap-4 border-t border-hairline pt-3">
+            <p className="min-w-0 text-2xs leading-5 text-text-faint">
+              {isolation?.kind === "toggle" && imageCount > 1
+                ? `锁定后不会改写这一句的读音、停顿和情绪；本句当前${isolation.isolated ? "单独录制" : `与同段共 ${imageCount} 句一起合成`}。`
+                : "锁定后，重新断句标注不会改写这一句的读音、停顿和情绪。"}
+            </p>
+            <Button size="sm" variant="ghost" aria-pressed={!!line.locked} className={line.locked ? "border-line-bold text-text" : ""} icon={<Icon name="lock" className="size-3.5" />} onClick={() => api.toggleLock(item.id)}>
+              {line.locked ? "已锁定" : "锁定"}
+            </Button>
+          </div>
+        </div>
+      </Collapse>
+    </div>
   );
 }

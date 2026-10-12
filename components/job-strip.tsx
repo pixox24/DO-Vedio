@@ -1,15 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Icon, Spinner } from "@/components/ui";
 import { jobAction } from "@/lib/client";
 import { costSuffix, needsConfirm } from "@/lib/core/interaction";
 import { renderEtaLabel } from "@/lib/core/job-eta";
+import type { StepHint } from "@/lib/core/step-status";
 import type { Job } from "@/lib/core/types";
 
-/** stages：一栏汇总多个步骤（例如逐句配音与段落配音） */
-export type StepDef = { stage: string; stages?: string[]; label: string };
+/** stages：一栏汇总多个步骤（例如逐句配音与段落配音）。indeterminate：一次模型调用，进行中用流动细条。 */
+export type StepDef = { stage: string; stages?: string[]; label: string; indeterminate?: boolean };
+
+type StepTone = "idle" | "active" | "done" | "failed" | "hold";
 
 type Summary = { total: number; done: number; running: number; failed: Job[]; queued: number; canceled: number; planned: number; progress: number; message: string };
 
@@ -30,7 +33,7 @@ export function summarize(jobs: Job[]): Summary {
 }
 
 /** 步骤条：每个步骤的进度、失败原因、重试和取消 */
-export function JobStrip({ steps, jobs, extra, currentKeys, confirm }: { steps: StepDef[]; jobs: Job[]; extra?: Record<string, string>; currentKeys?: ReadonlySet<string>; confirm?: (options: { title: string; message?: string; confirmLabel?: string; bullets?: string[]; tone?: "default" | "danger" }) => Promise<boolean> }) {
+export function JobStrip({ steps, jobs, extra, hints, currentKeys, confirm }: { steps: StepDef[]; jobs: Job[]; extra?: Record<string, string>; hints?: Record<string, StepHint | null>; currentKeys?: ReadonlySet<string>; confirm?: (options: { title: string; message?: string; confirmLabel?: string; bullets?: string[]; tone?: "default" | "danger" }) => Promise<boolean> }) {
   const [retryingStage, setRetryingStage] = useState<string | null>(null);
   const [cancelingStage, setCancelingStage] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<Record<string, string>>({});
@@ -97,28 +100,34 @@ export function JobStrip({ steps, jobs, extra, currentKeys, confirm }: { steps: 
         const oldActive = currentKeys ? list.filter((job) => !currentKeys.has(job.key) && (job.status === "queued" || job.status === "running")) : [];
         const oldFailed = currentKeys ? list.filter((job) => !currentKeys.has(job.key) && job.status === "failed") : [];
         /* planned 而非 total：被取消的任务不该挡住「这一步已完成」的判定 */
-        const state = sum.failed.length ? "failed" : active ? "active" : sum.planned > 0 && sum.done === sum.planned ? "done" : "idle";
+        const fromJobs: StepTone = sum.failed.length ? "failed" : active ? "active" : sum.planned > 0 && sum.done === sum.planned ? "done" : "idle";
+        const hint = hints?.[s.stage];
+        // 任务正在跑或失败时，以任务为准。停下来之后才采用口吻、缺图这类补充状态。
+        const tone: StepTone = fromJobs === "failed" || fromJobs === "active" ? fromJobs : hint?.tone ?? fromJobs;
+        const flowing = tone === "active" && s.indeterminate === true;
+        const width = tone === "done" || tone === "hold" ? 100 : tone === "active" ? Math.max(12, Math.round(sum.progress * 100)) : 0;
+        const fill = tone === "failed" ? "bg-red-400/70" : tone === "done" ? "bg-accent" : tone === "hold" ? "bg-hold" : tone === "active" ? "bg-accent/70" : "bg-transparent";
         const renderJob = s.stage === "render" ? list.find((job) => job.status === "running") ?? list.find((job) => job.status === "queued") : undefined;
-        const statusMessage = s.stage === "render" && active && renderJob
+        const jobMessage = s.stage === "render" && active && renderJob
           ? `${renderEtaLabel(renderJob)}${sum.message ? ` · ${sum.message}` : ""}`
           : sum.message || (active ? "排队中" : "");
+        const statusMessage = sum.failed.length ? sum.failed[0].error : actionMessage[s.stage] || (tone === "active" ? jobMessage : hint?.message || jobMessage);
         return (
           <div key={s.stage} className="relative bg-ink/95 px-4 pb-3.5 pt-3.5">
-            {/* 顶部轨道：这一步在整条流程里的位置。比底部细线更贴近「进度」的语义 */}
+            {/* 顶部细条：空着时只留轨道。进行中按任务填充；一次模型调用则在轨道里流动。 */}
             <div className="absolute inset-x-0 top-0 h-0.5 overflow-hidden bg-white/[0.05]">
               <div
-                className={`h-full transition-[width] duration-500 ease-out ${state === "failed" ? "bg-red-400/70" : state === "done" ? "bg-accent" : state === "active" ? "bg-accent/70" : "bg-transparent"}`}
-                style={{ width: `${state === "done" ? 100 : Math.round(sum.progress * 100)}%` }}
+                className={`h-full ${flowing ? "step-indeterminate" : "transition-[width] duration-500 ease-out"} ${fill} ${tone === "hold" && hint?.pulse ? "step-hold" : ""}`}
+                style={flowing ? undefined : { width: `${width}%` }}
               />
             </div>
-            {/* 完成时整列闪一下。挂载即播放，离开 done 态卸载，不需要 key 技巧 */}
-            {state === "done" && <span aria-hidden className="animate-step-flash pointer-events-none absolute inset-0" />}
+            <StepFlash tone={tone} />
             <div className="relative flex items-center justify-between gap-2">
-              <span className={`flex items-center gap-1.5 text-xs font-medium ${state === "done" ? "text-white" : state === "failed" ? "text-red-300" : state === "active" ? "text-white/90" : "text-white/60"}`}>
-                {state === "done" ? (
+              <span className={`flex items-center gap-1.5 text-xs font-medium ${tone === "done" || tone === "hold" ? "text-white" : tone === "failed" ? "text-red-300" : tone === "active" ? "text-white/90" : "text-white/60"}`}>
+                {tone === "done" ? (
                   <span className="animate-check-in inline-flex text-accent"><Icon name="check" className="size-3" /></span>
                 ) : (
-                  <span className={`size-1.5 shrink-0 rounded-full ${state === "active" ? "animate-live-dot bg-accent" : state === "failed" ? "bg-red-400" : "bg-white/20"}`} />
+                  <span className={`size-1.5 shrink-0 rounded-full ${tone === "active" ? "animate-live-dot bg-accent" : tone === "failed" ? "bg-red-400" : tone === "hold" ? "bg-hold" : "bg-white/20"}`} />
                 )}
                 {s.label}
               </span>
@@ -127,7 +136,7 @@ export function JobStrip({ steps, jobs, extra, currentKeys, confirm }: { steps: 
                 {sum.total > 0 ? `${sum.done}/${sum.planned}` : (extra?.[s.stage] ?? "")}
               </span>
             </div>
-            <p role={sum.failed.length ? "alert" : undefined} className={`relative mt-1 h-4 truncate text-2xs ${sum.failed.length ? "text-red-300/90" : state === "active" ? "text-white/50" : "text-white/35"}`}>{sum.failed.length ? sum.failed[0].error : actionMessage[s.stage] || statusMessage}</p>
+            <p role={sum.failed.length ? "alert" : undefined} className={`relative mt-1 h-4 truncate text-2xs ${sum.failed.length ? "text-red-300/90" : tone === "hold" ? "text-hold" : tone === "active" ? "text-white/50" : "text-white/35"}`}>{statusMessage}</p>
             {sum.canceled > 0 && <p className="relative mt-1 text-3xs text-white/30">已取消 {sum.canceled} 个任务</p>}
             {oldActive.length > 0 && <p className="relative mt-1 text-3xs text-amber-200/65">含 {oldActive.length} 个旧版本任务</p>}
             {actionableSummary.failed.length > 0 && (
@@ -168,6 +177,24 @@ export function JobStrip({ steps, jobs, extra, currentKeys, confirm }: { steps: 
       })}
     </div>
   );
+}
+
+/** 只在这一格从别的状态变成完成时闪一下。打开页面时已经完成的格子不闪。 */
+function StepFlash({ tone }: { tone: StepTone }) {
+  const seen = useRef<StepTone | null>(null);
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    const previous = seen.current;
+    seen.current = tone;
+    if (previous !== null && previous !== "done" && tone === "done") setOn(true);
+  }, [tone]);
+  useEffect(() => {
+    if (!on) return;
+    const timer = window.setTimeout(() => setOn(false), 850);
+    return () => window.clearTimeout(timer);
+  }, [on]);
+  if (!on) return null;
+  return <span aria-hidden className="animate-step-flash pointer-events-none absolute inset-0" />;
 }
 
 export function WorkerBanner({ online, onRetry }: { online: boolean | null; onRetry?: () => void }) {

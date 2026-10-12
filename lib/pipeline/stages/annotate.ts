@@ -2,7 +2,7 @@ import { z } from "zod";
 import { annotateKey } from "../../core/keys";
 import { spansValid } from "../../core/lines";
 import { compactText } from "../../core/text";
-import { moods, type Line, type Mood, type Span } from "../../core/types";
+import { deliveryTagValues, moods, type DeliveryTag, type Line, type Mood, type Span } from "../../core/types";
 import { generateJson } from "../../llm";
 import { annotatePrompt } from "../../prompts";
 import { cacheGet, cachePut } from "../../server/cache";
@@ -12,7 +12,7 @@ import { defineStage } from "../stage";
 import { estimateLlmCost } from "../pricing";
 import { beginGenerationRun, failGenerationRun, finishGenerationRun } from "../../providers/runs";
 
-/** 断句标注：一个段落一次大模型调用，产出读音、停顿、关键词、情绪 */
+/** 断句标注：一个段落一次大模型调用，产出读音、停顿、关键词、内容情绪，以及少数表演标签 */
 
 export type AnnotateInput = {
   projectId: string;
@@ -22,7 +22,11 @@ export type AnnotateInput = {
   lines: { id: string; text: string }[];
 };
 
-export type Annotation = { id: string; spans: Span[]; pauseAfterMs?: number; keywords: string[]; mood?: Mood };
+export type Annotation = { id: string; spans: Span[]; pauseAfterMs?: number; keywords: string[]; mood?: Mood; delivery: DeliveryTag };
+
+export function deliveryTagOf(value: string | undefined): DeliveryTag {
+  return value && (deliveryTagValues as readonly string[]).includes(value) ? value as DeliveryTag : "none";
+}
 
 const outSchema = z.object({
   lines: z.array(
@@ -32,6 +36,7 @@ const outSchema = z.object({
       pauseAfterMs: z.number().optional(),
       keywords: z.array(z.string()),
       mood: z.enum(moods),
+      delivery: z.string().optional(),
     }),
   ),
 });
@@ -41,7 +46,7 @@ export function sanitize(lines: { id: string; text: string }[], raw: z.infer<typ
   const byId = new Map(raw.lines.map((l) => [l.id, l]));
   return lines.map((line) => {
     const a = byId.get(line.id);
-    if (!a) return { id: line.id, spans: [], keywords: [] };
+    if (!a) return { id: line.id, spans: [], keywords: [], delivery: "none" };
     const spans = a.spans
       .filter((s) => s.text.length > 0)
       .map((s) => (s.say && s.say.trim() && s.say !== s.text && !/[<>{}]/.test(s.say) ? { text: s.text, say: s.say.trim() } : { text: s.text }));
@@ -52,6 +57,7 @@ export function sanitize(lines: { id: string; text: string }[], raw: z.infer<typ
       pauseAfterMs: a.pauseAfterMs && a.pauseAfterMs > 0 ? Math.min(2000, Math.round(a.pauseAfterMs)) : undefined,
       keywords: [...new Set(a.keywords.map((k) => compactText(k)).filter((k): k is string => !!k && k.length >= 2 && line.text.replace(/\s+/g, "").includes(k)))].slice(0, 2),
       mood: a.mood,
+      delivery: deliveryTagOf(a.delivery),
     };
   });
 }
@@ -63,7 +69,8 @@ export function applyAnnotations(lines: Line[], ann: Annotation[], source: { id:
   return lines.map((l) => {
     const a = byId.get(l.id);
     if (!a || l.locked || textById.get(l.id) !== l.text) return l;
-    return { ...l, spans: a.spans, pauseAfterMs: a.pauseAfterMs ?? l.pauseAfterMs, keywords: a.keywords, mood: a.mood ?? l.mood };
+    const voiceTag = !l.voiceTag || l.voiceTag === "auto" ? a.delivery : l.voiceTag;
+    return { ...l, spans: a.spans, pauseAfterMs: a.pauseAfterMs ?? l.pauseAfterMs, keywords: a.keywords, mood: a.mood ?? l.mood, voiceTag };
   });
 }
 

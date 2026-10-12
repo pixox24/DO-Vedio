@@ -7,14 +7,20 @@ import Image from "next/image";
 import dynamic from "next/dynamic";
 import { AutoTextarea, Icon, Select, Spinner } from "@/components/ui";
 import { jobAction } from "@/lib/client";
-import { mediaUrl, focusPresetIds, shotKindLabels, shotSizeLabels, shotSizes, type Job, type Shot } from "@/lib/core/types";
+import { mediaUrl, shotKindLabels, shotSizeLabels, shotSizes, type Job, type Motion, type Shot, type TransitionIn } from "@/lib/core/types";
 import { newId } from "@/lib/core/sync";
+import { outputSpecsFor, previewSpecFor } from "@/lib/core/output-spec";
+import { selectShotCandidate } from "@/lib/core/shot-asset";
 import { stampShots } from "@/lib/core/shots";
 import { assetStale, compileShotPrompt, MAX_SHOT_CHARACTERS, needsGeneratedImage, type CompiledPrompt } from "@/lib/core/prompt-compiler";
 import { needsConfirm } from "@/lib/core/interaction";
 import { focusPresetLabels, focusTextFromLegacy, focusVisualWidth } from "@/lib/core/focus";
+import { cameraById, cameraCatalog, transitionCatalog } from "@/lib/core/motion-library";
 import type { Timeline, TimelineShot } from "@/lib/core/timeline";
 import { useFeedback } from "@/components/feedback";
+import { MotionPaletteEditor } from "@/components/motion-palette-editor";
+import { MotionPresetPicker } from "@/components/motion-preset-picker";
+import { ShelfPicker } from "@/components/shelf-picker";
 import { jobBatchId, type ProjectStore } from "./shared";
 
 const ShotThumbnail = dynamic(() => import("../shot-thumbnail").then((m) => m.ShotThumbnail), { ssr: false, loading: () => <div className="grid h-full place-items-center bg-stage text-xs text-white/40">正在加载预览</div> });
@@ -202,12 +208,35 @@ export function StoryboardPanel({ id, store, timeline, jobs, onSeek }: { id: str
   }
 
   async function selectCandidate(shot: Shot, candidateId: string) {
-    try {
-      const response = await fetch(`/api/projects/${encodeURIComponent(id)}/shots/${encodeURIComponent(shot.id)}/generate`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ candidateId }) });
-      if (!response.ok) {
-        const data = await response.json() as { error?: string };
-        throw new Error(data.error || "切换候选失败");
+    const currentDoc = store.doc;
+    if (!currentDoc) return;
+    const aspect = timeline?.aspect ?? previewSpecFor(currentDoc.settings).aspect;
+    const aspects = outputSpecsFor(currentDoc.settings).map((spec) => spec.aspect);
+    let missing = false;
+    store.setDoc((current) => {
+      const target = current.shots.find((item) => item.id === shot.id);
+      if (!target) return current;
+      const next = selectShotCandidate(target, candidateId, { aspect, framing: current.settings.assetFraming, aspects });
+      if (!next) {
+        missing = true;
+        return current;
       }
+      return { ...current, shots: current.shots.map((item) => (item.id === shot.id ? next : item)) };
+    });
+    if (missing) {
+      try {
+        const response = await fetch(`/api/projects/${encodeURIComponent(id)}/shots/${encodeURIComponent(shot.id)}/generate`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ candidateId, aspect }) });
+        if (!response.ok) {
+          const data = await response.json() as { error?: string };
+          throw new Error(data.error || "切换候选失败");
+        }
+        await store.reload();
+        setErrors((old) => ({ ...old, [shot.id]: "" }));
+      } catch (e) { setErrors((old) => ({ ...old, [shot.id]: e instanceof Error ? e.message : String(e) })); }
+      return;
+    }
+    try {
+      await store.flush();
       setErrors((old) => ({ ...old, [shot.id]: "" }));
     } catch (e) { setErrors((old) => ({ ...old, [shot.id]: e instanceof Error ? e.message : String(e) })); }
   }
@@ -237,6 +266,7 @@ export function StoryboardPanel({ id, store, timeline, jobs, onSeek }: { id: str
           {imageJobs.length > 0 && <span className="text-white/60">图片任务：完成 {completedImages} · 生成中 {activeImages} · 排队 {queuedImages}{failedImages ? ` · 失败 ${failedImages}` : ""}</span>}
         </div>
       </div>
+      {doc && <MotionPaletteEditor palette={doc.motionPalette} onChange={(motionPalette) => store.setDoc((current) => ({ ...current, motionPalette }))} />}
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-white/10 pt-4">
         <Select className="w-full min-w-0 flex-1 basis-full text-xs sm:basis-auto" value={imageModelId} aria-label="生图模型" onChange={setImageModelId}><option value="">{imageModels.length ? "选择生图模型" : "暂无可用生图模型"}</option>{imageModels.map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}</Select>
         <Select className="w-auto min-w-32 text-xs" value={String(candidateCount)} aria-label="每镜候选数" onChange={(value) => setCandidateCount(Number(value))}>{[1, 2, 3, 4].map((count) => <option key={count} value={count}>{count} 张/镜</option>)}</Select>
@@ -494,9 +524,13 @@ function ShotCard({ shot, timed, timeline, index, lineIndex, lineIds, estimated,
       {focusWidth > 8 && <p className="text-[11px] text-amber-200">请概括为 8 字以内；预览会按空间收缩字号。</p>}
       <div className="grid grid-cols-2 gap-2"><input className="input h-8 min-w-0 text-xs" value={focus?.support ?? ""} onChange={(e) => updateFocus({ support: e.target.value || undefined })} placeholder="辅助小字（可选）" aria-label="辅助文字" /><input className="input h-8 min-w-0 text-xs" value={focus?.emphasis ?? ""} onChange={(e) => updateFocus({ emphasis: e.target.value || undefined })} placeholder="强调片段（可选）" aria-label="强调片段" /></div>
       {focusVisualWidth(focus?.support ?? "") > 8 && <p className="text-[11px] text-amber-200">辅助字也请压缩到 8 字以内，原文会完整保留。</p>}
-      <div className="grid grid-cols-2 gap-2"><Select value={focus?.layoutMode ?? "auto"} onChange={(v) => updateFocus({ layoutMode: v as NonNullable<Shot["focusText"]>["layoutMode"], presetId: v === "manual" ? (focus?.presetId ?? timed?.focusText?.presetId ?? "focus") : undefined })} aria-label="排版模式"><option value="auto">智能匹配</option><option value="shuffle">探索变化</option><option value="manual">手动锁定</option></Select><Select value={focus?.layoutMode === "manual" ? focus.presetId ?? "focus" : timed?.focusText?.presetId ?? "focus"} onChange={(v) => updateFocus({ layoutMode: "manual", presetId: v as NonNullable<Shot["focusText"]>["presetId"] })} aria-label="排版方案">{focusPresetIds.map((id) => <option key={id} value={id}>{focusPresetLabels[id]}</option>)}</Select></div>
+      <div className="grid grid-cols-2 gap-2"><Select value={focus?.layoutMode ?? "auto"} onChange={(v) => updateFocus({ layoutMode: v as NonNullable<Shot["focusText"]>["layoutMode"], presetId: v === "manual" ? (focus?.presetId ?? timed?.focusText?.presetId ?? "focus") : undefined })} aria-label="排版模式"><option value="auto">智能匹配</option><option value="shuffle">探索变化</option><option value="manual">手动锁定</option></Select><MotionPresetPicker text={focus?.text ?? ""} value={focus?.layoutMode === "manual" ? focus.presetId ?? "focus" : timed?.focusText?.presetId ?? "focus"} onChange={(presetId) => updateFocus({ layoutMode: "manual", presetId })} /></div>
       {focus?.layoutMode === "shuffle" && <button className="chip h-7 px-2.5 text-xs" type="button" onClick={() => shotUpdate(store, shot.id, (s) => ({ ...s, seed: (s.seed ?? timed?.seed ?? 0) + 1 }))}>换一个排版</button>}
     </div>}
+    <div className={`mt-3 grid gap-2 ${isTextShot ? "" : "grid-cols-2"}`}>
+      {!isTextShot && <ShelfPicker label="运镜" value={shot.motion} locked={!!shot.motionLocked} options={cameraCatalog} onAuto={() => shotUpdate(store, shot.id, (s) => ({ ...s, motionLocked: undefined }))} onChange={(motion) => shotUpdate(store, shot.id, (s) => ({ ...s, motion: motion as Motion, motionLocked: true }))} />}
+      <ShelfPicker label="转场" value={timed?.transitionIn ?? shot.transitionIn ?? "cut"} locked={!!shot.transitionLocked} options={transitionCatalog} onAuto={() => shotUpdate(store, shot.id, (s) => ({ ...s, transitionIn: undefined, transitionLocked: undefined }))} onChange={(transitionIn) => shotUpdate(store, shot.id, (s) => ({ ...s, transitionIn: transitionIn as TransitionIn, transitionLocked: true }))} />
+    </div>
     <details className="mt-3 border-t border-white/10 pt-2 text-xs text-white/50">
       <summary className="cursor-pointer">高级</summary>
       <div className="mt-2 grid gap-2">
@@ -509,8 +543,6 @@ function ShotCard({ shot, timed, timeline, index, lineIndex, lineIds, estimated,
           focusText: v === "motion" ? (focus ?? { text: timed?.keywords[0] ?? "重点", layoutMode: "auto" }) : undefined,
           card: v === "motion" ? undefined : s.card, onScreenText: v === "motion" ? undefined : s.onScreenText,
         }))} aria-label="表达方式"><option value="generate">生成画面</option><option value="motion">重点文字</option><option value="composite">画面 + 动画层</option><option value="real">真实素材</option></Select>
-        {!isTextShot && <Select value={shot.motion} onChange={(v) => shotUpdate(store, shot.id, (s) => ({ ...s, motion: v as Shot["motion"] }))} aria-label="运镜"><option value="zoom-in">推进</option><option value="zoom-out">拉远</option><option value="pan-left">左移</option><option value="pan-right">右移</option><option value="none">静止</option></Select>}
-        <Select value={shot.transitionIn ?? "cut"} onChange={(v) => shotUpdate(store, shot.id, (s) => ({ ...s, transitionIn: v as NonNullable<Shot["transitionIn"]> }))} aria-label="转场"><option value="cut">切镜</option><option value="fade">淡入</option><option value="wipe">擦除</option><option value="whip">甩镜</option><option value="push">推入</option><option value="dissolve">溶解</option></Select>
         {!isTextShot && <Select value={shot.shotSize ?? "medium"} onChange={(v) => shotUpdate(store, shot.id, (s) => ({ ...s, shotSize: v as Shot["shotSize"] }))} aria-label="景别">{shotSizes.map((size) => <option key={size} value={size}>{shotSizeLabels[size]}</option>)}</Select>}
         {wantsImage && <><AutoTextarea value={shot.prompt ?? ""} onChange={(e) => shotUpdate(store, shot.id, (s) => ({ ...s, prompt: e.target.value || undefined }))} className="input min-h-12 text-xs" placeholder="自定义画面内容" /><input className="input h-8 py-1.5 text-xs" type="number" min={0} value={shot.seed ?? ""} onChange={(e) => shotUpdate(store, shot.id, (s) => ({ ...s, seed: e.target.value === "" ? undefined : Number(e.target.value) }))} placeholder="seed" />{store.doc && store.doc.characters.some((c) => !c.absent) && <div className="space-y-1"><p className="text-[11px] text-white/40">画面里的角色（最多 {MAX_SHOT_CHARACTERS} 个）</p><div className="flex flex-wrap gap-1.5">{store.doc.characters.filter((c) => !c.absent || shot.characterIds.includes(c.id)).map((c) => { const on = shot.characterIds.includes(c.id); return <button key={c.id} type="button" className={`chip h-7 px-2.5 ${on ? "chip-on" : ""}`} disabled={!on && shot.characterIds.length >= MAX_SHOT_CHARACTERS} onClick={() => shotUpdate(store, shot.id, (s) => ({ ...s, characterIds: on ? s.characterIds.filter((x) => x !== c.id) : [...s.characterIds, c.id] }))}>{c.name}</button>; })}</div></div>}{compiled && <PromptSlots compiled={compiled} />}</>}
       </div>
@@ -526,7 +558,8 @@ function shotExpression(shot: Shot, timed: TimelineShot | undefined) {
     return `重点文字 · ${focus?.text ?? "待填写"} · ${focus?.presetId ? focusPresetLabels[focus.presetId] : "智能匹配"}`;
   }
   if (shot.mode === "composite") return `复合画面 · 两层视差${shot.shotSize ? ` · ${shotSizeLabels[shot.shotSize]}` : ""}`;
-  return `生成画面${shot.shotSize ? ` · ${shotSizeLabels[shot.shotSize]}` : ""}`;
+  const move = cameraById(shot.motion)?.name;
+  return `生成画面${move ? ` · ${move}` : ""}${shot.shotSize ? ` · ${shotSizeLabels[shot.shotSize]}` : ""}`;
 }
 
 /** 编译后发给生图模型的提示词，按槽位展示 */

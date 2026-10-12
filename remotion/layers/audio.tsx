@@ -22,6 +22,7 @@ export function AudioLayer({ t }: { t: Timeline }) {
               src={m.src}
               loop={m.loop}
               trimBefore={f(m.offsetMs, fps)}
+              pauseWhenBuffering
               loopVolumeCurveBehavior="extend"
               volume={(frame) => {
                 const local = (frame / fps) * 1000;
@@ -32,7 +33,7 @@ export function AudioLayer({ t }: { t: Timeline }) {
         );
       })}
       {t.sfx.map((s, k) => (
-        <Sequence key={`s-${k}`} from={f(s.atMs, fps)} durationInFrames={f(1500, fps)} name="音效" layout="none">
+        <Sequence key={`s-${k}`} from={f(s.atMs, fps)} durationInFrames={Math.max(1, f(s.durationMs, fps))} name="音效" layout="none">
           <Html5Audio src={s.src} volume={s.gain} />
         </Sequence>
       ))}

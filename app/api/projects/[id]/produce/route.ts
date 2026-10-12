@@ -1,14 +1,16 @@
 import { z } from "zod";
 import { fail, handle, parseBody } from "@/lib/api";
+import { outputSpecsFor } from "@/lib/core/output-spec";
 import { aspects } from "@/lib/core/types";
 import { cancelProjectJobs, cancelProjectJobsByGoal, projectJobs } from "@/lib/server/jobs";
 import { getProject } from "@/lib/server/projects";
 import { drive, getGoal, produce, setGoal } from "@/lib/pipeline/plan";
 
 const goalSchema = z.object({
-  until: z.enum(["preview", "render"]),
+  until: z.enum(["preview", "compose", "render"]),
   aspects: z.array(z.enum(aspects)).min(1),
   quality: z.enum(["draft", "final"]),
+  forceRender: z.boolean().optional(),
 });
 
 /** 查看计划和自动推进状态 */
@@ -20,8 +22,8 @@ export async function GET(req: Request, ctx: RouteContext<"/api/projects/[id]/pr
     const url = new URL(req.url);
     const goal = getGoal(id);
     const g = goal?.goal ?? {
-      until: (url.searchParams.get("until") as "preview" | "render") ?? (p.doc.settings.pauseAfterPreview ? "preview" : "render"),
-      aspects: p.doc.settings.aspects,
+      until: (url.searchParams.get("until") as "preview" | "render") ?? "render",
+      aspects: outputSpecsFor(p.doc.settings).map((spec) => spec.aspect),
       quality: (url.searchParams.get("quality") as "draft" | "final") ?? "final",
     };
     const r = produce(id, g, { dryRun: true, goalId: goal?.goal.goalId });

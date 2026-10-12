@@ -1,4 +1,4 @@
-import { promises as fs } from "fs";
+import { promises as fs, readFileSync } from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
 import { styleTemplateSchema, type StyleTemplate, type TemplateInput } from "../types";
@@ -26,6 +26,21 @@ export async function listTemplates() {
 
 export async function getTemplate(id: string) {
   return (await listTemplates()).find((t) => t.id === id);
+}
+
+function readCustomSync(): StyleTemplate[] {
+  try {
+    return styleTemplateSchema.array().parse(JSON.parse(readFileSync(file, "utf8")));
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw e;
+  }
+}
+
+/** 全片说明用的风格名、说明和语气。规划阶段是同步的，所以这里直接读文件。 */
+export function templateForDirection(id: string) {
+  const found = builtinTemplates.find((template) => template.id === id) ?? readCustomSync().find((template) => template.id === id);
+  return found ? { name: found.name, description: found.description, tone: found.tone } : undefined;
 }
 
 export async function createTemplate(input: TemplateInput) {

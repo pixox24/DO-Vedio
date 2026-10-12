@@ -14,9 +14,15 @@ import { StudioStatusBar } from "@/components/studio-status-bar";
 import { VisualStylePanel } from "@/components/visual-style-panel";
 import { CastPanel } from "@/components/cast-panel";
 import { Icon, SegmentedControl, Spinner } from "@/components/ui";
+import { useFinalCatchUp, type CatchUpResponse } from "@/components/studio/use-final-catch-up";
 import { postJson, useProject, useProjectEvents, useVoiceChange } from "@/lib/client";
-import type { Timeline } from "@/lib/core/timeline";
-import { isTtsStage, RENDER_OUTPUT_VERSION } from "@/lib/core/keys";
+import { isCatchUpInput } from "@/lib/core/catch-up";
+import { applyLiveTimeline, presentationSignature, timelineStructureKey } from "@/lib/core/live-timeline";
+import { subtitleTranslateUnits } from "@/lib/core/subtitle/translate-plan";
+import type { MusicSource, Timeline } from "@/lib/core/timeline";
+import { isTtsStage } from "@/lib/core/keys";
+import { outputReadiness, renderBadge, visibleRenders, type ExportFile } from "@/lib/core/output-flow";
+import { storyboardImageHint, voiceDirectionHint, type StepHint } from "@/lib/core/step-status";
 import { mediaUrl, type Aspect, type ProjectDoc, type VoiceSettings } from "@/lib/core/types";
 import { outputSpecsFor } from "@/lib/core/output-spec";
 import { subtitlePresetMeta } from "@/lib/core/subtitle/presets";
@@ -34,21 +40,41 @@ const Preview = dynamic(() => import("@/components/video-preview").then((m) => m
 
 const steps = [
   { stage: "annotate", label: "断句标注" },
+  { stage: "voice-direction", label: "配音口吻", indeterminate: true },
   { stage: "tts", stages: ["tts", "tts-block"], label: "配音" },
-  { stage: "cast", label: "识别角色" },
-  { stage: "storyboard", label: "分镜" },
+  { stage: "cast", label: "识别角色", indeterminate: true },
+  { stage: "storyboard", label: "分镜", indeterminate: true },
   { stage: "render", label: "渲染" },
 ];
 
-type Render = { id: string; aspect: Aspect; quality: string; timelineHash: string; contentHash?: string; animationHash?: string; videoHash: string; srtHash: string | null; durationMs: number; loudness: number | null; createdAt: number; outputVersion?: number };
+function produceSteps(bilingual: boolean) {
+  if (!bilingual) return steps;
+  const renderAt = steps.findIndex((step) => step.stage === "render");
+  return [...steps.slice(0, renderAt), { stage: "subtitle-translate", label: "翻译" }, ...steps.slice(renderAt)];
+}
+
+function stepHints(doc: ProjectDoc, jobs: { stage: string; status: string }[], storyboardPending: boolean): Record<string, StepHint> {
+  const hints: Record<string, StepHint> = {};
+  const voice = voiceDirectionHint(doc.settings.voice, jobs.some((job) => job.stage === "voice-direction" && job.status === "succeeded"));
+  if (voice) hints["voice-direction"] = voice;
+  if (!storyboardPending) {
+    const generating = jobs.some((job) => job.stage === "shot-generate" && (job.status === "queued" || job.status === "running"));
+    const image = storyboardImageHint(doc, generating);
+    if (image) hints.storyboard = image;
+  }
+  if (doc.settings.subtitle.bilingual && subtitleTranslateUnits(doc.lines).length === 0) hints["subtitle-translate"] = { tone: "done", message: "已齐" };
+  return hints;
+}
+
+type Render = { id: string; aspect: Aspect; quality: string; timelineHash: string; contentHash?: string; animationHash?: string; videoHash: string; srtHash: string | null; durationMs: number; loudness: number | null; createdAt: number; outputVersion?: number; origin?: "manual" | "catch-up" };
 type TimelineHashes = { contentHash: string; animationHash: string; timelineHash: string };
 type PlanInfo = { plan: { steps: { stage: string; key: string; target: string; cost: number }[]; currentKeys: string[]; waiting: string[]; costYuan: number; ready: { preview: boolean } }; goal: { goal: { goalId?: string }; blocked: string | null } | null; blocked?: string; spentYuan: number };
 type Panel = "sentences" | "style" | "cast" | "storyboard" | "subtitle" | "music" | "settings" | "voice";
 
 const panelGroups: { label: string; items: Panel[] }[] = [
-  { label: "", items: ["settings", "voice"] },
+  { label: "", items: ["settings", "voice", "style"] },
   { label: "内容", items: ["sentences", "cast", "storyboard"] },
-  { label: "画面", items: ["style", "subtitle", "music"] },
+  { label: "画面", items: ["subtitle", "music"] },
 ];
 const allPanels = panelGroups.flatMap((group) => group.items);
 
@@ -194,12 +220,14 @@ export function VideoStudio({ id }: { id: string }) {
   const [voiceDraft, setVoiceDraft] = useState<VoiceSettings | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [startQuality, setStartQuality] = useState<"draft" | "final" | null>(null);
   const [stopBusy, setStopBusy] = useState(false);
   const [setupConfirmed, setSetupConfirmed] = useState(false);
   const [refreshError, setRefreshError] = useState("");
   const [panel, setPanel] = useState<Panel>("sentences");
+  const [previewPlaying, setPreviewPlaying] = useState(false);
+  const [musicTracks, setMusicTracks] = useState<MusicSource[]>([]);
   const previewRef = useRef<VideoPreviewHandle>(null);
+  const onPreviewPlaying = useCallback((playing: boolean) => setPreviewPlaying(playing), []);
   const { confirm } = useFeedback();
   const changePanel = useCallback((next: Panel) => {
     setPanel(next);
@@ -226,6 +254,8 @@ export function VideoStudio({ id }: { id: string }) {
 
   /** 上一次的 timeline hash，用于判断「内容真的变了」才做播放补偿 */
   const lastHashRef = useRef<Partial<Record<Aspect, string>>>({});
+  /** 旁白和镜头没变时，字幕或配乐刷新不能把播放头拽回去 */
+  const structureRef = useRef<Partial<Record<Aspect, string>>>({});
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshInflight = useRef(false);
   const refreshRequestId = useRef(0);
@@ -257,15 +287,19 @@ export function VideoStudio({ id }: { id: string }) {
       animationHash: t.animationHash ?? "",
       timelineHash: t.timelineHash ?? t.hash ?? "",
     };
-    setTimelineHashes((current) => ({ ...current, [requestAspect]: nextHashes }));
+    if (t.hashes && typeof t.hashes === "object") setTimelineHashes(t.hashes);
+    else setTimelineHashes((current) => ({ ...current, [requestAspect]: nextHashes }));
     setRenders(Array.isArray(r) ? r : []);
     setPlan(p);
     setRefreshError("");
     // 只有时间轴内容真的变了才做 seek 补偿。无条件补偿是预览跳帧的来源之一：
     // 每次刷新都会把播放位置跳回去，用户感觉像卡了一下。
     const changed = lastHashRef.current[requestAspect] !== nextHashes.timelineHash;
+    const nextStructure = t.timeline ? timelineStructureKey(t.timeline) : "";
+    const structureChanged = structureRef.current[requestAspect] !== nextStructure;
     lastHashRef.current = { ...lastHashRef.current, [requestAspect]: nextHashes.timelineHash };
-    if (playback && changed) {
+    structureRef.current = { ...structureRef.current, [requestAspect]: nextStructure };
+    if (playback && changed && structureChanged) {
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           previewRef.current?.seekToMs(playback.currentMs);
@@ -328,9 +362,34 @@ export function VideoStudio({ id }: { id: string }) {
   useEffect(() => {
     void runRefresh();
   }, [runRefresh]);
+  const docSigSeen = useRef(false);
+  const flushDoc = store.flush;
   useEffect(() => {
-    if (docSig) scheduleRefresh(true);
-  }, [docSig, scheduleRefresh]);
+    if (!docSig) return;
+    if (!docSigSeen.current) {
+      docSigSeen.current = true;
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void (async () => {
+        await flushDoc();
+        if (!cancelled) await runRefreshRef.current?.(true);
+      })();
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [docSig, flushDoc]);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/library/music", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() as Promise<{ tracks?: MusicSource[] }> : { tracks: [] })
+      .then((data) => { if (!cancelled) setMusicTracks(data.tracks ?? []); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [id]);
   useEffect(() => {
     if (!store.doc) return;
     const targets = outputSpecsFor(store.doc.settings).map((spec) => spec.aspect);
@@ -351,16 +410,16 @@ export function VideoStudio({ id }: { id: string }) {
   }, [id]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  // 渲染任务完成时刷新成片列表
+  // 渲染任务完成时刷新成片列表。走节流刷新，避免在 effect 里同步改状态。
   const doneRenders = [...jobs.values()].filter((j) => j.stage === "render" && j.status === "succeeded").length;
   useEffect(() => {
-    if (doneRenders) void runRefresh();
-  }, [doneRenders, runRefresh]);
+    if (doneRenders) scheduleRefresh(true);
+  }, [doneRenders, scheduleRefresh]);
 
-  async function start(quality: "draft" | "final", confirmBudget = false) {
+  async function start(options: { force?: boolean; confirmBudget?: boolean; until?: "compose" | "render" } = {}) {
     if (!store.doc) return;
-    const legacyActive = jobList.filter((job) => !currentKeys.has(job.key) && (job.status === "queued" || job.status === "running"));
-    if (legacyActive.length > 0 && !confirmBudget) {
+    const legacyActive = jobList.filter((job) => !isCatchUpInput(job.input) && !currentKeys.has(job.key) && (job.status === "queued" || job.status === "running"));
+    if (legacyActive.length > 0 && !options.confirmBudget) {
       const allowed = await confirm({
         title: "上一轮还有任务在运行",
         message: `检测到 ${legacyActive.length} 个旧版本或独立任务仍在排队。继续制作会开启新的目标，旧任务不会被自动取消。`,
@@ -370,14 +429,14 @@ export function VideoStudio({ id }: { id: string }) {
       if (!allowed) return;
     }
     setBusy(true);
-    setStartQuality(quality);
     setError("");
     try {
       if ((await store.flush()) == null) throw new Error("项目设置保存失败，请重试");
-      const r = await postJson<PlanInfo>(`/api/projects/${id}/produce`, { action: "start", confirmBudget, goal: { until: quality === "draft" ? "render" : store.doc.settings.pauseAfterPreview ? "preview" : "render", aspects: outputSpecsFor(store.doc.settings).map((spec) => spec.aspect), quality } });
+      const until = options.until ?? "render";
+      const r = await postJson<PlanInfo>(`/api/projects/${id}/produce`, { action: "start", confirmBudget: options.confirmBudget, goal: { until, aspects: outputSpecsFor(store.doc.settings).map((spec) => spec.aspect), quality: "final", ...(options.force && until === "render" ? { forceRender: true } : {}) } });
       if (r.blocked) {
         const allowed = await confirm({ title: "预计会超出项目预算", message: r.blocked, confirmLabel: "仍要继续", tone: "danger", bullets: ["预计费用：本次计划可能超过项目预算。", "影响范围：会继续提交当前制作目标中的待处理任务。", "可恢复：排队中的任务仍可停止，已接单请求可能计费。"] });
-        if (allowed) await start(quality, true);
+        if (allowed) await start({ ...options, confirmBudget: true });
       }
       await runRefresh();
     } catch (e) {
@@ -405,6 +464,7 @@ export function VideoStudio({ id }: { id: string }) {
     try {
       if (store.doc) sessionStorage.setItem(`do-vedio:setup-confirmed:${id}`, setupFingerprintForDoc(store.doc));
     } catch {}
+    void start({ until: "compose" });
   }
 
   function selectPreview(value: Aspect) {
@@ -417,6 +477,11 @@ export function VideoStudio({ id }: { id: string }) {
     if (line) previewRef.current?.seekToMs(line.startMs);
   }
 
+  const presentationSig = useMemo(() => store.doc ? presentationSignature(store.doc) : "", [store.doc]);
+  const hasFinal = renders.some((render) => render.quality === "final");
+  const catchUp = useFinalCatchUp({ id, enabled: setupConfirmed && hasFinal, signature: presentationSig, playing: previewPlaying, flush: store.flush });
+  const previewTimeline = useMemo(() => (timeline && store.doc ? applyLiveTimeline(timeline, store.doc, musicTracks) : null), [timeline, store.doc, musicTracks]);
+
   if (store.loadError) return <p className="pt-16 text-center text-sm text-red-300/80">{store.loadError}</p>;
   if (!store.doc) return <p className="flex justify-center pt-24 text-white/40"><Spinner /></p>;
   const doc = store.doc;
@@ -425,17 +490,78 @@ export function VideoStudio({ id }: { id: string }) {
   const jobList = [...jobs.values()].filter((job) => job.projectId === id);
   const currentKeys = new Set(plan?.plan.currentKeys ?? []);
   const currentGoalId = plan?.goal?.goal.goalId;
+  // 后台追成片不进制作进度，也不当成上一轮还在跑的旧任务。
+  const studioJobs = jobList.filter((job) => !isCatchUpInput(job.input));
   const currentJobs = plan
-    ? jobList.filter((job) => currentKeys.has(job.key) || job.status === "queued" || job.status === "running" || job.status === "failed")
-    : jobList;
+    ? studioJobs.filter((job) => currentKeys.has(job.key) || job.status === "queued" || job.status === "running" || job.status === "failed")
+    : studioJobs;
   const legacyActiveJobs = currentJobs.filter((job) => !currentKeys.has(job.key) && (job.status === "queued" || job.status === "running"));
-  const running = currentJobs.some((j) => currentKeys.has(j.key) && (j.status === "queued" || j.status === "running") && (!currentGoalId || jobBelongsToGoal(j, currentGoalId)));
+  const catchUpActive = jobList.some((job) => isCatchUpInput(job.input) && (job.status === "queued" || job.status === "running"));
+  const running = currentJobs.some((j) => !isCatchUpInput(j.input) && currentKeys.has(j.key) && (j.status === "queued" || j.status === "running") && (!currentGoalId || jobBelongsToGoal(j, currentGoalId)));
   const blocked = plan?.goal?.blocked;
-  /**
-   * 有成片、但没有任何一条与当前时间轴一致 → 内容或动画改动过，成片已过期。
-   * 原来这个信息只藏在成片列表的徽章里，用户不会联想到是自己刚才改了描述或镜头。
-   */
-  const staleRender = (Object.fromEntries((Object.keys(timelineHashes) as Aspect[]).map((outputAspect) => [outputAspect, renders.filter((render) => render.aspect === outputAspect).length > 0 && !renders.some((render) => render.aspect === outputAspect && isRenderFresh(render, timelineHashes[outputAspect]))])) as Partial<Record<Aspect, boolean>>);
+  const outputAspects = outputSpecs.map((spec) => spec.aspect);
+  const listedRenders = visibleRenders(renders, timelineHashes);
+  const readiness = outputReadiness(outputAspects, listedRenders, timelineHashes);
+  const finalsByAspect = outputAspects.filter((outputAspect) => renders.some((render) => render.aspect === outputAspect && render.quality === "final"));
+  const renderStale: Partial<Record<Aspect, boolean>> | undefined = readiness.phase === "fresh" || readiness.phase === "stale"
+    ? Object.fromEntries(finalsByAspect.map((outputAspect) => [outputAspect, readiness.phase === "stale" && readiness.staleAspects.includes(outputAspect)]))
+    : undefined;
+  const produceLabel = readiness.phase === "fresh" ? "再次生成" : readiness.phase === "stale" || renders.some((render) => render.quality === "final") ? "更新成片" : "生成成片";
+  const produceCost = (plan?.plan.costYuan ?? 0).toFixed(2);
+  async function requestProduce() {
+    if (readiness.phase === "fresh") {
+      const cost = plan?.plan.costYuan ?? 0;
+      const again = await confirm({
+        title: "当前成片已是最新",
+        message: "没有需要重新渲染的改动。",
+        confirmLabel: "仍然重新渲染",
+        cancelLabel: "取消",
+        bullets: [
+          cost > 0 ? `预计费用：重新渲染不另计渲染费；当前计划里还有约 ¥${cost.toFixed(2)} 的未完成步骤。` : "预计费用：重新渲染不产生服务商费用。",
+          "影响范围：再生成一份成片，上一版仍可下载。",
+          "可恢复：旧文件不会被删除。",
+        ],
+      });
+      if (!again) return;
+      await start({ force: true });
+      return;
+    }
+    await start();
+  }
+  async function exportChosen(files: ExportFile[]) {
+    if (files.length === 0) return;
+    const aspects = files.map((file) => file.aspect);
+    if (!files.some((file) => file.stale)) {
+      downloadExport(files, doc.brief.title);
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const result = await catchUp.startNow();
+      if (result.action === "canceled") return;
+      if (result.action === "skipped") {
+        const allowed = await confirm({
+          title: "导出上一版成片？",
+          message: result.reason === "制作进行中" ? "制作还在进行，现在只能导出上一版文件。" : "画面还有别的改动，现在只能导出上一版文件。要新的成片，请点「更新成片」。",
+          confirmLabel: "仍要导出上一版",
+          cancelLabel: "取消",
+          bullets: ["预计费用：导出不产生服务商费用。", "影响范围：下载已有文件，不会开始渲染。", "可恢复：不改变项目和成片列表。"],
+        });
+        if (allowed) downloadExport(files, doc.brief.title);
+        return;
+      }
+      await waitForRenderJobs(result);
+      await runRefresh();
+      const fresh = await fetchExportFiles(id, aspect, outputAspects, aspects);
+      if (fresh.some((file) => file.stale) || fresh.length === 0) throw new Error("成片还没跟上当前画面");
+      downloadExport(fresh, doc.brief.title);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "导出失败");
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <div className="min-w-0 space-y-6 pt-8">
       <ProjectBar id={id} store={store} title={doc.brief.title} active="video" />
@@ -452,23 +578,33 @@ export function VideoStudio({ id }: { id: string }) {
 
       {hasScript && (
         <>
-          {!setupConfirmed && <SetupConfirm doc={doc} onOpen={changePanel} onConfirm={confirmSetup} />}
+          {!setupConfirmed && <SetupConfirm doc={doc} costYuan={plan ? plan.plan.costYuan : null} onOpen={changePanel} onConfirm={confirmSetup} />}
 
           {setupConfirmed && (
-            <div className="panel relative overflow-hidden">
+            <div className="panel relative">
               {running && <span aria-hidden className="action-shimmer pointer-events-none absolute inset-0 overflow-hidden" />}
               <div className="relative flex flex-wrap items-center justify-between gap-3 px-4 pb-3 pt-4 sm:px-5">
                 <div className="flex flex-wrap items-center gap-2">
-                  <button className="btn btn-primary" disabled={busy || running} onClick={() => start("final")}>
-                    {startQuality === "final" && (busy || running) ? <Spinner className="size-3.5" /> : <Icon name="sparkle" className="size-4" />} 生成成片 · 约 ¥{(plan?.plan.costYuan ?? 0).toFixed(2)}
-                  </button>
-                  <button className="btn btn-ghost" disabled={busy || running} onClick={() => start("draft")}>
-                    {startQuality === "draft" && (busy || running) ? <Spinner className="size-3.5" /> : <Icon name="wand" className="size-3.5" />} 生成样片
-                  </button>
+                  {readiness.phase === "fresh" ? (
+                    <>
+                      <ExportControl files={readiness.files} primary disabled={busy || running} onExport={(files) => void exportChosen(files)} />
+                      <button className="btn btn-ghost" disabled={busy || running} onClick={() => void requestProduce()}>
+                        {busy ? <Spinner className="size-3.5" /> : <Icon name="sparkle" className="size-4" />} 再次生成
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button className="btn btn-primary" disabled={busy || running} onClick={() => void requestProduce()}>
+                        {busy ? <Spinner className="size-3.5" /> : <Icon name="sparkle" className="size-4" />} {produceLabel} · 约 ¥{produceCost}
+                      </button>
+                      <ExportControl files={readiness.files} disabled={busy || running || readiness.files.length === 0} title={readiness.files.length === 0 ? "先生成成片" : undefined} onExport={(files) => void exportChosen(files)} />
+                    </>
+                  )}
                   {running && <button className="btn btn-ghost animate-stop-in border-danger-border text-danger hover:text-red-100" disabled={stopBusy} onClick={stop}>{stopBusy ? <Spinner className="size-3.5" /> : <Icon name="stop" className="size-3.5" />} 停止</button>}
                 </div>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-white/50">
-                  <span>样片与成片都按当前输出规格渲染完整时长</span>
+                  <span>{catchUpActive ? "成片在跟上" : readiness.phase === "fresh" ? "成片已跟上" : readiness.status}</span>
+                  {catchUp.error && <span className="text-amber-200/85">{catchUp.error}</span>}
                   <span className="text-text-muted">已花费 <span className="tabular-nums text-text-secondary">¥{spend.toFixed(2)}</span></span>
                 </div>
               </div>
@@ -484,22 +620,29 @@ export function VideoStudio({ id }: { id: string }) {
 
           <StudioStatusBar
             voice={voiceChange && voiceChange.status === "pending" ? { ready: voiceChange.ready, total: voiceChange.total, failed: voiceChange.failed, onOpen: () => changePanel("voice") } : null}
-            renderStale={staleRender}
+            renderStale={renderStale}
+            renderFollow={catchUpActive ? "running" : readiness.phase === "fresh" ? "fresh" : null}
             spend={spend}
             online={online}
           />
           {legacyActiveJobs.length > 0 && <p className="rounded-xl border border-amber-300/20 bg-amber-300/[0.04] px-4 py-2 text-xs text-amber-100/75">仍有 {legacyActiveJobs.length} 个旧版本或独立任务在运行；停止当前制作不会取消它们。</p>}
-          <JobStrip steps={steps} jobs={currentJobs} currentKeys={currentKeys} confirm={confirm} />
+          <JobStrip
+            steps={produceSteps(doc.settings.subtitle.bilingual)}
+            jobs={currentJobs}
+            hints={stepHints(doc, studioJobs, plan?.plan.steps.some((step) => step.stage === "storyboard") ?? false)}
+            currentKeys={currentKeys}
+            confirm={confirm}
+          />
           {blocked && <p className="text-sm text-amber-200/80">已暂停：{blocked}</p>}
           {!running && !blocked && plan && plan.plan.waiting.length > 0 && <p className="text-xs text-white/50">{plan.plan.waiting.join(" · ")}</p>}
 
           <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)] lg:items-start">
             <div className="min-w-0 space-y-3 lg:sticky lg:top-24">
               <div className={aspect === "9:16" ? "mx-auto w-full max-w-[420px]" : "w-full"}>
-                {timeline ? <Preview ref={previewRef} timeline={timeline} /> : <div className={`grid ${aspect === "9:16" ? "aspect-[9/16] max-h-[70vh]" : "aspect-[16/9]"} place-items-center rounded-2xl bg-white/[0.03] text-sm text-white/35`}>正在加载预览…</div>}
-                {timeline?.issues.filter((item) => item.level === "warn" || !item.message.includes("使用共享素材")).map((item, index) => <p key={index} role={item.level === "warn" ? "alert" : undefined} className={`mt-2 text-xs ${item.level === "warn" ? "text-amber-200/85" : "text-white/50"}`}>{item.level === "warn" ? "⚠ " : ""}{item.message}</p>)}
+                {previewTimeline ? <Preview ref={previewRef} timeline={previewTimeline} onPlayingChange={onPreviewPlaying} /> : <div className={`grid ${aspect === "9:16" ? "aspect-[9/16] max-h-[70vh]" : "aspect-[16/9]"} place-items-center rounded-2xl bg-white/[0.03] text-sm text-white/35`}>正在加载预览…</div>}
+                {previewTimeline?.issues.filter((item) => item.level === "warn" || !item.message.includes("使用共享素材")).map((item, index) => <p key={index} role={item.level === "warn" ? "alert" : undefined} className={`mt-2 text-xs ${item.level === "warn" ? "text-amber-200/85" : "text-white/50"}`}>{item.level === "warn" ? "⚠ " : ""}{item.message}</p>)}
               </div>
-              {timeline && <TimelineStrip timeline={timeline} onSeek={(ms) => previewRef.current?.seekToMs(ms)} />}
+              {previewTimeline && <TimelineStrip timeline={previewTimeline} onSeek={(ms) => previewRef.current?.seekToMs(ms)} />}
             </div>
             <div className="min-w-0">
               {/*
@@ -546,11 +689,42 @@ export function VideoStudio({ id }: { id: string }) {
             </div>
           </div>
 
-          <RenderList renders={renders} timelineHashes={timelineHashes} title={doc.brief.title} onRegenerate={setupConfirmed ? (render) => { selectPreview(render.aspect); void start(render.quality === "final" ? "final" : "draft"); } : undefined} />
+          <RenderList renders={listedRenders} timelineHashes={timelineHashes} title={doc.brief.title} onRegenerate={setupConfirmed ? (render) => { selectPreview(render.aspect); void requestProduce(); } : undefined} />
         </>
       )}
     </div>
   );
+}
+
+async function fetchExportFiles(id: string, previewAspect: Aspect, outputAspects: readonly Aspect[], wanted: readonly Aspect[]): Promise<ExportFile[]> {
+  const [timelineBody, renderBody] = await Promise.all([
+    fetch(`/api/projects/${id}/timeline?aspect=${encodeURIComponent(previewAspect)}`, { cache: "no-store" }).then((response) => { if (!response.ok) throw new Error("成片状态刷新失败"); return response.json() as Promise<{ hashes?: Partial<Record<Aspect, TimelineHashes>> }>; }),
+    fetch(`/api/projects/${id}/renders`, { cache: "no-store" }).then((response) => { if (!response.ok) throw new Error("成片状态刷新失败"); return response.json() as Promise<Render[]>; }),
+  ]);
+  const hashes = timelineBody.hashes ?? {};
+  const files = outputReadiness(outputAspects, visibleRenders(renderBody, hashes), hashes).files;
+  return wanted.length ? files.filter((file) => wanted.includes(file.aspect)) : files;
+}
+
+async function waitForRenderJobs(result: CatchUpResponse) {
+  const ids = result.jobs?.map((job) => job.id) ?? [];
+  if (result.action !== "started" && result.action !== "running") return;
+  if (ids.length === 0) return;
+  const deadline = Date.now() + 15 * 60_000;
+  while (Date.now() < deadline) {
+    const jobs = await Promise.all(ids.map(async (jobId) => {
+      const response = await fetch(`/api/jobs/${jobId}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("成片更新状态读取失败");
+      return response.json() as Promise<{ status: string; error?: string | null }>;
+    }));
+    if (jobs.some((job) => job.status === "failed")) throw new Error(jobs.find((job) => job.status === "failed")?.error || "成片没有跟上");
+    if (jobs.every((job) => job.status === "succeeded" || job.status === "canceled")) {
+      if (jobs.some((job) => job.status === "canceled")) throw new Error("成片更新已取消");
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  throw new Error("成片更新超时");
 }
 
 const panelLabels: Record<Panel, string> = { sentences: "句子", style: "画面风格", cast: "角色", storyboard: "镜头", subtitle: "字幕", music: "配乐", settings: "设置", voice: "语音" };
@@ -610,7 +784,7 @@ function useVoiceLabel(voice: VoiceSettings) {
   return name ?? voice.voiceId;
 }
 
-function SetupConfirm({ doc, onOpen, onConfirm }: { doc: ProjectDoc; onOpen: (panel: Panel) => void; onConfirm: () => void }) {
+function SetupConfirm({ doc, costYuan, onOpen, onConfirm }: { doc: ProjectDoc; costYuan: number | null; onOpen: (panel: Panel) => void; onConfirm: () => void }) {
   const voiceName = useVoiceLabel(doc.settings.voice);
   const facts = setupFacts(doc, voiceName);
   const [sealed, setSealed] = useState(false);
@@ -636,14 +810,14 @@ function SetupConfirm({ doc, onOpen, onConfirm }: { doc: ProjectDoc; onOpen: (pa
         <div className="min-w-0">
           <h2 id="setup-confirm-title" className="text-sm font-medium text-text">开工确认</h2>
           <p className="mt-1 text-2xs text-text-faint">
-            确认后开始生成。任一项设置变动都会让确认失效，需要重新确认。
+            确认后开始断句、配音和分镜。成片需要再点生成。任一项设置变动都会让确认失效，需要重新确认。
           </p>
         </div>
         <div className="relative shrink-0">
           {sealed && <span aria-hidden className="pointer-events-none absolute inset-0 animate-seal-ring rounded-full border border-accent" />}
           <button className="btn btn-primary btn-sm" disabled={sealed} onClick={seal}>
             {sealed ? <Spinner className="size-3.5" /> : <Icon name="check" className="size-3.5" />}
-            {sealed ? "已确认" : "确认开工"}
+            {sealed ? "已确认" : costYuan == null ? "确认开工" : `确认开工 · 约 ¥${costYuan.toFixed(2)}`}
           </button>
         </div>
       </div>
@@ -680,31 +854,75 @@ function TimelineRow({ label, color, children }: { label: string; color: string;
   return <div className="flex items-center gap-2"><span className="w-10 shrink-0 text-[10px] text-white/40">{label}</span><div className="relative h-3 min-w-0 flex-1 rounded-sm bg-white/[0.05]">{children}</div><span className={`size-1.5 shrink-0 rounded-full ${color}`} /></div>;
 }
 
-function isRenderFresh(render: Render, current?: TimelineHashes) {
-  if (!current || render.outputVersion !== RENDER_OUTPUT_VERSION) return false;
-  if (render.animationHash) {
-    return current.contentHash === (render.contentHash ?? render.timelineHash) && current.animationHash === render.animationHash;
+function downloadAsset(hash: string, filename: string) {
+  const link = document.createElement("a");
+  link.href = `${mediaUrl(hash)}?download=${encodeURIComponent(filename)}`;
+  link.rel = "noopener";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+function downloadExport(files: readonly ExportFile[], title: string) {
+  const safe = (title || "成片").replace(/[\\/:*?"<>|]/g, " ").trim() || "成片";
+  for (const file of files) {
+    const aspect = file.aspect.replace(":", "x");
+    downloadAsset(file.videoHash, `${safe}-${aspect}.mp4`);
   }
-  return current.timelineHash === render.timelineHash;
+}
+
+function ExportControl({ files, primary = false, disabled = false, title, onExport }: { files: ExportFile[]; primary?: boolean; disabled?: boolean; title?: string; onExport: (files: ExportFile[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
+    window.addEventListener("mousedown", close);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", close);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+  const buttonClass = primary ? "btn btn-primary" : "btn btn-ghost";
+  if (files.length <= 1) {
+    return <button className={buttonClass} disabled={disabled || files.length === 0} title={title ?? (files.length === 0 ? "先生成成片" : undefined)} onClick={() => onExport(files)}><Icon name="download" className="size-3.5" /> 导出</button>;
+  }
+  return (
+    <div className="relative" ref={rootRef}>
+      <button className={buttonClass} disabled={disabled} aria-expanded={open} aria-haspopup="menu" title={title} onClick={() => setOpen((current) => !current)}><Icon name="download" className="size-3.5" /> 导出</button>
+      {open && (
+        <div role="menu" aria-label="选择导出的画幅" className="absolute left-0 z-30 mt-2 min-w-40 rounded-xl border border-white/10 bg-[#161616] p-1 shadow-xl">
+          {files.map((file) => (
+            <button key={file.aspect} type="button" role="menuitem" className="block w-full rounded-lg px-3 py-2 text-left text-sm text-white/80 hover:bg-white/[0.06]" onClick={() => { setOpen(false); onExport([file]); }}>
+              {file.aspect}
+            </button>
+          ))}
+          <button type="button" role="menuitem" className="block w-full rounded-lg px-3 py-2 text-left text-sm text-white/80 hover:bg-white/[0.06]" onClick={() => { setOpen(false); onExport(files); }}>全部</button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function RenderList({ renders, timelineHashes, title, onRegenerate }: { renders: Render[]; timelineHashes: Partial<Record<Aspect, TimelineHashes>>; title: string; onRegenerate?: (render: Render) => void }) {
   const [aspectFilter, setAspectFilter] = useState<"all" | Aspect>("all");
-  const [qualityFilter, setQualityFilter] = useState<"all" | "draft" | "final">("all");
   const [previewId, setPreviewId] = useState<string | null>(null);
-  const filtered = renders.filter((render) => (aspectFilter === "all" || render.aspect === aspectFilter) && (qualityFilter === "all" || render.quality === qualityFilter));
+  const filtered = renders.filter((render) => aspectFilter === "all" || render.aspect === aspectFilter);
+  const badgeClass = { 最新: "bg-accent/15 text-accent", 上一版: "bg-white/[0.07] text-white/50", 已过期: "bg-amber-300/10 text-amber-200/85" };
   return <section className="panel space-y-4 p-5">
-    <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="label">成片</p><p className="mt-1 text-xs text-white/40">按画幅和质量检查当前版本，过期版本仍可下载。</p></div><span className="text-xs text-white/35">{filtered.length}/{renders.length} 个版本</span></div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="label">成片</p><p className="mt-1 text-xs text-white/40">新生成的都是成片。改字幕或配乐后会自动更新，中间试出来的自动版本不保留。上一版和更早的样片仍可下载。</p></div><span className="text-xs text-white/35">{filtered.length}/{renders.length} 个版本</span></div>
     <div className="flex flex-wrap gap-2" aria-label="成片筛选">
       <select className="input h-8 w-auto min-w-24 py-1.5 text-xs" value={aspectFilter} onChange={(event) => setAspectFilter(event.target.value as typeof aspectFilter)}><option value="all">全部画幅</option><option value="16:9">16:9</option><option value="9:16">9:16</option></select>
-      <select className="input h-8 w-auto min-w-24 py-1.5 text-xs" value={qualityFilter} onChange={(event) => setQualityFilter(event.target.value as typeof qualityFilter)}><option value="all">全部质量</option><option value="final">成片</option><option value="draft">样片</option></select>
     </div>
     {renders.length === 0 ? <p className="text-sm text-white/45">还没有成片</p> : filtered.length === 0 ? <p className="text-sm text-white/45">没有符合筛选条件的版本</p> : filtered.map((render) => {
-      const fresh = isRenderFresh(render, timelineHashes[render.aspect]);
-      const latestFresh = fresh && !renders.some((other) => other.aspect === render.aspect && other.id !== render.id && other.createdAt > render.createdAt && isRenderFresh(other, timelineHashes[other.aspect]));
+      const badge = renderBadge(render, renders, timelineHashes);
       return <div key={render.id} className="space-y-2 border-t border-white/[0.05] pt-3 text-sm first:border-0 first:pt-0">
         <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-          <span className="min-w-0 truncate">{render.aspect} · {render.quality === "final" ? "成片" : "样片"}<span className="ml-2 text-xs text-white/40">{Math.round(render.durationMs / 1000)}s</span><span className={`ml-2 rounded-full px-2 py-0.5 text-[10px] ${latestFresh ? "bg-accent/15 text-accent" : fresh ? "bg-white/[0.07] text-white/50" : "bg-amber-300/10 text-amber-200/85"}`}>{latestFresh ? "最新" : fresh ? "当前版本" : "已过期"}</span></span>
+          <span className="min-w-0 truncate">{render.aspect} · {render.quality === "final" ? "成片" : "样片"}<span className="ml-2 text-xs text-white/40">{Math.round(render.durationMs / 1000)}s</span>{badge && <span className={`ml-2 rounded-full px-2 py-0.5 text-[10px] ${badgeClass[badge]}`}>{badge}</span>}</span>
           <span className="flex shrink-0 flex-wrap gap-1.5"><button className="chip" onClick={() => setPreviewId((current) => current === render.id ? null : render.id)}>{previewId === render.id ? "收起预览" : "预览"}</button>{onRegenerate && <button className="chip" onClick={() => onRegenerate(render)}>重新生成</button>}<a className="chip" href={`${mediaUrl(render.videoHash)}?download=${encodeURIComponent(`${title || "成片"}-${render.aspect.replace(":", "x")}.mp4`)}`}>下载 MP4</a>{render.srtHash && <a className="chip" href={`${mediaUrl(render.srtHash)}?download=${encodeURIComponent(`${title || "字幕"}-${render.aspect.replace(":", "x")}.srt`)}`}>SRT</a>}</span>
         </div>
         {previewId === render.id && <video className="aspect-video w-full rounded-xl border border-white/[0.08] bg-black object-contain" controls preload="metadata" src={mediaUrl(render.videoHash)} aria-label={`${render.aspect} ${render.quality === "final" ? "成片" : "样片"}预览`} />}

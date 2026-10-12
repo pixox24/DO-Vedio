@@ -45,7 +45,7 @@ export function normalizeAnimation(
   for (let i = 1; i < normalized.length; i++) {
     const previous = normalized[i - 1].transitionIn;
     const current = normalized[i].transitionIn;
-    if (current && previous === current && transitionKinds.has(current)) normalized[i] = { ...normalized[i], transitionIn: "cut" };
+    if (current && previous === current && transitionKinds.has(current) && !normalized[i].transitionLocked) normalized[i] = { ...normalized[i], transitionIn: "cut" };
   }
 
   // 十秒窗口内最多两个高强度镜头，超出的镜头逐级降档。

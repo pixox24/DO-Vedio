@@ -2,6 +2,8 @@
 
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { Alert, Button, Icon, Spinner } from "@/components/ui";
+import { useModels } from "@/lib/client";
+import { pickTextModelId } from "@/lib/core/text-model";
 import { useFeedback } from "@/components/feedback";
 import type { ProjectDoc } from "@/lib/core/types";
 import {
@@ -467,6 +469,7 @@ function FontSelect({
 export function SubtitlePanel({ doc, setDoc }: SubtitlePanelProps) {
   const config = doc.settings.subtitle;
   const { toast } = useFeedback();
+  const models = useModels();
   const [, setFontTick] = useState(0);
   const [fontPickerOpen, setFontPickerOpen] = useState(false);
   const [secondaryPickerOpen, setSecondaryPickerOpen] = useState(false);
@@ -549,9 +552,13 @@ export function SubtitlePanel({ doc, setDoc }: SubtitlePanelProps) {
 
   const handleBackfill = async () => {
     if (translating) return;
-    const modelId = doc.modelId || doc.settings.modelId;
+    if (!models) {
+      toast("文本模型还在加载，请稍后再试", "info");
+      return;
+    }
+    const modelId = pickTextModelId([doc.settings.modelId, doc.modelId], models);
     if (!modelId) {
-      toast("请先在「设置」里选择并启用一个文本模型，再生成翻译", "error");
+      toast("没有可用的文本模型，请先在模型中心配置并启用", "error");
       return;
     }
     abortRef.current?.abort();

@@ -13,7 +13,7 @@ import { Icon } from "./ui";
  *
  * 现在分三层：
  *   项目            —— 最高频，独占一项
- *   创作资源 ▾      —— 三个资源库，按「文案侧 / 画面侧」排列
+ *   创作资源 ▾      —— 文案、画面、动作
  *   设置 ▾          —— 低频配置与档案
  *
  * 分组用原生 <details>，无额外状态：键盘可达、Esc 关闭、点击外部关闭。
@@ -21,11 +21,12 @@ import { Icon } from "./ui";
 
 type NavItem = { href: string; label: string; hint: string; exact?: boolean };
 
-/** 创作资源：前两项影响文案，第三项影响画面 */
+/** 创作资源：前两项影响文案，后两项影响画面和动作 */
 const resourceItems: NavItem[] = [
   { href: "/templates", label: "解说风格", hint: "稿子怎么写、怎么念" },
   { href: "/memes", label: "梗库", hint: "近期流行梗与网感素材" },
   { href: "/styles", label: "画面风格", hint: "画面怎么画、配色与质感" },
+  { href: "/motions", label: "动画库", hint: "画面怎么动" },
 ];
 
 const settingItems: NavItem[] = [
@@ -62,12 +63,16 @@ export function Nav() {
     navRef.current?.querySelectorAll("details[open]").forEach((d) => d.removeAttribute("open"));
   }, [path]);
 
-  const projectsActive = path === "/" || path.startsWith("/projects");
+  // 首页是输入区，项目列表在 /projects；「项目」只指列表，首页不算在它名下
+  const projectsActive = path.startsWith("/projects");
 
   return (
     <nav ref={navRef} className="flex min-w-0 max-w-full flex-wrap items-center justify-center gap-1 rounded-full border border-hairline bg-white/[0.02] p-1">
-      <Link href="/" className={`nav-pill ${projectsActive ? "nav-pill-active" : ""}`}>
+      <Link href="/projects" className={`nav-pill ${projectsActive ? "nav-pill-active" : ""}`}>
         项目
+      </Link>
+      <Link href="/viral" className={`nav-pill ${isActive(path, "/viral") ? "nav-pill-active" : ""}`}>
+        爆款复创
       </Link>
 
       <NavGroup label="创作资源" items={resourceItems} path={path} />

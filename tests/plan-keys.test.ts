@@ -83,7 +83,7 @@ describe("计划中的段落配音任务键", () => {
     const { castSourceHash } = await import("@/lib/core/cast");
     const { RENDER_OUTPUT_VERSION } = await import("@/lib/core/keys");
     const { blankShot, stampShots } = await import("@/lib/core/shots");
-    const { contentHash } = await import("@/lib/core/timeline");
+    const { animationHash, contentHash, timelineHash } = await import("@/lib/core/timeline");
     const { lineTtsKeys, timelineFor } = await import("@/lib/pipeline/artifacts");
     const { planPipeline } = await import("@/lib/pipeline/plan");
     const { run } = await import("@/lib/server/db");
@@ -97,17 +97,47 @@ describe("计划中的段落配音任务键", () => {
       cachePut(item.key, "tts", { assetId: "test", speechStartMs: 0, speechEndMs: 1000, durationMs: 1000, chars: [], aligned: false, spokenChars: item.spoken.length });
     }
     const goal = { until: "render" as const, aspects: ["16:9" as const], quality: "draft" as const };
-    const hash = contentHash(timelineFor(doc, project.id, "landscape-1080p"));
+    const timeline = timelineFor(doc, project.id, "landscape-1080p");
+    const hash = contentHash(timeline);
+    const fullHash = timelineHash(timeline);
+    const motionHash = animationHash(timeline);
     run(
       "INSERT INTO renders (id, project_id, aspect, quality, timeline_hash, content_hash, animation_hash, video_hash, duration_ms, created_at, output_version) VALUES (?, ?, '16:9', 'draft', ?, ?, '', 'old', 1000, ?, 0)",
       "old-render",
       project.id,
-      hash,
+      fullHash,
       hash,
       Date.now(),
     );
     expect(planPipeline(project.id, doc, goal).steps.some((step) => step.stage === "render")).toBe(true);
     run("UPDATE renders SET output_version = ? WHERE id = ?", RENDER_OUTPUT_VERSION, "old-render");
     expect(planPipeline(project.id, doc, goal).steps.some((step) => step.stage === "render")).toBe(false);
+    run("UPDATE renders SET animation_hash = ? WHERE id = ?", "changed-motion", "old-render");
+    expect(planPipeline(project.id, doc, goal).steps.some((step) => step.stage === "render")).toBe(true);
+    run("UPDATE renders SET animation_hash = ? WHERE id = ?", motionHash, "old-render");
+    expect(planPipeline(project.id, doc, goal).steps.some((step) => step.stage === "render")).toBe(false);
+    expect(planPipeline(project.id, doc, { ...goal, forceRender: true }).steps.some((step) => step.stage === "render")).toBe(true);
+  });
+
+  it("确认开工不排渲染，生成成片沿用同一个目标", async () => {
+    const { createProject } = await import("@/lib/server/projects");
+    const { drive, getGoal, planPipeline } = await import("@/lib/pipeline/plan");
+    const doc = emptyDoc();
+    doc.segments = [{ title: "开场", text: "还没有配音。" }];
+    doc.lines = [{ id: "line-0", segmentIndex: 0, text: "还没有配音。", spans: [], keywords: [], locked: true }];
+    const project = createProject(doc);
+    const composePlan = planPipeline(project.id, doc, { until: "compose", aspects: ["16:9"], quality: "final" });
+    expect(composePlan.steps.some((step) => step.stage === "render")).toBe(false);
+    expect(composePlan.currentKeys.some((key) => key.startsWith("render:"))).toBe(false);
+    expect(composePlan.ready.render).toBe(false);
+    const started = drive(project.id, { until: "compose", aspects: ["16:9"], quality: "final" });
+    expect(started.enqueued.some((job) => job.stage === "render")).toBe(false);
+    expect(started.enqueued.length).toBeGreaterThan(0);
+    const goalId = getGoal(project.id)?.goal.goalId;
+    expect(getGoal(project.id)?.goal.until).toBe("compose");
+    const render = drive(project.id, { until: "render", aspects: ["16:9"], quality: "final" });
+    expect(getGoal(project.id)?.goal.goalId).toBe(goalId);
+    expect(getGoal(project.id)?.goal.until).toBe("render");
+    expect(render.enqueued.some((job) => job.stage === "render")).toBe(false);
   });
 });

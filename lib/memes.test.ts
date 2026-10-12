@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assignMemes, classifyImport, countMemeUses, findMemeUses, groundCandidate, memeInputSchema, parseSinceMonth, parseVerdict, sinceBucket, toCircle, effectiveHeat, isCandidate, lostMemes, memeBudget, memesForSection, mergeFetched, resolveSlang, STALE_DAYS, type MemeInput, type MemeRef } from "./memes";
+import { assignMemes, classifyImport, countMemeUses, findMemeUses, groundCandidate, MAX_IMPORT_BATCH, MAX_VERIFY_HOT_PER_IMPORT, memeImportRequestSchema, memeInputSchema, parseSinceMonth, parseTermList, parseVerdict, planImportBatches, sinceBucket, termListEntry, toCircle, effectiveHeat, isCandidate, lostMemes, memeBudget, memesForSection, mergeFetched, resolveSlang, STALE_DAYS, type MemeInput, type MemeRef } from "./memes";
 import { briefSchema, styleTemplateSchema } from "./types";
 
 const DAY = 86_400_000;
@@ -74,6 +74,56 @@ describe("mergeFetched", () => {
     const r = mergeFetched([], [input("甲", { risk: "banned" }), input("乙", { since: "" }), input("丙", { platform: " " }), input("丁"), input("丁 ")]);
     expect(r.inserts.map((m) => m.term)).toEqual(["丁"]);
     expect(r.dropped).toBe(4);
+  });
+});
+
+describe("粘贴导入分批", () => {
+  const row = (term: string, category: MemeInput["category"]): MemeInput => input(term, { category, platform: "", since: "" });
+  const many = (prefix: string, count: number, category: MemeInput["category"]) => Array.from({ length: count }, (_, i) => row(`${prefix}${i}`, category));
+
+  it("不核实时按写入批量切开，不单独限制热梗条数", () => {
+    const batches = planImportBatches([...many("梗", 80, "hot"), ...many("口语", 121, "daily")], false);
+    expect(batches.map((batch) => [batch.verify, batch.items.length])).toEqual([[false, MAX_IMPORT_BATCH], [false, 1]]);
+  });
+
+  it("核实只把热梗按 50 一批拆开，口语按写入批量走本地", () => {
+    const batches = planImportBatches([...many("梗", 120, "hot"), ...many("口语", 201, "daily"), row("但是吧", "rhythm")], true);
+    expect(batches.map((batch) => [batch.verify, batch.items.length])).toEqual([
+      [false, MAX_IMPORT_BATCH],
+      [false, 2],
+      [true, MAX_VERIFY_HOT_PER_IMPORT],
+      [true, MAX_VERIFY_HOT_PER_IMPORT],
+      [true, 20],
+    ]);
+    expect(batches.find((batch) => batch.verify)?.items.every((item) => item.category === "hot")).toBe(true);
+  });
+
+  it("请求体允许超过 50 条口语，并拦住一次核实太多热梗", () => {
+    expect(memeImportRequestSchema.safeParse({ items: many("口语", 80, "emotion"), verify: false }).success).toBe(true);
+    expect(memeImportRequestSchema.safeParse({ items: many("梗", MAX_VERIFY_HOT_PER_IMPORT, "hot"), verify: true }).success).toBe(true);
+    const tooManyHot = memeImportRequestSchema.safeParse({ items: many("梗", MAX_VERIFY_HOT_PER_IMPORT + 1, "hot"), verify: true });
+    expect(tooManyHot.success).toBe(false);
+    if (!tooManyHot.success) expect(tooManyHot.error.issues.some((issue) => issue.message.includes("50"))).toBe(true);
+    expect(memeImportRequestSchema.safeParse({ items: many("口语", MAX_IMPORT_BATCH + 1, "daily"), verify: false }).success).toBe(false);
+  });
+});
+
+describe("词表直接拆开", () => {
+  it("按斜杠和空白拆开，类别名单独成行时切换后面的词", () => {
+    const text = "卡点打卡 / 画饼 背锅\n情绪表达\n好家伙／无语死了\n日常口语\n吃土";
+    expect(parseTermList(text, "daily")).toEqual([
+      { term: "卡点打卡", category: "daily" },
+      { term: "画饼", category: "daily" },
+      { term: "背锅", category: "daily" },
+      { term: "好家伙", category: "emotion" },
+      { term: "无语死了", category: "emotion" },
+      { term: "吃土", category: "daily" },
+    ]);
+  });
+  it("没写类别时用传入的类别，重复词只留第一条，超长词丢掉", () => {
+    const long = "甲".repeat(25);
+    expect(parseTermList(`好家伙 / 好家伙\n${long}`, "emotion").map((item) => item.term)).toEqual(["好家伙"]);
+    expect(termListEntry("画饼", "daily")).toMatchObject({ term: "画饼", category: "daily", meaning: "", risk: "safe" });
   });
 });
 

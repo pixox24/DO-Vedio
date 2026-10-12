@@ -1,4 +1,4 @@
-import type { VoiceSettings } from "../../core/types";
+import { acceptsFreeVoiceInstruction, type VoiceSettings } from "../../core/types";
 import { dashscopeTts } from "./dashscope";
 import { geminiTts } from "./gemini";
 import type { SynthRequest, TtsProvider } from "./types";
@@ -19,7 +19,7 @@ export function ttsRequestOf(voice: VoiceSettings, text: string, textType?: "Pla
     rate: voice.rate,
     pitch: voice.pitch,
     volume: voice.volume,
-    instruction: voice.provider === "dashscope" && textType !== "SSML" ? voice.instruction || undefined : undefined,
+    instruction: acceptsFreeVoiceInstruction(voice.model) && textType !== "SSML" ? voice.instruction || undefined : undefined,
     textType,
     ...(voice.provider === "google-gemini" && voice.google ? {
       output: { encoding: voice.google.outputEncoding, sampleRateHertz: voice.google.sampleRateHertz },
