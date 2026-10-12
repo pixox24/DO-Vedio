@@ -8,6 +8,26 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
+# 接手项目先读架构地图
+
+读 `docs/ARCHITECTURE.md`（进程模型、目录职责、「改哪里 → 去哪儿找」路由表、约定与坑）。
+
+**不要为了了解项目而通读代码**：本仓库 503 个源码文件、约 2.9 MB，全读既装不下也没有收益。
+
+**不要读这些目录**（生成物 / 第三方素材，会污染判断）：
+
+- `data/` —— Remotion bundle 缓存（25 MB）与 `app.db`，已 gitignore
+- `.next/` `node_modules/` `logs/` `tmp/`
+- `vendor/aix-style-library/`、`public/aix/` —— 外部风格库镜像（163 个 json + 160 个 webp）
+- `motions/` —— 三个外部导入的旧版动效模板包，只被 `lib/core/legacy-templates.ts` 引用
+
+**`docs/` 里只读 `docs/ARCHITECTURE.md`**：
+
+- `docs/archive/` —— 已实现或已废弃的历史计划，不要通读；需要设计缘由时按文件名精确定位（仍可 grep）。
+- `docs/viral-*.md`、`docs/agent-config/` —— 爆款复创的规格与**未完成验收台账**，只有改 viral 功能时才读。
+
+`README.md` 只覆盖早期的「文案工坊」，制作与复创部分看架构地图。
+
 # 项目更新记录
 
 本仓库右上角有一个「项目更新」页面（路由 `/changelog`），按版本记录项目的重大更新。接手项目时，先读这个页面了解项目已有的能力与演进历史。
@@ -18,4 +38,5 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   - `items`：按已有分类 `feature` / `improvement` / `fix` / `infra` 归类，每条用小标题 + 一句说明描述「做了什么、对用户意味着什么」。
   - 一次功能可跨多个分类；同分类下可以有多条。
 - 小的文案修补、格式化、依赖升级、重构且无行为变化，无需记录。
+- **收口时一并归档相关文档**：若该功能对应 `docs/` 顶层的文档（如 `docs/viral-*.md`），把文档移进 `docs/archive/`。目录名就是「已完成」的标记，不需要再维护状态字段——`viral-recreation-status.md` 那种还记着「待评 / 未完成」的台账，验收真正收口前不要归档。
 - 改完后运行 `npm run typecheck` 与 `npm run lint`，并确认 `/changelog` 页面正常渲染。

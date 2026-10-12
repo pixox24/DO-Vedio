@@ -2,7 +2,7 @@
 
 // 共享类型与工具：被句子/镜头/配乐/设置四个面板复用。
 
-/* 本文件由 components/video-controls.tsx 拆分而来（见 docs/redesign-diagnosis-and-plan.md 第 3 阶段）。 */
+/* 本文件由 components/video-controls.tsx 拆分而来（见 docs/archive/redesign-diagnosis-and-plan.md 第 3 阶段）。 */
 import type { Job, ProjectDoc } from "@/lib/core/types";
 import type { SaveState } from "@/lib/client";
 import { costLabel } from "@/lib/core/interaction";
