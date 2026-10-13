@@ -15,13 +15,17 @@ const input = (term: string, extra: Partial<MemeInput> = {}): MemeInput => ({
 describe("梗库", () => {
   it("入库、续期不重复、保留用户改过的风险和读法", async () => {
     const { listMemes, saveFetched, updateMeme } = await import("@/lib/server/memes");
+    // 迁移 17 内置了 26 个梗（含「绷不住了」这类常见词），所以这一条不能拿内置梗当新词，
+    // 否则既拿不到 added，也测不到「手动添加算已核实」
+    const baseline = listMemes().length;
     expect(saveFetched([input("yyds", { say: "永远的神", variants: ["YYDS"] }), input("破防了")], 1000)).toEqual({ added: 2, updated: 0, dropped: 0, blocked: 0 });
     const yyds = listMemes().find((m) => m.term === "yyds")!;
     updateMeme(yyds.id, { risk: "caution", say: "永远滴神" });
     expect(saveFetched([input("YYDS", { heat: "fading", say: "永远的神" })], 2000)).toEqual({ added: 0, updated: 1, dropped: 0, blocked: 0 });
     const again = listMemes().find((m) => m.id === yyds.id)!;
     expect(again).toMatchObject({ heat: "fading", risk: "caution", say: "永远滴神", verifiedAt: 2000 });
-    expect(listMemes()).toHaveLength(2);
+    // 迁移 17 已经内置了一批梗，所以只能相对基线断言；这里要证的是「续期不是新增」
+    expect(listMemes()).toHaveLength(baseline + 2);
   });
 
   it("梗的读法并入读音词典，用户词条优先", async () => {
@@ -46,11 +50,11 @@ describe("过期与自动刷新", () => {
     const last = lastFetch("trending")!;
     expect(needsRefresh(last.createdAt + 86_400_000)).toBe(false);
     expect(needsRefresh(last.createdAt + 8 * 86_400_000)).toBe(true);
-    saveFetched([input("蚌埠住了", { variants: ["绷不住了"] })], 3000, "manual");
-    const m = listMemes().find((x) => x.term === "蚌埠住了")!;
+    saveFetched([input("绷不住了甲", { variants: ["绷不住了乙"] })], 3000, "manual");
+    const m = listMemes().find((x) => x.term === "绷不住了甲")!;
     expect(m.source).toBe("manual");
     updateMeme(m.id, { heat: "dead" });
-    expect(staleMemeTerms()).toEqual(expect.arrayContaining(["蚌埠住了", "绷不住了"]));
+    expect(staleMemeTerms()).toEqual(expect.arrayContaining(["绷不住了甲", "绷不住了乙"]));
   });
   it("手动添加不要求流行时间和平台", async () => {
     const { saveFetched } = await import("@/lib/server/memes");
