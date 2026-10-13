@@ -2,7 +2,7 @@
 
 // 分镜面板：镜头网格、候选切换、批量生图与失败恢复。
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import { AutoTextarea, Icon, Select, Spinner } from "@/components/ui";
@@ -22,6 +22,7 @@ import { MotionPaletteEditor } from "@/components/motion-palette-editor";
 import { MotionPresetPicker } from "@/components/motion-preset-picker";
 import { ShelfPicker } from "@/components/shelf-picker";
 import { jobBatchId, type ProjectStore } from "./shared";
+import { columnCount, shotRows, shotState, shotTime, type ShotServerStatus } from "./shot-view";
 
 const ShotThumbnail = dynamic(() => import("../shot-thumbnail").then((m) => m.ShotThumbnail), { ssr: false, loading: () => <div className="grid h-full place-items-center bg-stage text-xs text-white/40">正在加载预览</div> });
 
@@ -29,9 +30,42 @@ function shotUpdate(store: ProjectStore, id: string, fn: (shot: Shot) => Shot) {
   store.setDoc((doc) => ({ ...doc, shots: stampShots(doc.shots.map((s) => (s.id === id ? fn(s) : s)), doc.lines) }));
 }
 
-export function StoryboardPanel({ id, store, timeline, jobs, onSeek }: { id: string; store: ProjectStore; timeline: Timeline | null; jobs: Map<string, Job>; onSeek: (ms: number) => void }) {
+/** 一张镜头在三种形态之间共用的全部属性与回调 */
+type ShotCommon = {
+  shot: Shot; timed?: TimelineShot; timeline: Timeline | null; index: number; active: boolean;
+  lineIndex: number; lineIds: string[]; estimated: boolean; store: ProjectStore; error?: string; job?: Job;
+  serverStatus?: ShotServerStatus;
+  uploading: boolean; generating: boolean; imageReady: boolean; canMerge: boolean; candidateCount: number;
+  confirm: (options: { title: string; message?: string; confirmLabel?: string; tone?: "default" | "danger"; bullets?: string[] }) => Promise<boolean>;
+  toast: (message: string, kind?: "info" | "success" | "error") => void;
+  onSelect: () => void; onUpload: (file: File) => void; onGenerate: () => void; onCandidate: (id: string) => void; onSplit: () => void; onMerge: () => void;
+};
+
+export function StoryboardPanel({ id, store, timeline, jobs, onSeek, wide = false, onToggleWide }: { id: string; store: ProjectStore; timeline: Timeline | null; jobs: Map<string, Job>; onSeek: (ms: number) => void; wide?: boolean; onToggleWide?: () => void }) {
   const doc = store.doc;
   const { confirm, toast } = useFeedback();
+  /** 卡片（扫读+展开）还是表格（原先把所有内容铺在单列里） */
+  const [view, setView] = useState<"cards" | "table">("cards");
+  /**
+   * 行分组要按容器实际宽度算，不能只看视口：分镜板活在制作页右栏里，
+   * 同一个视口宽度下，全宽模式和常规模式能排的列数差一档。
+   *
+   * 用回调 ref 而不是 useEffect：网格只在「卡片形态 + 有镜头」时才存在，
+   * 分镜可能是在面板已经打开之后才生成的，effect 依赖不变就不会重跑。
+   * 回调 ref 由 React 在挂载/卸载时调用，这些情况都能覆盖到。
+   */
+  const gridObserver = useRef<ResizeObserver | null>(null);
+  const gridRef = useCallback((node: HTMLDivElement | null) => {
+    gridObserver.current?.disconnect();
+    gridObserver.current = null;
+    if (!node) return;
+    const measure = () => setColumns(columnCount(node.clientWidth, wide));
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    gridObserver.current = observer;
+  }, [wide]);
+  const [columns, setColumns] = useState(3);
   const [uploading, setUploading] = useState<string | null>(null);
   const [generating, setGenerating] = useState<string | null>(null);
   const [candidateCount, setCandidateCount] = useState(1);
@@ -43,6 +77,9 @@ export function StoryboardPanel({ id, store, timeline, jobs, onSeek }: { id: str
   const [bulkStopRequested, setBulkStopRequested] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [active, setActive] = useState<string | null>(null);
+  /** 手风琴：同时只展开一个镜头，展开区插在这一行下方，卡片本身不移动 */
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [jumpSegment, setJumpSegment] = useState("");
   const [jumpShotId, setJumpShotId] = useState("");
   const [shotQuery, setShotQuery] = useState("");
   const [shotFilter, setShotFilter] = useState<"all" | "needs" | "failed" | "ready" | "locked">("all");
@@ -71,6 +108,7 @@ export function StoryboardPanel({ id, store, timeline, jobs, onSeek }: { id: str
   const lines = doc.lines;
   const ordered = [...doc.shots].sort((a, b) => doc.lines.findIndex((l) => l.id === a.at.lineId) - doc.lines.findIndex((l) => l.id === b.at.lineId) || a.at.char - b.at.char);
   const lineIndex = new Map(doc.lines.map((l, i) => [l.id, i]));
+  const lineIds = doc.lines.map((l) => l.id);
   // 需要生成画面的镜头：缺图的 + 描述或风格改过导致过期的（信息卡、标题卡、金句卡不生图）
   const wanting = ordered.filter((shot) => !shot.locked && needsGeneratedImage(shot));
   const missing = wanting.filter((shot) => !shot.assetId).length;
@@ -114,10 +152,59 @@ export function StoryboardPanel({ id, store, timeline, jobs, onSeek }: { id: str
   function jumpToShot(shotId: string) {
     setJumpShotId(shotId);
     if (!shotId) return;
+    // 定位是「让我看到这一镜」，不是「替我打开编辑」，所以顺手收起展开区
+    setExpanded(null);
     setActive(shotId);
     const timed = timeline?.shots.find((item) => item.shotId === shotId);
     if (timed) onSeek(timed.startMs);
     window.requestAnimationFrame(() => document.getElementById(`shot-card-${shotId}`)?.scrollIntoView({ block: "center", behavior: "smooth" }));
+  }
+
+  function jumpToSegment(segment: string) {
+    setJumpSegment(segment);
+    if (segment === "") return;
+    const first = ordered.find((shot) => doc?.lines.find((l) => l.id === shot.at.lineId)?.segmentIndex === Number(segment));
+    if (first) jumpToShot(first.id);
+  }
+
+  function toggleExpanded(shotId: string) {
+    setExpanded((current) => (current === shotId ? null : shotId));
+    setActive(shotId);
+    const timed = timeline?.shots.find((item) => item.shotId === shotId);
+    if (timed) onSeek(timed.startMs);
+  }
+
+  /**
+   * 三种形态（扫读卡片 / 展开区 / 表格行）共用同一份镜头属性。
+   * 这里只是把原来内联在 map 里的构造原样提出来，没有新增派生逻辑。
+   */
+  function shotCommon(shot: Shot): ShotCommon {
+    const index = ordered.findIndex((item) => item.id === shot.id);
+    const timed = timeline?.shots.find((item) => item.shotId === shot.id);
+    // 状态以服务端裁决为准（见 /shots/status）。客户端这份 job 只用于「重试」拿到 id。
+    const job = [...jobs.values()].findLast((item) => item.stage === "shot-generate" && item.target === `镜头 ${shot.id}`);
+    return {
+      shot, timed, timeline, index, active: active === shot.id,
+      lineIndex: lineIndex.get(shot.at.lineId) ?? 0,
+      lineIds,
+      estimated: timeline?.lines.some((l) => l.estimated) ?? true,
+      store,
+      error: errors[shot.id],
+      job,
+      serverStatus: shotStatus[shot.id],
+      uploading: uploading === shot.id,
+      generating: generating === shot.id,
+      imageReady: !!imageModelId,
+      canMerge: index < ordered.length - 1 && !ordered[index + 1]?.locked,
+      candidateCount,
+      confirm, toast,
+      onSelect: () => { setActive(shot.id); if (timed) onSeek(timed.startMs); },
+      onUpload: (file: File) => upload(shot, file),
+      onGenerate: () => generate(shot),
+      onCandidate: (candidateId: string) => selectCandidate(shot, candidateId),
+      onSplit: () => split(shot),
+      onMerge: () => merge(shot),
+    };
   }
 
   async function generateAll() {
@@ -261,17 +348,48 @@ export function StoryboardPanel({ id, store, timeline, jobs, onSeek }: { id: str
     <section className="panel p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div><p className="label">分镜</p><h2 className="mt-1 text-base font-medium">分镜板</h2></div>
-        <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 text-xs text-white/45">
-          <span>{ordered.length} 镜头 · {missing} 待补图{stale > 0 ? ` · ${stale} 已过期` : ""}</span>
-          {imageJobs.length > 0 && <span className="text-white/60">图片任务：完成 {completedImages} · 生成中 {activeImages} · 排队 {queuedImages}{failedImages ? ` · 失败 ${failedImages}` : ""}</span>}
+        <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs text-white/45">
+          <span className="text-white/60">{ordered.length} 镜头</span>
+          {missing > 0 && <span className="text-amber-200/80">{missing} 待补图</span>}
+          {stale > 0 && <span className="text-amber-200/80">{stale} 已过期</span>}
+          {imageJobs.length > 0 && <span>完成 {completedImages} · 生成中 {activeImages} · 排队 {queuedImages}{failedImages ? ` · 失败 ${failedImages}` : ""}</span>}
         </div>
       </div>
-      {doc && <MotionPaletteEditor palette={doc.motionPalette} onChange={(motionPalette) => store.setDoc((current) => ({ ...current, motionPalette }))} />}
+      {/*
+        形态切换：常规是「卡片扫读 + 点击展开」，表格是原先把所有内容铺满一列的旧视图。
+        快速跳转只服务长列表，所以只在卡片形态下出现。
+      */}
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-3">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="segmented" role="group" aria-label="分镜视图">
+            {(["cards", "table"] as const).map((key) => (
+              <button key={key} type="button" className={`segmented-item ${view === key ? "segmented-item-active" : ""}`} aria-pressed={view === key} onClick={() => setView(key)}>{key === "cards" ? "卡片" : "表格"}</button>
+            ))}
+          </span>
+          {doc.segments.length > 1 && view === "cards" && (
+            <Select className="h-8 w-40 text-xs" value={jumpSegment} aria-label="快速跳转到章节" onChange={(value) => jumpToSegment(value)}>
+              <option value="">跳到章节…</option>
+              {doc.segments.map((segment, index) => <option key={index} value={String(index)}>第 {index + 1} 章 · {segment.title || doc.lines.filter((l) => l.segmentIndex === index).length + " 句"}</option>)}
+            </Select>
+          )}
+        </div>
+        {onToggleWide && <button type="button" className={`chip h-8 px-2.5 text-xs ${wide ? "chip-on" : ""}`} aria-pressed={wide} title={wide ? "退出全宽，恢复左侧预览" : "让分镜板临时占满制作区"} onClick={onToggleWide}><Icon name="expand" className="size-3.5" />{wide ? "退出全宽" : "全宽"}</button>}
+      </div>
+      {/*
+        操作条：全量生成是这一屏唯一的批量动作，紧邻的「生图模型 / 每镜候选数」就是它的参数——
+        这三个是一组。原来「本片动画」横在这一组和标题之间，把这个主按钮推到了折叠块下面；
+        它是全局设置而不是每镜动作，所以移到操作条之后（默认收起）。
+      */}
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-white/10 pt-4">
+        {/* 标题栏里已经有「N 镜头 / 待补图 / 已过期」，这里只补主按钮要用的那条：这次动作会花掉几张 */}
+        <p className="text-xs text-white/45">
+          {remaining > 0 ? <>待生成 <span className="text-amber-200/80">{remaining}</span> 个镜头</> : <span className="text-white/35">所有镜头都已有最新画面</span>}
+        </p>
         <Select className="w-full min-w-0 flex-1 basis-full text-xs sm:basis-auto" value={imageModelId} aria-label="生图模型" onChange={setImageModelId}><option value="">{imageModels.length ? "选择生图模型" : "暂无可用生图模型"}</option>{imageModels.map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}</Select>
         <Select className="w-auto min-w-32 text-xs" value={String(candidateCount)} aria-label="每镜候选数" onChange={(value) => setCandidateCount(Number(value))}>{[1, 2, 3, 4].map((count) => <option key={count} value={count}>{count} 张/镜</option>)}</Select>
         {bulkActive ? <button className="btn btn-ghost btn-sm" disabled={stoppingSelectedBatch} onClick={() => void stopBulkGeneration()}>{stoppingSelectedBatch ? <Spinner className="size-3.5" /> : <Icon name="stop" className="size-3.5" />}{stoppingSelectedBatch ? "正在停止…" : "停止本次生成"}</button> : <button className="btn btn-primary btn-sm" disabled={!imageModelId || !remaining || bulkBusy || activeImages > 0} onClick={() => void generateAll()}>{bulkBusy ? <Spinner className="size-3.5" /> : <Icon name="sparkle" className="size-3.5" />}{bulkStopped ? "继续生成图片" : `全量生成图片 · ${remaining * candidateCount} 张`}</button>}
       </div>
+      {doc && <MotionPaletteEditor palette={doc.motionPalette} onChange={(motionPalette) => store.setDoc((current) => ({ ...current, motionPalette }))} />}
       {bulkStopped && <p className="mt-2 text-xs text-amber-200/75">本次生成已停止，已完成图片保留。</p>}
       {errors.bulk && <p role="alert" className="mt-2 text-xs text-red-300">{errors.bulk}</p>}
       {bulkJobs.length > 0 && selectedBatchId && <div className="mt-3 rounded-lg border border-white/[0.08] bg-white/[0.025] px-3 py-2.5" role="status" aria-live="polite">
@@ -282,38 +400,6 @@ export function StoryboardPanel({ id, store, timeline, jobs, onSeek }: { id: str
       </div>}
       {ordered.length === 0 ? <p className="py-8 text-center text-sm text-white/35">配音完成后会自动生成分镜</p> : <>
         <div className="mt-4 space-y-3 border-t border-white/[0.06] pt-4">
-          {/* 快速导航栏 */}
-          {doc.segments.length > 1 && (
-            <div className="space-y-1.5">
-              <p className="text-[11px] text-white/40">快速跳转到章节</p>
-              <div className="flex flex-wrap gap-1.5">
-                {doc.segments.map((segment, index) => {
-                  const segmentShots = ordered.filter((s) => {
-                    const lineIdx = doc.lines.findIndex((l) => l.id === s.at.lineId);
-                    return lineIdx >= 0 && doc.lines[lineIdx].segmentIndex === index;
-                  });
-                  const hasIssues = segmentShots.some((s) => {
-                    const serverStatus = shotStatus[s.id];
-                    return serverStatus?.status === "failed" || (!s.assetId && needsGeneratedImage(s));
-                  });
-                  return (
-                    <button
-                      key={index}
-                      className={`chip h-7 px-2.5 text-xs ${hasIssues ? "border-amber-200/25 bg-amber-200/10 text-amber-200" : ""}`}
-                      onClick={() => {
-                        const firstShot = segmentShots[0];
-                        if (firstShot) jumpToShot(firstShot.id);
-                      }}
-                      title={`第 ${index + 1} 章：${segmentShots.length} 个镜头${hasIssues ? "（有待处理项）" : ""}`}
-                    >
-                      第 {index + 1} 章 · {segmentShots.length}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
           {/* 搜索与筛选 */}
           <div className="grid gap-2 sm:grid-cols-[minmax(180px,1fr)_minmax(150px,auto)_auto]">
             <label className="relative block">
@@ -374,30 +460,99 @@ export function StoryboardPanel({ id, store, timeline, jobs, onSeek }: { id: str
             </button>
           )}
         </div>
-        {shownShots.length === 0 ? <p className="py-8 text-center text-sm text-white/35">没有符合条件的镜头</p> : <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {shownShots.map((shot) => {
-          const index = ordered.findIndex((item) => item.id === shot.id);
-          const timed = timeline?.shots.find((item) => item.shotId === shot.id);
-          const job = [...jobs.values()].findLast((item) => item.stage === "shot-generate" && item.target === `镜头 ${shot.id}`);
-          // 状态以服务端裁决为准（见 /shots/status）。客户端这份 job 只用于「重试」拿到 id。
-          const serverStatus = shotStatus[shot.id];
-          return <ShotCard key={shot.id} shot={shot} timed={timed} timeline={timeline} index={index} active={active === shot.id} lineIndex={lineIndex.get(shot.at.lineId) ?? 0} lineIds={doc.lines.map((l) => l.id)} estimated={timeline?.lines.some((l) => l.estimated) ?? true} store={store} error={errors[shot.id]} job={job} serverStatus={serverStatus} uploading={uploading === shot.id} generating={generating === shot.id} imageReady={!!imageModelId} canMerge={index < ordered.length - 1 && !ordered[index + 1]?.locked} candidateCount={candidateCount} confirm={confirm} toast={toast} onSelect={() => { setActive(shot.id); if (timed) onSeek(timed.startMs); }} onUpload={(file) => upload(shot, file)} onGenerate={() => generate(shot)} onCandidate={(candidateId) => selectCandidate(shot, candidateId)} onSplit={() => split(shot)} onMerge={() => merge(shot)} />;
-        })}
-      </div>}
+        {shownShots.length === 0 ? <p className="py-8 text-center text-sm text-white/35">没有符合条件的镜头</p> : view === "table" ? (
+          <div className="mt-3 divide-y divide-white/[0.06] overflow-hidden rounded-surface border border-white/[0.08]">
+            {shownShots.map((shot) => (
+              <Fragment key={shot.id}>
+                <ShotRow {...shotCommon(shot)} expanded={expanded === shot.id} onToggle={() => toggleExpanded(shot.id)} />
+                {expanded === shot.id && <ShotDetail {...shotCommon(shot)} spanClass="" onCollapse={() => setExpanded(null)} />}
+              </Fragment>
+            ))}
+          </div>
+        ) : (
+          <div ref={gridRef} className="mt-3 grid gap-3" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
+            {/*
+              按行分组渲染而不是靠 col-span 自动排布。展开区要占满整行，如果交给自动排布，
+              当被展开的卡不在这一行末尾时，会在这行余下的格子里留一片空格。
+              分组之后被展开的那一行只放它前面的卡片，展开区紧跟其后，下一行从新的一行开始。
+            */}
+            {shotRows(shownShots, columns, expanded).map(({ row, expandedInRow }) => (
+              <Fragment key={row[0].id}>
+                {row.map((shot) => <ShotTile key={shot.id} {...shotCommon(shot)} expanded={expanded === shot.id} onToggle={() => toggleExpanded(shot.id)} />)}
+                {expandedInRow && <ShotDetail {...shotCommon(expandedInRow)} spanClass="col-span-full" onCollapse={() => setExpanded(null)} />}
+              </Fragment>
+            ))}
+          </div>
+        )}
       </>}
     </section>
   );
 }
 
-function ShotCard({ shot, timed, timeline, index, lineIndex, lineIds, estimated, active, store, error, job, serverStatus, uploading, generating, imageReady, canMerge, candidateCount, confirm, toast, onSelect, onUpload, onGenerate, onCandidate, onSplit, onMerge }: {
-  shot: Shot; timed?: TimelineShot; timeline: Timeline | null; index: number; lineIndex: number; lineIds: string[]; estimated: boolean; active: boolean; store: ProjectStore; error?: string; job?: Job; serverStatus?: { status: string; progress: number; message: string; error: string | null; total: number; done: number; failed: number; running: number }; uploading: boolean; generating: boolean; imageReady: boolean; canMerge: boolean; candidateCount: number;
-  confirm: (options: { title: string; message?: string; confirmLabel?: string; tone?: "default" | "danger"; bullets?: string[] }) => Promise<boolean>;
-  toast: (message: string, kind?: "info" | "success" | "error") => void;
-  onSelect: () => void; onUpload: (file: File) => void; onGenerate: () => void; onCandidate: (id: string) => void; onSplit: () => void; onMerge: () => void;
-}) {
+/** 缩略图/大图共用的画面渲染。顺序与原来一致：视频 → 图片 → Remotion 预览 → 占位 */
+function ShotMedia({ shot, timed, timeline, status, sizes = "(max-width: 640px) 100vw, 320px" }: { shot: Shot; timed?: TimelineShot; timeline: Timeline | null; status: string; sizes?: string }) {
+  if (shot.assetId && shot.kind === "video") return <video key={shot.assetId} muted playsInline preload="metadata" src={mediaUrl(shot.assetId)} className={`h-full w-full object-cover ${status === "done" ? "generation-image-complete" : ""}`} />;
+  if (shot.assetId) return <Image key={shot.assetId} src={mediaUrl(shot.assetId)} alt="" fill sizes={sizes} unoptimized className={`object-cover ${status === "done" ? "generation-image-complete" : ""}`} />;
+  if (timed && timeline) return <ShotThumbnail shot={timed} width={timeline.width} height={timeline.height} fps={timeline.fps} theme={timeline.theme} />;
+  return <span className="grid h-full place-items-center text-2xs text-white/35">正在加载预览</span>;
+}
+
+/**
+ * 扫读态卡片：只有三层——画面、身份、内容。整张卡是一个按钮，点了就展开。
+ * 编辑控件全部搬进 ShotDetail，是为了让这里的高度完全由画面决定，
+ * 同一行的卡片才会一样高（原来候选图 4 张的卡和 0 张的卡能差一倍高度）。
+ */
+function ShotTile({ shot, timed, timeline, index, active, expanded, onToggle, generating, job, serverStatus }: ShotCommon & { expanded: boolean; onToggle: () => void }) {
   const cardRef = useRef<HTMLDivElement>(null);
-  const descriptionRef = useRef(shot.description);
   useEffect(() => { if (active) cardRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }, [active]);
+  const { status, running, progress, label } = shotState({ shot, job, serverStatus });
+  const busy = running || generating;
+  return (
+    <div
+      id={`shot-card-${shot.id}`}
+      ref={cardRef}
+      className={`min-w-0 overflow-hidden rounded-surface border bg-white/[0.02] transition-colors ${active || expanded ? "border-white" : status === "running" ? "border-accent/60 generation-card-running" : status === "queued" ? "border-amber-200/30" : status === "failed" ? "border-red-400/35" : status === "done" ? "border-accent/20" : "border-white/[0.07]"}`}
+    >
+      <button type="button" className="block w-full text-left" aria-expanded={expanded} aria-label={`镜头 ${index + 1}，${label}，${expanded ? "收起" : "展开"}编辑`} onClick={onToggle}>
+        {/* 一级：画面。整卡最大的元素，也是唯一需要「看」的东西 */}
+        <span className="relative block w-full overflow-hidden bg-stage" style={{ aspectRatio: timeline ? `${timeline.width} / ${timeline.height}` : "16 / 9" }}>
+          <span className="absolute inset-0 block"><ShotMedia shot={shot} timed={timed} timeline={timeline} status={status} /></span>
+          {busy && <span className="pointer-events-none absolute inset-0 bg-black/25" />}
+          {/* 状态收敛成唯一一条，不再叠四层标签 */}
+          {(status === "queued" || status === "running" || status === "failed") && (
+            <span className="pointer-events-none absolute inset-x-0 bottom-0 block h-1.5 bg-black/45">
+              <span className={`block h-full transition-[width] duration-500 ${status === "failed" ? "w-full bg-red-400/70" : status === "queued" ? "w-full bg-amber-200/45" : "bg-accent"}`} style={{ width: status === "running" ? `${Math.round(progress * 100)}%` : "100%" }} />
+            </span>
+          )}
+        </span>
+        {/* 二级：身份。序号与时间码 */}
+        <span className="mt-2 flex items-center gap-1.5 px-2.5">
+          <span className="truncate text-xs font-medium text-white/80">镜头 {index + 1}</span>
+          {shot.locked && <Icon name="lock" className="size-3 shrink-0 text-accent/70" />}
+          <span className="ml-auto shrink-0 text-2xs tabular-nums text-white/45">{timed ? `${shotTime(timed.startMs)}–${shotTime(timed.endMs)}` : "计算中"}</span>
+        </span>
+        {/* 三级：内容。一行字幕，扫读时用来认这是哪一镜 */}
+        <span className="mt-0.5 block truncate px-2.5 pb-2.5 text-xs text-white/45">{timed?.caption || "暂无覆盖句子"}</span>
+      </button>
+    </div>
+  );
+}
+
+/**
+ * 展开区：插在被点卡片的下一行、占满整行（col-span 由父级按列数给出）。
+ * 卡片本身不移动，后面的卡片也不重排，所以滚动位置不会跳。
+ */
+function ShotDetail({ shot, timed, timeline, index, lineIndex, lineIds, estimated, store, error, job, serverStatus, uploading, generating, imageReady, canMerge, candidateCount, confirm, toast, onUpload, onGenerate, onCandidate, onSplit, onMerge, onCollapse, spanClass }: ShotCommon & { onCollapse: () => void; spanClass: string }) {
+  const descriptionRef = useRef(shot.description);
+  // Esc 收起；但下拉/货架菜单打开时先把 Esc 让给它们（它们也监听 document 上的 Escape）
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || document.querySelector('[role="listbox"]')) return;
+      onCollapse();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onCollapse]);
   /**
    * 重试与首次生成走同一套成本规则：首次要确认的，重试也要。
    * 否则用户会学会「靠重试绕过确认」——而重试同样调用服务商、同样计费。
@@ -422,11 +577,9 @@ function ShotCard({ shot, timed, timeline, index, lineIndex, lineIds, estimated,
     await jobAction(job.id, "retry");
   };
   const covered = timed && timeline ? timeline.lines.filter((l) => l.endMs > timed.startMs && l.startMs < timed.endMs).map((l) => lineIds.indexOf(l.id) + 1).filter((i) => i > 0) : [];
-  const time = (ms: number) => `${String(Math.floor(ms / 60000)).padStart(2, "0")}:${String(Math.floor(ms / 1000) % 60).padStart(2, "0")}`;
   const wantsImage = needsGeneratedImage(shot);
   const compiled = wantsImage && store.doc ? compileShotPrompt(store.doc, shot) : null;
   const stale = !!store.doc && assetStale(store.doc, shot);
-  const hasImage = !!shot.assetId;
   const isTextShot = shot.mode === "motion" || shot.kind === "title" || shot.kind === "quote";
   const focus = shot.focusText ?? timed?.focusText ?? focusTextFromLegacy(shot, timed?.keywords, timed?.caption);
   const focusWidth = focusVisualWidth(focus?.text ?? "");
@@ -435,119 +588,128 @@ function ShotCard({ shot, timed, timeline, index, lineIndex, lineIds, estimated,
     animation: s.animation ? { ...s.animation, templateId: undefined } : undefined,
     focusText: { text: focus?.text ?? "重点", layoutMode: focus?.layoutMode ?? "auto", support: focus?.support, emphasis: focus?.emphasis, presetId: focus?.presetId, ...patch },
   }));
-  /**
-   * 状态以服务端裁决为准：客户端按 target 字符串找任务在多任务并存时不可靠。
-   * 服务端没返回（例如刚提交、还没来得及刷新）时退回本地 job，保证按钮立刻有反馈。
-   */
-  const serverJobStatus = serverStatus?.status;
-  const effectiveStatus = serverJobStatus ?? job?.status;
-  const runningJob = effectiveStatus === "queued" || effectiveStatus === "running";
-  const status = effectiveStatus === "failed" ? "failed" : effectiveStatus === "canceled" ? "canceled" : runningJob ? (effectiveStatus === "queued" ? "queued" : "running") : effectiveStatus === "succeeded" && hasImage ? "done" : "idle";
-  const effectiveProgress = serverStatus && serverStatus.total > 0 ? serverStatus.progress : (job?.progress ?? 0);
-  const effectiveError = serverStatus?.error ?? job?.error;
-  const statusLabel = { queued: "排队中", running: `生成中 · ${Math.round(effectiveProgress * 100)}%`, done: "已完成", failed: "生成失败", canceled: "已取消", idle: hasImage ? "已有图片" : "待生成" }[status];
-  return <div id={`shot-card-${shot.id}`} ref={cardRef} className={`min-w-0 rounded-lg border bg-white/[0.02] p-3 transition-colors ${active ? "border-white" : status === "running" ? "border-accent/60 generation-card-running" : status === "queued" ? "border-amber-200/30" : status === "failed" ? "border-red-400/35" : status === "done" ? "border-accent/20" : "border-white/[0.07]"}`}>
-    <div className="flex items-center justify-between gap-2"><button className="min-w-0 truncate text-left text-xs text-white/75 hover:text-white" onClick={onSelect}>镜头 {index + 1} · {timed ? `${time(timed.startMs)}–${time(timed.endMs)}` : "计算中"} · {covered.length ? `第 ${covered[0]}${covered.length > 1 ? `–${covered.at(-1)}` : ""} 句` : `第 ${lineIndex + 1} 句`}{estimated ? " · 估算" : ""}</button><button className={`chip h-7 px-2.5 ${shot.locked ? "chip-on" : ""}`} onClick={() => shotUpdate(store, shot.id, (s) => ({ ...s, locked: !s.locked }))}>{shot.locked ? "已锁定" : "锁定"}</button></div>
-    <button className={`relative mt-2 block w-full overflow-hidden rounded-md border bg-[#17242c] text-left ${status === "running" ? "border-accent/50" : status === "queued" ? "border-amber-200/25" : status === "failed" ? "border-red-400/35" : "border-white/10"}`} style={{ aspectRatio: timeline ? `${timeline.width} / ${timeline.height}` : "16 / 9" }} onClick={onSelect} aria-label={`跳转到镜头 ${index + 1}`}>
-      <span className="absolute inset-0 block">{shot.assetId && shot.kind === "video" ? <video key={shot.assetId} muted playsInline preload="metadata" src={mediaUrl(shot.assetId)} className={`h-full w-full object-cover ${status === "done" ? "generation-image-complete" : ""}`} /> : shot.assetId ? <Image key={shot.assetId} src={mediaUrl(shot.assetId)} alt="" fill sizes="(max-width: 640px) 100vw, 320px" unoptimized className={`object-cover ${status === "done" ? "generation-image-complete" : ""}`} /> : timed && timeline ? <ShotThumbnail shot={timed} width={timeline.width} height={timeline.height} fps={timeline.fps} theme={timeline.theme} /> : <span className="grid h-full place-items-center text-xs text-white/40">正在加载预览</span>}</span>
-      {runningJob && <span className="pointer-events-none absolute inset-0 bg-black/25" />}
-      {runningJob && <span className="pointer-events-none absolute left-2 top-2 inline-flex items-center gap-1.5 rounded-full border border-accent/35 bg-black/65 px-2 py-1 text-[10px] text-accent backdrop-blur"><span className="generation-live-dot size-1.5 rounded-full bg-accent" />{statusLabel}</span>}
-      {status === "queued" && <span className="pointer-events-none absolute inset-x-2 bottom-2 rounded bg-black/65 px-2 py-1 text-[10px] text-amber-100/85 backdrop-blur">等待空闲并发</span>}
-      {status === "failed" && <span className="pointer-events-none absolute inset-x-2 bottom-2 rounded bg-red-950/80 px-2 py-1 text-[10px] text-red-100 backdrop-blur">生成失败 · 可重试</span>}
-      {runningJob && <span className="pointer-events-none absolute inset-x-0 bottom-0 h-1 bg-black/45"><span className="block h-full bg-accent transition-[width] duration-500" style={{ width: `${Math.round(effectiveProgress * 100)}%` }} /></span>}
-    </button>
-    <p className="mt-2 line-clamp-2 min-h-9 text-xs leading-5 text-white/55">{timed?.caption || "暂无覆盖句子"}</p>
-    <p className="mt-1.5 text-[11px] text-white/40">{shotExpression(shot, timed)}</p>
-    {wantsImage && store.doc && shot.characterIds.length > 0 && <p className="mt-1 flex flex-wrap gap-1">{shot.characterIds.map((cid) => store.doc!.characters.find((c) => c.id === cid)).filter(Boolean).map((c) => <span key={c!.id} className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] text-white/60">{c!.name}</span>)}</p>}
-    {shot.intent && <p className="mt-1 text-xs leading-5 text-white/70" title="导演意图：观众此刻应该看到或感受到什么"><span className="text-white/40">意图 · </span>{shot.intent}</p>}
-    {error && <p role="alert" className="mt-2 text-xs text-red-300">{error}</p>}
-    {generating && <p className="mt-2 flex items-center gap-1.5 text-xs text-accent"><span className="generation-live-dot size-1.5 rounded-full bg-accent" />正在提交生成任务…</p>}
-    {runningJob && <p className="mt-2 flex items-center gap-1.5 text-xs text-accent"><span className="generation-live-dot size-1.5 rounded-full bg-accent" />{statusLabel}{serverStatus?.message ? ` · ${serverStatus.message}` : job?.message ? ` · ${job.message}` : ""}</p>}
-    {status === "done" && shot.assetId && <p className="mt-2 text-xs text-accent/75">图片已就绪，可在预览区播放</p>}
-    {status === "failed" && <div role="alert" className="mt-2 flex flex-wrap items-center gap-2 text-xs"><p className="text-red-300">{effectiveError || "生成失败"}</p>{job && <button className="chip h-6 px-2.5 text-[11px]" title={`重新提交这个镜头的生成请求（${candidateCount} 张）`} onClick={() => void retryJobWithCost()}>重试 · {candidateCount} 张</button>}</div>}
-    {status === "canceled" && <p className="mt-2 text-xs text-white/45">任务已取消，可重新生成</p>}
-    {wantsImage && !shot.assetId && !generating && <p className="mt-2 text-xs text-amber-200/70">暂无素材，使用占位画面</p>}
-    {stale && <p className="mt-2 text-xs text-amber-200/80">画面描述或风格已改，图片已过期</p>}
-    {!isTextShot && <AutoTextarea value={shot.description} onChange={(e) => shotUpdate(store, shot.id, (s) => ({ ...s, description: e.target.value }))} onBlur={() => { if (descriptionRef.current !== shot.description) { descriptionRef.current = shot.description; toast("已修改画面描述，现有成片需要重新渲染", "info"); } }} className="input mt-2 min-h-16 text-xs" placeholder="画面描述" />}
-    {wantsImage && <button className="btn btn-ghost btn-sm mt-2" disabled={generating || shot.locked || !imageReady || runningJob} title={`${shot.assetId ? "重新生成" : "生成"} ${candidateCount} 张候选图`} onClick={onGenerate}>{generating ? <Spinner className="size-3" /> : <Icon name="sparkle" className="size-3.5" />}{shot.assetId ? "重新生成图片" : "生成图片"} · {candidateCount} 张</button>}
-    {(shot.kind === "image" || shot.kind === "video") && <>
-      {shot.candidates.length > 0 && <div className="mt-3" aria-label="候选素材历史">
-        <div className="mb-1.5 flex items-center justify-between text-[11px] text-white/40">
-          <span>候选历史</span>
-          <span>{shot.candidates.length} / 8 · {shot.candidates.find((candidate) => candidate.selected) ? "已选择" : "待选择"}</span>
+  const { status, running, label, error: effectiveError, message } = shotState({ shot, job, serverStatus });
+  return (
+    <div className={`animate-accordion-in border-t border-white/10 bg-white/[0.04] p-4 ${spanClass}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-white/70">
+          镜头 {index + 1} · {timed ? `${shotTime(timed.startMs)}–${shotTime(timed.endMs)}` : "计算中"} · {covered.length ? `第 ${covered[0]}${covered.length > 1 ? `–${covered.at(-1)}` : ""} 句` : `第 ${lineIndex + 1} 句`}{estimated ? " · 估算" : ""}
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <button className={`chip h-7 px-2.5 ${shot.locked ? "chip-on" : ""}`} onClick={() => shotUpdate(store, shot.id, (s) => ({ ...s, locked: !s.locked }))}>{shot.locked ? "已锁定" : "锁定"}</button>
+          <button className="chip h-7 px-2.5" onClick={onSplit}>拆分</button>
+          <button className="chip h-7 px-2.5" disabled={!canMerge} onClick={onMerge}>合并下一镜</button>
+          <button className="chip h-7 px-2.5" title="收起这个镜头的编辑区" onClick={onCollapse}><Icon name="chevron" className="size-3.5 rotate-180" />收起</button>
         </div>
-        <div className="grid grid-cols-4 gap-1.5">{shot.candidates.map((candidate, candidateIndex) => {
-          const label = `${candidate.selected ? "当前使用" : "使用"}第 ${candidateIndex + 1} 个候选素材`;
-          return <button
-            key={candidate.id}
-            className={`group relative aspect-video overflow-hidden rounded border-2 transition-all duration-200 active:scale-[0.98] ${
-              candidate.selected
-                ? "border-accent shadow-[0_0_12px_rgba(125,211,252,0.3)] ring-1 ring-accent/20"
-                : "border-white/10 hover:border-white/30 hover:shadow-[0_0_8px_rgba(255,255,255,0.1)]"
-            }`}
-            title={label}
-            aria-label={label}
-            aria-pressed={candidate.selected}
-            onClick={() => onCandidate(candidate.id)}
-          >
-            {shot.kind === "video" ? (
-              <video muted preload="metadata" src={mediaUrl(candidate.assetId)} className="h-full w-full object-cover" />
-            ) : (
-              <Image src={mediaUrl(candidate.assetId)} alt="" fill sizes="96px" unoptimized className="object-cover" />
-            )}
-            {candidate.selected && (
-              <span className="absolute right-1 top-1 inline-flex items-center gap-0.5 rounded-full bg-accent px-1.5 py-0.5 text-[9px] font-medium text-ink shadow-lg">
-                <Icon name="check" className="size-2.5" />
-                当前
-              </span>
-            )}
-            <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-1 py-1 text-left text-[10px] text-white">
-              候选 {candidateIndex + 1}
-            </span>
-            {/* 悬停放大预览提示 */}
-            <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-opacity group-hover:bg-black/40 group-hover:opacity-100">
-              <Icon name="maximize" className="size-4 text-white/80" />
-            </span>
-          </button>;
-        })}</div>
-        {shot.candidates.length >= 6 && (
-          <p className="mt-1.5 text-[10px] text-white/35">
-            提示：候选已接近上限（8个），重新生成时会自动移除最旧的候选
-          </p>
-        )}
-      </div>}
-    </>}
-    <div className="mt-3 flex flex-wrap items-center gap-2"><label className="chip h-7 cursor-pointer px-2.5">{uploading ? <Spinner className="size-3" /> : "上传图片"}<input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])} /></label><button className="chip h-7 px-2.5" onClick={onSplit}>拆分</button><button className="chip h-7 px-2.5" disabled={!canMerge} onClick={onMerge}>合并下一镜</button></div>
-    {isTextShot && <div className="mt-3 space-y-2 border-t border-white/10 pt-3">
-      <div className="flex items-center justify-between text-[11px] text-white/50"><span>重点文字</span><span className={focusWidth > 8 ? "text-amber-200" : ""}>{focusWidth.toFixed(1)} / 8 字宽</span></div>
-      <input className="input h-9 w-full text-sm" value={focus?.text ?? ""} onChange={(e) => updateFocus({ text: e.target.value })} placeholder="核心关键词或短句" aria-label="核心文字" />
-      {focusWidth > 8 && <p className="text-[11px] text-amber-200">请概括为 8 字以内；预览会按空间收缩字号。</p>}
-      <div className="grid grid-cols-2 gap-2"><input className="input h-8 min-w-0 text-xs" value={focus?.support ?? ""} onChange={(e) => updateFocus({ support: e.target.value || undefined })} placeholder="辅助小字（可选）" aria-label="辅助文字" /><input className="input h-8 min-w-0 text-xs" value={focus?.emphasis ?? ""} onChange={(e) => updateFocus({ emphasis: e.target.value || undefined })} placeholder="强调片段（可选）" aria-label="强调片段" /></div>
-      {focusVisualWidth(focus?.support ?? "") > 8 && <p className="text-[11px] text-amber-200">辅助字也请压缩到 8 字以内，原文会完整保留。</p>}
-      <div className="grid grid-cols-2 gap-2"><Select value={focus?.layoutMode ?? "auto"} onChange={(v) => updateFocus({ layoutMode: v as NonNullable<Shot["focusText"]>["layoutMode"], presetId: v === "manual" ? (focus?.presetId ?? timed?.focusText?.presetId ?? "focus") : undefined })} aria-label="排版模式"><option value="auto">智能匹配</option><option value="shuffle">探索变化</option><option value="manual">手动锁定</option></Select><MotionPresetPicker text={focus?.text ?? ""} value={focus?.layoutMode === "manual" ? focus.presetId ?? "focus" : timed?.focusText?.presetId ?? "focus"} onChange={(presetId) => updateFocus({ layoutMode: "manual", presetId })} /></div>
-      {focus?.layoutMode === "shuffle" && <button className="chip h-7 px-2.5 text-xs" type="button" onClick={() => shotUpdate(store, shot.id, (s) => ({ ...s, seed: (s.seed ?? timed?.seed ?? 0) + 1 }))}>换一个排版</button>}
-    </div>}
-    <div className={`mt-3 grid gap-2 ${isTextShot ? "" : "grid-cols-2"}`}>
-      {!isTextShot && <ShelfPicker label="运镜" value={shot.motion} locked={!!shot.motionLocked} options={cameraCatalog} onAuto={() => shotUpdate(store, shot.id, (s) => ({ ...s, motionLocked: undefined }))} onChange={(motion) => shotUpdate(store, shot.id, (s) => ({ ...s, motion: motion as Motion, motionLocked: true }))} />}
-      <ShelfPicker label="转场" value={timed?.transitionIn ?? shot.transitionIn ?? "cut"} locked={!!shot.transitionLocked} options={transitionCatalog} onAuto={() => shotUpdate(store, shot.id, (s) => ({ ...s, transitionIn: undefined, transitionLocked: undefined }))} onChange={(transitionIn) => shotUpdate(store, shot.id, (s) => ({ ...s, transitionIn: transitionIn as TransitionIn, transitionLocked: true }))} />
-    </div>
-    <details className="mt-3 border-t border-white/10 pt-2 text-xs text-white/50">
-      <summary className="cursor-pointer">高级</summary>
-      <div className="mt-2 grid gap-2">
-        <p className="text-[11px] leading-4 text-white/45">修改会自动保存并刷新预览。已有成片需要重新渲染。</p>
-        <Select value={isTextShot ? "placeholder" : shot.kind} onChange={(v) => shotUpdate(store, shot.id, (s) => ({ ...s, kind: v as Shot["kind"], focusText: v === "placeholder" ? s.focusText : undefined }))} aria-label="镜头类型">
-          {(["placeholder", "upload", "image", "video", "stock", "chart"] as Shot["kind"][]).map((kind) => <option key={kind} value={kind}>{shotKindLabels[kind]}</option>)}
-        </Select>
-        <Select value={shot.mode === "motion" ? "motion" : shot.mode === "composite" ? "composite" : shot.mode === "real" ? "real" : "generate"} onChange={(v) => shotUpdate(store, shot.id, (s) => ({
-          ...s, kind: "placeholder", mode: v as Shot["mode"], shotSize: v === "generate" ? (s.shotSize ?? "medium") : s.shotSize,
-          focusText: v === "motion" ? (focus ?? { text: timed?.keywords[0] ?? "重点", layoutMode: "auto" }) : undefined,
-          card: v === "motion" ? undefined : s.card, onScreenText: v === "motion" ? undefined : s.onScreenText,
-        }))} aria-label="表达方式"><option value="generate">生成画面</option><option value="motion">重点文字</option><option value="composite">画面 + 动画层</option><option value="real">真实素材</option></Select>
-        {!isTextShot && <Select value={shot.shotSize ?? "medium"} onChange={(v) => shotUpdate(store, shot.id, (s) => ({ ...s, shotSize: v as Shot["shotSize"] }))} aria-label="景别">{shotSizes.map((size) => <option key={size} value={size}>{shotSizeLabels[size]}</option>)}</Select>}
-        {wantsImage && <><AutoTextarea value={shot.prompt ?? ""} onChange={(e) => shotUpdate(store, shot.id, (s) => ({ ...s, prompt: e.target.value || undefined }))} className="input min-h-12 text-xs" placeholder="自定义画面内容" /><input className="input h-8 py-1.5 text-xs" type="number" min={0} value={shot.seed ?? ""} onChange={(e) => shotUpdate(store, shot.id, (s) => ({ ...s, seed: e.target.value === "" ? undefined : Number(e.target.value) }))} placeholder="seed" />{store.doc && store.doc.characters.some((c) => !c.absent) && <div className="space-y-1"><p className="text-[11px] text-white/40">画面里的角色（最多 {MAX_SHOT_CHARACTERS} 个）</p><div className="flex flex-wrap gap-1.5">{store.doc.characters.filter((c) => !c.absent || shot.characterIds.includes(c.id)).map((c) => { const on = shot.characterIds.includes(c.id); return <button key={c.id} type="button" className={`chip h-7 px-2.5 ${on ? "chip-on" : ""}`} disabled={!on && shot.characterIds.length >= MAX_SHOT_CHARACTERS} onClick={() => shotUpdate(store, shot.id, (s) => ({ ...s, characterIds: on ? s.characterIds.filter((x) => x !== c.id) : [...s.characterIds, c.id] }))}>{c.name}</button>; })}</div></div>}{compiled && <PromptSlots compiled={compiled} />}</>}
       </div>
-    </details>
-  </div>;
+      <div className="mt-3 grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        {/* 左：大图与候选。候选比较要的是尺寸，这正是卡片放不下的部分 */}
+        <div className="min-w-0 space-y-3">
+          <div className="relative w-full overflow-hidden rounded-control border border-white/10 bg-stage" style={{ aspectRatio: timeline ? `${timeline.width} / ${timeline.height}` : "16 / 9" }}>
+            <span className="absolute inset-0 block"><ShotMedia shot={shot} timed={timed} timeline={timeline} status={status} sizes="720px" /></span>
+            {(running || generating) && <span className="pointer-events-none absolute inset-0 bg-black/25" />}
+            {(running || generating) && <span className="pointer-events-none absolute left-2 top-2 inline-flex items-center gap-1.5 rounded-full border border-accent/35 bg-black/65 px-2 py-1 text-3xs text-accent backdrop-blur"><span className="generation-live-dot size-1.5 rounded-full bg-accent" />{generating ? "正在提交…" : label}</span>}
+            {status === "failed" && <span className="pointer-events-none absolute inset-x-2 bottom-2 rounded bg-red-950/80 px-2 py-1 text-3xs text-red-100 backdrop-blur">生成失败 · 可重试</span>}
+          </div>
+          {(status === "queued" || status === "running") && (
+            <p className="flex items-center gap-1.5 text-xs text-accent"><span className="generation-live-dot size-1.5 rounded-full bg-accent" />{label}{message ? ` · ${message}` : ""}{status === "queued" ? "（等待空闲并发）" : ""}</p>
+          )}
+          {status === "failed" && <div role="alert" className="flex flex-wrap items-center gap-2 text-xs"><p className="text-red-300">{effectiveError || "生成失败"}</p>{job && <button className="chip h-6 px-2.5 text-2xs" title={`重新提交这个镜头的生成请求（${candidateCount} 张）`} onClick={() => void retryJobWithCost()}>重试 · {candidateCount} 张</button>}</div>}
+          {status === "canceled" && <p className="text-xs text-white/45">任务已取消，可重新生成</p>}
+          {error && <p role="alert" className="text-xs text-red-300">{error}</p>}
+          {stale && <p className="text-xs text-amber-200/80">画面描述或风格已改，图片已过期</p>}
+          {wantsImage && !shot.assetId && !generating && <p className="text-xs text-amber-200/70">暂无素材，使用占位画面</p>}
+          {shot.intent && <p className="text-xs leading-5 text-white/70"><span className="text-white/40">意图 · </span>{shot.intent}</p>}
+          {shot.characterIds.length > 0 && store.doc && <p className="flex flex-wrap gap-1">{shot.characterIds.map((cid) => store.doc!.characters.find((c) => c.id === cid)).filter(Boolean).map((c) => <span key={c!.id} className="rounded-full bg-white/[0.06] px-2 py-0.5 text-3xs text-white/60">{c!.name}</span>)}</p>}
+          {(shot.kind === "image" || shot.kind === "video") && shot.candidates.length > 0 && (
+            <div aria-label="候选素材历史">
+              <div className="mb-1.5 flex items-center justify-between text-2xs text-white/40">
+                <span>候选历史</span>
+                <span>{shot.candidates.length} / 8 · {shot.candidates.find((candidate) => candidate.selected) ? "已选择" : "待选择"}</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">{shot.candidates.map((candidate, candidateIndex) => {
+                const candidateLabel = `${candidate.selected ? "当前使用" : "使用"}第 ${candidateIndex + 1} 个候选素材`;
+                return <button
+                  key={candidate.id}
+                  className={`group relative aspect-video overflow-hidden rounded-control border-2 transition-all duration-200 active:scale-[0.98] ${candidate.selected ? "border-accent shadow-[0_0_12px_rgba(125,211,252,0.3)] ring-1 ring-accent/20" : "border-white/10 hover:border-white/30 hover:shadow-[0_0_8px_rgba(255,255,255,0.1)]"}`}
+                  title={candidateLabel}
+                  aria-label={candidateLabel}
+                  aria-pressed={candidate.selected}
+                  onClick={() => onCandidate(candidate.id)}
+                >
+                  {shot.kind === "video" ? <video muted preload="metadata" src={mediaUrl(candidate.assetId)} className="h-full w-full object-cover" /> : <Image src={mediaUrl(candidate.assetId)} alt="" fill sizes="200px" unoptimized className="object-cover" />}
+                  {candidate.selected && <span className="absolute right-1 top-1 inline-flex items-center gap-0.5 rounded-full bg-accent px-1.5 py-0.5 text-3xs font-medium text-ink shadow-lg"><Icon name="check" className="size-2.5" />当前</span>}
+                  <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-1 py-1 text-left text-3xs text-white">候选 {candidateIndex + 1}</span>
+                </button>;
+              })}</div>
+              {shot.candidates.length >= 6 && <p className="mt-1.5 text-3xs text-white/35">提示：候选已接近上限（8个），重新生成时会自动移除最旧的候选</p>}
+            </div>
+          )}
+        </div>
+        {/* 右：按操作频次分组的控件。主操作在最上，低频设置收进「高级」 */}
+        <div className="min-w-0 space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {wantsImage && <button className="btn btn-primary btn-sm" disabled={generating || shot.locked || !imageReady || running} title={`${shot.assetId ? "重新生成" : "生成"} ${candidateCount} 张候选图`} onClick={onGenerate}>{generating ? <Spinner className="size-3" /> : <Icon name="sparkle" className="size-3.5" />}{shot.assetId ? "重新生成图片" : "生成图片"} · {candidateCount} 张</button>}
+            <label className="chip h-7 cursor-pointer px-2.5">{uploading ? <Spinner className="size-3" /> : "上传图片"}<input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])} /></label>
+          </div>
+          <p className="text-2xs text-white/40">{shotExpression(shot, timed)}</p>
+          {!isTextShot && <AutoTextarea value={shot.description} onChange={(e) => shotUpdate(store, shot.id, (s) => ({ ...s, description: e.target.value }))} onBlur={() => { if (descriptionRef.current !== shot.description) { descriptionRef.current = shot.description; toast("已修改画面描述，现有成片需要重新渲染", "info"); } }} className="input min-h-16 text-xs" placeholder="画面描述" />}
+          {isTextShot && <div className="space-y-2">
+            <div className="flex items-center justify-between text-2xs text-white/50"><span>重点文字</span><span className={focusWidth > 8 ? "text-amber-200" : ""}>{focusWidth.toFixed(1)} / 8 字宽</span></div>
+            <input className="input h-9 w-full text-sm" value={focus?.text ?? ""} onChange={(e) => updateFocus({ text: e.target.value })} placeholder="核心关键词或短句" aria-label="核心文字" />
+            {focusWidth > 8 && <p className="text-2xs text-amber-200">请概括为 8 字以内；预览会按空间收缩字号。</p>}
+            <div className="grid grid-cols-2 gap-2"><input className="input h-8 min-w-0 text-xs" value={focus?.support ?? ""} onChange={(e) => updateFocus({ support: e.target.value || undefined })} placeholder="辅助小字（可选）" aria-label="辅助文字" /><input className="input h-8 min-w-0 text-xs" value={focus?.emphasis ?? ""} onChange={(e) => updateFocus({ emphasis: e.target.value || undefined })} placeholder="强调片段（可选）" aria-label="强调片段" /></div>
+            {focusVisualWidth(focus?.support ?? "") > 8 && <p className="text-2xs text-amber-200">辅助字也请压缩到 8 字以内，原文会完整保留。</p>}
+            <div className="grid grid-cols-2 gap-2"><Select value={focus?.layoutMode ?? "auto"} onChange={(v) => updateFocus({ layoutMode: v as NonNullable<Shot["focusText"]>["layoutMode"], presetId: v === "manual" ? (focus?.presetId ?? timed?.focusText?.presetId ?? "focus") : undefined })} aria-label="排版模式"><option value="auto">智能匹配</option><option value="shuffle">探索变化</option><option value="manual">手动锁定</option></Select><MotionPresetPicker text={focus?.text ?? ""} value={focus?.layoutMode === "manual" ? focus.presetId ?? "focus" : timed?.focusText?.presetId ?? "focus"} onChange={(presetId) => updateFocus({ layoutMode: "manual", presetId })} /></div>
+            {focus?.layoutMode === "shuffle" && <button className="chip h-7 px-2.5 text-xs" type="button" onClick={() => shotUpdate(store, shot.id, (s) => ({ ...s, seed: (s.seed ?? timed?.seed ?? 0) + 1 }))}>换一个排版</button>}
+          </div>}
+          <div className={`grid gap-2 ${isTextShot ? "" : "grid-cols-2"}`}>
+            {!isTextShot && <ShelfPicker label="运镜" value={shot.motion} locked={!!shot.motionLocked} options={cameraCatalog} onAuto={() => shotUpdate(store, shot.id, (s) => ({ ...s, motionLocked: undefined }))} onChange={(motion) => shotUpdate(store, shot.id, (s) => ({ ...s, motion: motion as Motion, motionLocked: true }))} />}
+            <ShelfPicker label="转场" value={timed?.transitionIn ?? shot.transitionIn ?? "cut"} locked={!!shot.transitionLocked} options={transitionCatalog} onAuto={() => shotUpdate(store, shot.id, (s) => ({ ...s, transitionIn: undefined, transitionLocked: undefined }))} onChange={(transitionIn) => shotUpdate(store, shot.id, (s) => ({ ...s, transitionIn: transitionIn as TransitionIn, transitionLocked: true }))} />
+          </div>
+          <details className="border-t border-white/10 pt-2 text-xs text-white/50">
+            <summary className="cursor-pointer">高级</summary>
+            <div className="mt-2 grid gap-2">
+              <p className="text-2xs leading-4 text-white/45">修改会自动保存并刷新预览。已有成片需要重新渲染。</p>
+              <Select value={isTextShot ? "placeholder" : shot.kind} onChange={(v) => shotUpdate(store, shot.id, (s) => ({ ...s, kind: v as Shot["kind"], focusText: v === "placeholder" ? s.focusText : undefined }))} aria-label="镜头类型">
+                {(["placeholder", "upload", "image", "video", "stock", "chart"] as Shot["kind"][]).map((kind) => <option key={kind} value={kind}>{shotKindLabels[kind]}</option>)}
+              </Select>
+              <Select value={shot.mode === "motion" ? "motion" : shot.mode === "composite" ? "composite" : shot.mode === "real" ? "real" : "generate"} onChange={(v) => shotUpdate(store, shot.id, (s) => ({
+                ...s, kind: "placeholder", mode: v as Shot["mode"], shotSize: v === "generate" ? (s.shotSize ?? "medium") : s.shotSize,
+                focusText: v === "motion" ? (focus ?? { text: timed?.keywords[0] ?? "重点", layoutMode: "auto" }) : undefined,
+                card: v === "motion" ? undefined : s.card, onScreenText: v === "motion" ? undefined : s.onScreenText,
+              }))} aria-label="表达方式"><option value="generate">生成画面</option><option value="motion">重点文字</option><option value="composite">画面 + 动画层</option><option value="real">真实素材</option></Select>
+              {!isTextShot && <Select value={shot.shotSize ?? "medium"} onChange={(v) => shotUpdate(store, shot.id, (s) => ({ ...s, shotSize: v as Shot["shotSize"] }))} aria-label="景别">{shotSizes.map((size) => <option key={size} value={size}>{shotSizeLabels[size]}</option>)}</Select>}
+              {wantsImage && <><AutoTextarea value={shot.prompt ?? ""} onChange={(e) => shotUpdate(store, shot.id, (s) => ({ ...s, prompt: e.target.value || undefined }))} className="input min-h-12 text-xs" placeholder="自定义画面内容" /><input className="input h-8 py-1.5 text-xs" type="number" min={0} value={shot.seed ?? ""} onChange={(e) => shotUpdate(store, shot.id, (s) => ({ ...s, seed: e.target.value === "" ? undefined : Number(e.target.value) }))} placeholder="seed" />{store.doc && store.doc.characters.some((c) => !c.absent) && <div className="space-y-1"><p className="text-2xs text-white/40">画面里的角色（最多 {MAX_SHOT_CHARACTERS} 个）</p><div className="flex flex-wrap gap-1.5">{store.doc.characters.filter((c) => !c.absent || shot.characterIds.includes(c.id)).map((c) => { const on = shot.characterIds.includes(c.id); return <button key={c.id} type="button" className={`chip h-7 px-2.5 ${on ? "chip-on" : ""}`} disabled={!on && shot.characterIds.length >= MAX_SHOT_CHARACTERS} onClick={() => shotUpdate(store, shot.id, (s) => ({ ...s, characterIds: on ? s.characterIds.filter((x) => x !== c.id) : [...s.characterIds, c.id] }))}>{c.name}</button>; })}</div></div>}{compiled && <PromptSlots compiled={compiled} />}</>}
+            </div>
+          </details>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** 表格形态的一行：一屏能扫完更多镜头，展开能力与卡片形态共用同一套状态 */
+function ShotRow({ shot, timed, timeline, index, active, expanded, onToggle, job, serverStatus }: ShotCommon & { expanded: boolean; onToggle: () => void }) {
+  const { status, label } = shotState({ shot, job, serverStatus });
+  return (
+    <div id={`shot-card-${shot.id}`} className={`transition-colors ${active || expanded ? "bg-white/[0.05]" : "hover:bg-white/[0.025]"}`}>
+      <button type="button" className="flex w-full items-center gap-3 px-3 py-2 text-left" aria-expanded={expanded} aria-label={`镜头 ${index + 1}，${label}，${expanded ? "收起" : "展开"}编辑`} onClick={onToggle}>
+        <span className="w-10 shrink-0 text-xs font-medium tabular-nums text-white/70">{index + 1}</span>
+        <span className="relative h-10 w-[71px] shrink-0 overflow-hidden rounded border border-white/10 bg-stage">
+          <span className="absolute inset-0 block"><ShotMedia shot={shot} timed={timed} timeline={timeline} status={status} sizes="80px" /></span>
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-xs text-white/70">{timed?.caption || "暂无覆盖句子"}</span>
+          <span className="mt-0.5 block truncate text-2xs text-white/40">{shot.description || shotExpression(shot, timed)}</span>
+        </span>
+        {shot.locked && <Icon name="lock" className="size-3 shrink-0 text-accent/70" />}
+        <span className={`shrink-0 text-2xs ${status === "failed" ? "text-red-300" : status === "running" || status === "queued" ? "text-accent" : "text-white/40"}`}>{status === "idle" ? "" : label}</span>
+        <span className="w-20 shrink-0 text-right text-2xs tabular-nums text-white/40">{timed ? `${shotTime(timed.startMs)}–${shotTime(timed.endMs)}` : "计算中"}</span>
+        <Icon name="chevron" className={`size-3.5 shrink-0 text-white/35 transition-transform ${expanded ? "rotate-180" : ""}`} />
+      </button>
+    </div>
+  );
 }
 
 

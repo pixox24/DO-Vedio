@@ -224,6 +224,8 @@ export function VideoStudio({ id }: { id: string }) {
   const [setupConfirmed, setSetupConfirmed] = useState(false);
   const [refreshError, setRefreshError] = useState("");
   const [panel, setPanel] = useState<Panel>("sentences");
+  /** 分镜板的临时全宽：右栏窄是卡片拥挤的结构性原因，密集编辑时给一条出路。刷新即复位。 */
+  const [wide, setWide] = useState(false);
   const [previewPlaying, setPreviewPlaying] = useState(false);
   const [musicTracks, setMusicTracks] = useState<MusicSource[]>([]);
   const previewRef = useRef<VideoPreviewHandle>(null);
@@ -636,7 +638,11 @@ export function VideoStudio({ id }: { id: string }) {
           {blocked && <p className="text-sm text-amber-200/80">已暂停：{blocked}</p>}
           {!running && !blocked && plan && plan.plan.waiting.length > 0 && <p className="text-xs text-white/50">{plan.plan.waiting.join(" · ")}</p>}
 
-          <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)] lg:items-start">
+          {/*
+            分镜全宽：预览缩到 300px 并吸顶，右栏拿走其余全部宽度。
+            只在「镜头」面板生效——全宽是为密集改分镜准备的，切走就该还回去。
+          */}
+          <div className={`grid min-w-0 gap-6 lg:items-start ${wide && panel === "storyboard" ? "lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)]" : "lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]"}`}>
             <div className="min-w-0 space-y-3 lg:sticky lg:top-24">
               <div className={aspect === "9:16" ? "mx-auto w-full max-w-[420px]" : "w-full"}>
                 {previewTimeline ? <Preview ref={previewRef} timeline={previewTimeline} onPlayingChange={onPreviewPlaying} /> : <div className={`grid ${aspect === "9:16" ? "aspect-[9/16] max-h-[70vh]" : "aspect-[16/9]"} place-items-center rounded-2xl bg-white/[0.03] text-sm text-white/35`}>正在加载预览…</div>}
@@ -680,7 +686,7 @@ export function VideoStudio({ id }: { id: string }) {
                 {panel === "sentences" && <SentencePanel id={id} store={store} jobs={jobs} onChanged={() => { void runRefresh(); }} onSeek={seekLine} />}
                 {panel === "style" && <VisualStylePanel store={store} />}
                 {panel === "cast" && <CastPanel id={id} store={store} jobs={jobs} />}
-                {panel === "storyboard" && <StoryboardPanel id={id} store={store} timeline={timeline} jobs={jobs} onSeek={(ms) => previewRef.current?.seekToMs(ms)} />}
+                {panel === "storyboard" && <StoryboardPanel id={id} store={store} timeline={timeline} jobs={jobs} onSeek={(ms) => previewRef.current?.seekToMs(ms)} wide={wide} onToggleWide={() => setWide((current) => !current)} />}
                 {panel === "subtitle" && <SubtitlePanel doc={doc} setDoc={store.setDoc} />}
                 {panel === "music" && <MusicPanel id={id} store={store} />}
                 {panel === "settings" && <SettingsPanel store={store} />}
