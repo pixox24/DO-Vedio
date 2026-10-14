@@ -8,7 +8,7 @@ import type { Job, ProjectDoc, Settings } from "./types";
  */
 export function setupFingerprint(settings: Settings): string {
   return JSON.stringify({
-    version: 1,
+    version: 2, // 自动立绘现在包含场景标准图，旧费用确认需重新确认。
     voice: {
       provider: settings.voice.provider,
       model: settings.voice.model,

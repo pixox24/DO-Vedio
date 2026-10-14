@@ -22,7 +22,7 @@ export function voiceDirectionHint(voice: Pick<VoiceSettings, "model" | "instruc
  * 还缺图时保持满格，用青绿色表示「写完了，图还没有」；图齐了，或没有镜头需要生图，才算完成。
  * 锁定的镜头不参加全量生图，也不算缺图。
  */
-export function storyboardImageHint(doc: Pick<ProjectDoc, "shots" | "lines" | "brief" | "visualStyle" | "characters">, generating: boolean): StepHint | null {
+export function storyboardImageHint(doc: Pick<ProjectDoc, "shots" | "lines" | "brief" | "visualStyle" | "characters" | "scenes">, generating: boolean): StepHint | null {
   if (doc.shots.length === 0) return null;
   const wanting = doc.shots.filter((shot) => !shot.locked && needsGeneratedImage(shot));
   const missing = wanting.filter((shot) => !shot.assetId || assetStale(doc, shot));

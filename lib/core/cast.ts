@@ -29,6 +29,7 @@ export const sheetKindLabels: Record<SheetKind, string> = { portrait: "立绘", 
 // —— 大模型输出 ——
 
 export const castDraftSchema = z.object({
+  scenes: z.array(z.object({ name: z.string(), description: z.string(), mentions: z.array(z.string()) })).optional(),
   modes: z.array(z.object({ segmentIndex: z.number().int().min(0), mode: z.enum(narrativeModes) })),
   characters: z.array(
     z.object({
@@ -69,7 +70,7 @@ type DraftCharacter = CastDraft["characters"][number];
 
 /** 决定选角结果的文案输入；变了就要重新分析 */
 export function castSourceHash(doc: Pick<ProjectDoc, "lines" | "brief">) {
-  return quickHash({ v: 1, lines: doc.lines.map((l) => [l.id, l.text]), summary: doc.brief.summary, templateId: doc.brief.templateId, perspective: doc.brief.perspective });
+  return quickHash({ v: 2, lines: doc.lines.map((l) => [l.id, l.text]), summary: doc.brief.summary, templateId: doc.brief.templateId, perspective: doc.brief.perspective });
 }
 
 /** 模型没有依据时常写的占位值 */

@@ -20,7 +20,7 @@ import { estimateSubtitleTranslateCost } from "./subtitle-translate";
 import { ttsJobKeyOf, ttsSteps } from "./tts-jobs";
 import type { Quality } from "./render";
 import { staleRanges } from "./stages/storyboard";
-import { autoPortraitPlan, isAutoPortraitInput } from "./auto-portrait";
+import { autoPortraitPlan, autoScenePlan, isAutoPortraitInput } from "./auto-portrait";
 import { castSourceHash } from "../core/cast";
 import { voiceDirectionKey, type VoiceDirectionCache } from "./voice-direction";
 
@@ -150,17 +150,17 @@ export function planPipeline(projectId: string, doc: ProjectDoc, goal: Goal): Pl
   const castReady = !modelId || doc.castAnalysis?.sourceHash === castHash;
   if (!castReady) {
     const chars = doc.lines.reduce((s, l) => s + l.text.length, 0);
-    steps.push({ stage: "cast", key: `cast:${projectId}:${castHash}`, target: "识别角色", input: { projectId, modelId }, cost: estimateLlmCost(modelId, 3500 + chars, 2000), priority: 4 });
+    steps.push({ stage: "cast", key: `cast:${projectId}:${castHash}`, target: "识别角色和场景", input: { projectId, modelId }, cost: estimateLlmCost(modelId, 3500 + chars, 2000), priority: 4 });
   }
 
   // 3.5) 自动立绘（默认关闭）：识别角色完成后，为每个还没有当前风格立绘的角色排一张。
   // 与分镜、渲染并行；正在定妆的角色不入队，但要留在 currentKeys 里，否则会被当成「上一轮旧任务」。
-  const portraits = autoPortraitPlan(doc, projectId);
+  const portraits = [...autoPortraitPlan(doc, projectId), ...autoScenePlan(doc, projectId)];
   steps.push(...portraits.filter((p) => !p.busy).map((p) => p.step));
 
   // 4) 分镜（配音齐了才做，因为节奏依赖真实时长）
   let shotsReady = doc.shots.length > 0 && staleRanges(doc).length === 0;
-  if (voiced && !castReady && !shotsReady) waiting.push("等待识别角色");
+  if (voiced && !castReady && !shotsReady) waiting.push("等待识别角色和场景");
   if (voiced && castReady && !shotsReady && modelId) {
     const mode = doc.shots.length === 0 ? "full" : "stale";
     const sig = JSON.stringify(doc.lines.map((l) => l.id + l.text)) + JSON.stringify(doc.shots.map((s) => s.id + s.sourceHash + s.locked));
@@ -272,8 +272,8 @@ function planForGoal(plan: Plan, goalId?: string): Plan {
   if (!goalId) return plan;
   return {
     ...plan,
-    steps: plan.steps.map((step) => ({ ...step, key: goalJobKey(step.key, goalId) })),
-    currentKeys: plan.currentKeys.map((key) => goalJobKey(key, goalId)),
+    steps: plan.steps.map((step) => ({ ...step, key: isAutoPortraitInput(step.input) ? step.key : goalJobKey(step.key, goalId) })),
+    currentKeys: plan.currentKeys.map((key) => key.startsWith("auto-portrait:") || key.startsWith("auto-scene:") ? key : goalJobKey(key, goalId)),
   };
 }
 
@@ -299,7 +299,7 @@ export function produce(projectId: string, goal: Goal, opts: { dryRun?: boolean;
   for (const s of plan.steps) {
     const last = latestJobByKey(s.key, projectId);
     // 自动推进时不重提失败过的任务（避免反复扣费）；用户主动点开始时重试
-    if (last && (last.status === "failed" || last.status === "canceled") && !opts.retryFailed) continue;
+    if (last && (last.status === "failed" || last.status === "canceled") && (!opts.retryFailed || isAutoPortraitInput(s.input))) continue;
     const input = opts.goalId && typeof s.input === "object" && s.input !== null
       ? { ...(s.input as Record<string, unknown>), goalId: opts.goalId }
       : s.input;
@@ -349,7 +349,7 @@ export function drive(projectId: string, goal: Goal, confirmBudget = false) {
 }
 
 /** 自动立绘失败不计入「有任务失败」：它是支线，不该拦住断句、配音、分镜和成片 */
-const NOT_AUTO_PORTRAIT = "NOT (stage = 'character-sheet' AND json_extract(input, '$.auto') = 1)";
+const NOT_AUTO_PORTRAIT = "NOT (stage IN ('character-sheet', 'scene-reference') AND COALESCE(json_extract(input, '$.auto'), 0) = 1)";
 
 function settle(projectId: string, r: ProduceResult) {
   if (r.blocked) return block(projectId, r.blocked);

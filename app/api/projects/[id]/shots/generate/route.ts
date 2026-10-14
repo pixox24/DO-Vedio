@@ -11,6 +11,7 @@ import { ensureProjectVisualStyle } from "@/lib/visual-styles/store";
 import { outputSpecForRequest, type GenerationFrame } from "@/lib/core/output-spec";
 import { outputSpecsFor } from "@/lib/core/output-spec";
 import type { Aspect, OutputSpecId } from "@/lib/core/types";
+import { enqueueAutoPortraits, enqueueAutoScenes } from "@/lib/pipeline/auto-portrait";
 
 const body = z.object({ modelId: z.string().min(1), candidateCount: z.number().int().min(1).max(4).default(1), outputSpecId: z.enum(["landscape-1080p", "portrait-1080p"]).optional(), aspect: z.enum(["16:9", "9:16"]).optional(), assetFraming: z.enum(["smart-dual", "per-output", "shared"]).optional() });
 
@@ -37,11 +38,13 @@ export async function POST(req: Request, ctx: RouteContext<"/api/projects/[id]/s
       return targetSpecs.filter((spec) => {
         const variant = shot.assetVariants?.[spec.aspect];
         const hint = spec.aspect === "9:16" ? "竖屏构图，主体保持在中央安全区，顶部和底部预留字幕与平台界面空间" : "横屏构图，主体和关键动作保持在中央安全区，左右保留环境叙事空间";
-        const fresh = variant && variant.promptHash === quickHash(`${compileShotPrompt(project.doc, shot).full}。${hint}`);
+        const fresh = variant && !assetStale(project.doc, shot) && variant.promptHash === quickHash(`${compileShotPrompt(project.doc, shot).full}。${hint}`);
         return fresh ? false : separate || variant ? true : (!shot.assetId || assetStale(project.doc, shot));
       }).map((spec) => ({ shot, spec }));
     });
     if (!tasks.length) return fail("没有需要生成图片的镜头", 409);
+    enqueueAutoPortraits(id);
+    enqueueAutoScenes(id);
     const batchId = randomUUID();
     const jobs = tasks.flatMap(({ shot, spec }) => {
       const frame: GenerationFrame = { aspect: spec.aspect, width: spec.width, height: spec.height, fps: spec.fps };

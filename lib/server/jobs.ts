@@ -123,27 +123,55 @@ export function isCurrentExecution(id: string, lockToken?: string) {
   return !!get<{ id: string }>("SELECT id FROM jobs WHERE id = ? AND status = 'running' AND lock_token = ?", id, lockToken);
 }
 
+/** 只延后关联标准图仍在生成的镜头；从当前文档读取关联，编辑后同样有效。 */
+function waitingReferenceShotIds(): string[] {
+  const references = all<{ project_id: string; stage: string; input: string }>(
+    "SELECT project_id, stage, input FROM jobs WHERE stage IN ('scene-reference', 'character-sheet') AND status IN ('queued', 'running')",
+  );
+  if (!references.length) return [];
+  const scenes = new Set<string>();
+  const characters = new Set<string>();
+  for (const ref of references) {
+    const input = parseJson<{ sceneId?: string; characterId?: string; kind?: string }>(ref.input, {});
+    if (ref.stage === "scene-reference" && input.sceneId) scenes.add(`${ref.project_id}:${input.sceneId}`);
+    if (ref.stage === "character-sheet" && input.kind === "portrait" && input.characterId) characters.add(`${ref.project_id}:${input.characterId}`);
+  }
+  return all<{ id: string; project_id: string; input: string; doc: string }>(
+    "SELECT j.id, j.project_id, j.input, p.doc FROM jobs j JOIN projects p ON p.id = j.project_id WHERE j.stage = 'shot-generate' AND j.status = 'queued'",
+  ).filter((row) => {
+    const input = parseJson<{ shotId?: string }>(row.input, {});
+    const doc = parseJson<{ shots?: { id: string; sceneId?: string; characterIds?: string[] }[] }>(row.doc, {});
+    const shot = doc.shots?.find((shot) => shot.id === input.shotId);
+    return !!shot && (scenes.has(`${row.project_id}:${shot.sceneId}`) || shot.characterIds?.some((id) => characters.has(`${row.project_id}:${id}`)));
+  }).map((row) => row.id);
+}
+
 /** 原子领取一个可执行的任务 */
 export function claim(workerId: string, stages: string[]): Job | undefined {
   if (stages.length === 0) return undefined;
-  const now = Date.now();
-  const lockToken = randomUUID();
-  const r = get<Row>(
-    `UPDATE jobs SET status = 'running', locked_by = ?, lock_token = ?, lease_until = ?, attempts = attempts + 1, error = NULL, started_at = ?, updated_at = ?
-     WHERE id = (
-       SELECT id FROM jobs WHERE status = 'queued' AND run_after <= ? AND stage IN (${stages.map(() => "?").join(",")})
-       ORDER BY priority, created_at LIMIT 1
-     )
-     RETURNING *`,
-    workerId,
-    lockToken,
-    now + LEASE_MS,
-    now,
-    now,
-    now,
-    ...stages,
-  );
-  return r && toJob(r, true);
+  return tx(() => {
+    const now = Date.now();
+    const lockToken = randomUUID();
+    const waiting = stages.includes("shot-generate") ? waitingReferenceShotIds() : [];
+    const r = get<Row>(
+      `UPDATE jobs SET status = 'running', locked_by = ?, lock_token = ?, lease_until = ?, attempts = attempts + 1, error = NULL, started_at = ?, updated_at = ?
+       WHERE id = (
+          SELECT id FROM jobs WHERE status = 'queued' AND run_after <= ? AND stage IN (${stages.map(() => "?").join(",")})
+          ${waiting.length ? `AND id NOT IN (${waiting.map(() => "?").join(",")})` : ""}
+         ORDER BY priority, created_at LIMIT 1
+       )
+       RETURNING *`,
+      workerId,
+      lockToken,
+      now + LEASE_MS,
+      now,
+      now,
+      now,
+      ...stages,
+      ...waiting,
+    );
+    return r && toJob(r, true);
+  });
 }
 
 /** 续租约并上报进度；任务已被取消或被别的 Worker 接走时返回 false */

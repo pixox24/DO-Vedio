@@ -580,6 +580,8 @@ export type StoryboardPayload = {
   lines: { id: string; segmentIndex: number; text: string; ms: number; keywords: string[]; mood?: string }[];
   /** 建卡角色：分镜只写他们在做什么，外貌由系统从角色卡补上 */
   cast?: { id: string; name: string; role: string; brief: string; presentation?: string }[];
+  /** 固定场景：同一地点复用同一个 sceneId，陈设由编译器注入。 */
+  scenes?: { id: string; name: string; description: string }[];
   /** 增量模式：只为这个范围出镜头，前后是固定的镜头 */
   partial?: { before?: { text: string; shot?: string }; after?: { text: string; shot?: string } };
 };
@@ -599,7 +601,7 @@ export function storyboardPrompt(input: StoryboardPayload): Prompt {
   return {
     instructions: `你是 B站解说视频的分镜导演。先理解旁白，再决定用具象画面还是重点文字。只输出严格 JSON，顶层为 shots 数组。
 
-每个镜头必须有 lineId（旁白中的句子 ID）、intent、kind="placeholder"、mode（"generate" 或 "motion"）、description、motion（zoom-in/zoom-out/pan-left/pan-right/none）、importance（1-3）。可选 char（句中的起点，默认 0）、shotSize、characters、focusText。
+每个镜头必须有 lineId（旁白中的句子 ID）、intent、kind="placeholder"、mode（"generate" 或 "motion"）、description、motion（zoom-in/zoom-out/pan-left/pan-right/none）、importance（1-3）。可选 char（句中的起点，默认 0）、shotSize、characters、sceneId、focusText。
 
 【两种画面】
 - mode=generate：人、物、场景、动作、故事情节直接拍出来；抽象情绪用贴合旁白的具体意象。description 写主体、动作、环境和关键细节；shotSize 必填。不要写画风词，也不要让画面出现文字。人物在看带屏幕的设备时，按【屏幕朝向】写，不要新增字段。
@@ -610,6 +612,8 @@ export function storyboardPrompt(input: StoryboardPayload): Prompt {
 【节奏】文字画面用于关键数字、观点落点和认知转折，占全片约 20%-35%。连续两个镜头不能都是 motion；具体叙事优先 generate，给观众消化文字的空间。镜头连续覆盖时间轴，每镜约 2-6 秒；长句可在逗号后用 char 切镜，短句可合并。相邻生成画面景别与运镜要变化。importance=3 只用于开场钩子、高潮、转折，最多约 15%。
 
 【角色】建卡角色出现在画面时把 id 写进 characters；description 用名字指代，不重复外貌。角色卡只有外貌和服装，这一镜他手里拿什么、正在做什么，都要写进 description。真实公众人物以背影、剪影、手部或象征物呈现。
+
+【场景】生成镜头发生在场景表中的地点时，填写对应 sceneId，只能使用表内 id。咖啡厅、店里、窗边座位属于同一室内空间时用同一个 id；街道或店外必须用对应室外场景。没有匹配场景或纯文字镜头时省略 sceneId。description 只写本镜头的动作与细节，不重复固定陈设。
 
 【屏幕朝向】人物看手机、平板、电脑或手表时，生图模型会把界面画在朝向镜头的那一面，也会把摄像头模组画成被注视的物体。约束只写进 description，不要新增字段，不要写「屏幕显示」「界面上」。除了拍照和视频通话，不要写「摄像头模组」。
 - 手指在玻璃上点按、滑动、解锁、输入，或主观、过肩看界面：屏幕在手指下方，略微朝向镜头，上面只有抽象色块和图标，没有文字和数字。特写时以手和屏幕为主，脸不入画。手机平放被点时屏幕朝上。
@@ -631,7 +635,7 @@ export function storyboardPrompt(input: StoryboardPayload): Prompt {
 旁白：她在设置里把通知关掉。→ {"kind":"placeholder","mode":"generate","shotSize":"extreme-close","description":"手指在手机屏幕上点按，屏幕在手指下方，略微朝向镜头，屏幕上只有抽象色块和图标，没有文字和数字，以手和屏幕为主，脸不入画"}`,
     prompt: `视频：${input.title}
 ${input.style ? `解说风格：${input.style.name}（${input.style.description}${input.style.tone ? `；语气：${input.style.tone}` : ""}）\n` : ""}${input.brief.audience ? `目标受众：${input.brief.audience}\n` : ""}叙述视角：${input.brief.perspective === "first" ? "第一人称 UP 主" : "第三人称旁白"}
-${input.brief.summary ? `\n内容概要：\n${input.brief.summary}\n` : ""}${input.cast?.length ? `\n角色表（id · 名字 · 身份 · 外貌摘要）：\n${input.cast.map((c) => `- ${c.id} · ${c.name} · ${c.role} · ${c.brief}${c.presentation ? `（${c.presentation}）` : ""}`).join("\n")}\n` : ""}${input.partial ? `\n注意：这是局部重做。${edge("这段之前", input.partial.before)}${edge("这段之后", input.partial.after)}只为下面这些句子设计镜头，第一个镜头必须从第一句开始，并与前后镜头自然衔接（景别、表达方式不要和相邻镜头雷同）。\n` : ""}
+${input.brief.summary ? `\n内容概要：\n${input.brief.summary}\n` : ""}${input.cast?.length ? `\n角色表（id · 名字 · 身份 · 外貌摘要）：\n${input.cast.map((c) => `- ${c.id} · ${c.name} · ${c.role} · ${c.brief}${c.presentation ? `（${c.presentation}）` : ""}`).join("\n")}\n` : ""}${input.scenes?.length ? `\n场景表（id · 名称 · 固定陈设）：\n${input.scenes.map((scene) => `- ${scene.id} · ${scene.name} · ${scene.description}`).join("\n")}\n` : ""}${input.partial ? `\n注意：这是局部重做。${edge("这段之前", input.partial.before)}${edge("这段之后", input.partial.after)}只为下面这些句子设计镜头，第一个镜头必须从第一句开始，并与前后镜头自然衔接（景别、表达方式不要和相邻镜头雷同）。\n` : ""}
 旁白（[句子ID] (时长 · 情绪) 原文）：
 ${body.join("\n")}
 
@@ -645,6 +649,7 @@ export type CastPayload = {
   style?: { name: string; description: string };
   segments: { index: number; title: string }[];
   lines: { id: string; segmentIndex: number; text: string }[];
+  scenes?: { name: string; description: string }[];
 };
 
 export function castPrompt(input: CastPayload): Prompt {
@@ -697,15 +702,17 @@ export function castPrompt(input: CastPayload): Prompt {
 - 虚构角色不能描述成「像某位明星」
 - 只写看得见的外观，不写画风（画风由系统统一决定）
 
+【第五步：识别主要固定场景】输出 scenes 数组，每项为 {name, description, mentions}。依据正文实际发生的地点，不根据标题凭空建卡；比喻和抽象概念不建场景。归并同一地点的别名，例如「街角咖啡厅」「店里」「窗边座位」统一为一个咖啡厅室内场景；店外街道是另一个场景。已有场景表中对应同一地点时沿用原名称，不要改名重复建卡。只列故事实际使用的主要地点，不按镜头拆卡。description 用可见的空间布局、门窗位置、家具与固定陈设描述空场景，不含人物、动作、对白、画风。原文有细节则保留，缺少陈设时按故事背景合理补全。mentions 列出在这个地点发生情节的句子 ID。
+
 【示例】
 原文：「林夏今年二十三岁，留着齐耳短发……她又一次站在那家书店门口……五年后，林夏已经是一家出版社的编辑。」
 → key=林夏，role=protagonist，needsCard=true，ageRange=二十出头，gender=女性，hair=齐耳黑色短发，explicitFields=[ageRange, gender, hair]，occupation 留空（前后换了身份），signature=[红色毛线围巾, 左眼角一颗泪痣]，looks=[{name:大学生, wardrobe:米色风衣、牛仔裤}, {name:出版社编辑, wardrobe:深灰色西装外套、白衬衫, fromLineId:<五年后那句的 ID>}]`,
     prompt: `视频：${input.title}
 叙述视角：${input.brief.perspective === "first" ? "第一人称 UP 主" : "第三人称旁白"}
 ${input.style ? `解说风格：${input.style.name}（${input.style.description}）\n` : ""}${input.brief.summary ? `\n内容概要：\n${input.brief.summary}\n` : ""}
-全文（[句子ID] 原文）：
+${input.scenes?.length ? `已有场景（同一地点沿用名称）：\n${input.scenes.map((scene) => `- ${scene.name}：${scene.description}`).join("\n")}\n` : ""}全文（[句子ID] 原文）：
 ${body.join("\n")}
 
-输出每一章的叙事模式，以及全部人物（包括不建卡的，写明理由）。没有人物时 characters 给空数组。`,
+输出每一章的叙事模式，以及全部人物（包括不建卡的，写明理由）。没有人物时 characters 给空数组，同时输出主要固定场景 scenes；没有具体地点时 scenes 给空数组。`,
   };
 }

@@ -37,7 +37,7 @@ describe("选中候选", () => {
     expect(next!.assetVariants["16:9"]).toMatchObject({ assetId: "new", source: "generated", width: 1920, height: 1080 });
     expect(next!.assetVariants["16:9"]?.generatedAt).toBeUndefined();
     expect(next!.assetVariants["9:16"]).toEqual(before.assetVariants["9:16"]);
-    expect(next!.assetPromptHash).toBe("shot-hash");
+    expect(next!.assetPromptHash).toBe("unknown");
   });
 
   it("逐画幅生成同样只改当前这一幅", () => {
@@ -64,5 +64,19 @@ describe("选中候选", () => {
     const before = shot();
     expect(selectShotCandidate(before, "missing", { aspect: "16:9", framing: "smart-dual" })).toBeNull();
     expect(before.assetId).toBe("old");
+  });
+
+  it("新旧候选切换各自恢复生成指纹，切回旧图仍然过期", () => {
+    const current = shot();
+    current.candidates = [
+      { id: "old", assetId: "old", selected: true, promptHash: "old-source", generationPromptHash: "old-generation" },
+      { id: "new", assetId: "new", selected: false, promptHash: "current-source", generationPromptHash: "new-generation" },
+    ];
+    const fresh = selectShotCandidate(current, "new", { aspect: "16:9", framing: "shared" })!;
+    expect(fresh.assetPromptHash).toBe("current-source");
+    expect(fresh.assetVariants["16:9"]?.promptHash).toBe("new-generation");
+    const old = selectShotCandidate(fresh, "old", { aspect: "16:9", framing: "shared" })!;
+    expect(old.assetPromptHash).toBe("old-source");
+    expect(old.assetVariants["16:9"]?.promptHash).toBe("old-generation");
   });
 });

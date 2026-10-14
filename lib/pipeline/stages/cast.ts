@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { castDraftSchema, castIssues, castSourceHash, decideCharacters, reconcileCharacters, type CastDraft } from "../../core/cast";
+import { reconcileScenes } from "../../core/scenes";
 import { castKey } from "../../core/keys";
 import { generateJson } from "../../llm";
 import { castPrompt, type CastPayload } from "../../prompts";
@@ -18,7 +19,7 @@ import { defineStage, PermanentError } from "../stage";
 /** force：跳过缓存重新调用大模型（用户手动「重新识别」） */
 export type CastInput = { projectId: string; modelId: string; force?: boolean };
 
-export const castStage = defineStage<CastInput, { characters: number; skipped: number }>({
+export const castStage = defineStage<CastInput, { characters: number; skipped: number; scenes: number }>({
   name: "cast",
   concurrency: 2,
   async run(input, ctx) {
@@ -33,11 +34,12 @@ export const castStage = defineStage<CastInput, { characters: number; skipped: n
       style: template && { name: template.name, description: template.description },
       segments: doc.segments.map((s, index) => ({ index, title: s.title })),
       lines: doc.lines.map((l) => ({ id: l.id, segmentIndex: l.segmentIndex, text: l.text })),
+      scenes: doc.scenes.map(({ name, description }) => ({ name, description })),
     };
     const key = castKey({ payload, modelId: input.modelId }, input.projectId);
     let draft = input.force ? undefined : cacheGet<CastDraft>(key);
     if (!draft) {
-      ctx.progress(0.1, "大模型分析角色中");
+      ctx.progress(0.1, "大模型分析角色和场景中");
       const prompt = castPrompt(payload);
       const generation = beginGenerationRun({ projectId: input.projectId, jobId: ctx.job.id, providerId: input.modelId === "claude" ? "anthropic" : input.modelId, modelId: input.modelId, kind: "text", inputHash: key, params: { stage: "cast", lineCount: doc.lines.length } });
       try {
@@ -55,19 +57,23 @@ export const castStage = defineStage<CastInput, { characters: number; skipped: n
     if (!ctx.current()) throw ctx.signal.reason ?? new DOMException("任务已取消", "AbortError");
     const { cards, skipped } = decideCharacters(draft, doc.lines);
     let count = 0;
+    let sceneCount = 0;
     mutateProject(input.projectId, (cur) => {
       if (!ctx.current()) return null;
       const characters = reconcileCharacters(cur.characters, cards, () => randomUUID());
       count = characters.filter((c) => !c.absent).length;
+      const scenes = reconcileScenes(cur.scenes, draft!.scenes ?? [], new Set(cur.lines.map((line) => line.id)), () => randomUUID());
+      sceneCount = scenes.length;
       const segments = new Set(cur.lines.map((l) => l.segmentIndex));
       return {
         ...cur,
         characters,
+        scenes,
         // 记下分析时的文案指纹；期间文案又改了，编排层下次会发现不一致并重跑
         castAnalysis: { sourceHash, modes: draft!.modes.filter((m) => segments.has(m.segmentIndex)), skipped, issues: castIssues(characters) },
       };
     });
-    ctx.progress(1, `识别到 ${count} 个角色`);
-    return { characters: count, skipped: skipped.length };
+    ctx.progress(1, `识别到 ${count} 个角色、${sceneCount} 个场景`);
+    return { characters: count, skipped: skipped.length, scenes: sceneCount };
   },
 });

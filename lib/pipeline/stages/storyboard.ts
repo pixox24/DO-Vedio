@@ -39,6 +39,7 @@ export const draftSchema = z.object({
       }).optional(),
       /** 画面里出现的建卡角色 id */
       characters: z.array(z.string()).optional(),
+      sceneId: z.string().optional(),
       motion: z.enum(motions),
       importance: z.number().int().min(1).max(3),
     }).strict().refine((shot) => shot.mode !== "motion" || !!shot.focusText, "文字镜头必须提炼 focusText"),
@@ -98,7 +99,7 @@ export function staleRanges(doc: ProjectDoc): { from: number; to: number }[] {
   return ranges;
 }
 
-export function toShots(draft: Draft, lines: Line[], characterIds: Set<string> = new Set()): Shot[] {
+export function toShots(draft: Draft, lines: Line[], characterIds: Set<string> = new Set(), sceneIds: Set<string> = new Set()): Shot[] {
   const order = new Map(lines.map((l, k) => [l.id, k]));
   const text = new Map(lines.map((l) => [l.id, l.text]));
 
@@ -166,6 +167,7 @@ export function toShots(draft: Draft, lines: Line[], characterIds: Set<string> =
       card: undefined,
       focusText,
       characterIds: mode === "generate" ? [...new Set((d.characters ?? []).filter((id) => characterIds.has(id)))].slice(0, MAX_SHOT_CHARACTERS) : [],
+      sceneId: mode === "generate" && d.sceneId && sceneIds.has(d.sceneId) ? d.sceneId : undefined,
       description: d.description.trim(),
       onScreenText: undefined,
       motion: d.motion,
@@ -236,6 +238,7 @@ export const storyboardStage = defineStage<StoryboardInput, { shots: number; llm
         style: template && { name: template.name, description: template.description, tone: template.tone },
         segments: doc.segments.map((s, index) => ({ index, title: s.title, points: points[index] || undefined })),
         cast: cast.length ? cast : undefined,
+        scenes: doc.scenes.map(({ id, name, description }) => ({ id, name, description })),
         lines: slice.map((l) => ({ id: l.id, segmentIndex: l.segmentIndex, text: l.text, ms: ms.get(l.id) ?? 0, keywords: l.keywords, mood: l.mood })),
         partial: ranges.length === 1 && r.from === 0 && r.to === doc.lines.length - 1 ? undefined : partialContext(doc, r),
       };
@@ -259,7 +262,7 @@ export const storyboardStage = defineStage<StoryboardInput, { shots: number; llm
         }
       }
       if (!ctx.current()) throw ctx.signal.reason ?? new DOMException("任务已取消", "AbortError");
-      const shots = toShots(draft, slice, castIds);
+      const shots = toShots(draft, slice, castIds, new Set(doc.scenes.map((scene) => scene.id)));
       // 保证范围的第一句有镜头
       if (!shots.some((s) => s.at.lineId === slice[0].id && s.at.char === 0)) shots.unshift(blankShot(randomUUID(), slice[0].id));
       fresh.push(...shots);

@@ -9,6 +9,8 @@ import { getProject, mutateProject } from "../../server/projects";
 import type { AssetFramingMode, OutputSpecId } from "../../core/types";
 import { outputSpecForRequest, outputSpecsFor, type GenerationFrame } from "../../core/output-spec";
 import { quickHash } from "../../core/hash";
+import { selectShotCandidate } from "../../core/shot-asset";
+import { sceneSourceHash } from "../../core/scenes";
 
 export type ShotGenerateInput = {
   projectId: string;
@@ -27,7 +29,7 @@ export type ShotGenerateInput = {
  */
 const MAX_CANDIDATES = 8;
 
-export type CandidateAsset = { id: string; assetId: string; selected?: boolean };
+export type CandidateAsset = { id: string; assetId: string; selected?: boolean; promptHash?: string; generationPromptHash?: string; kind?: "image" | "video" };
 
 /** 合并候选历史，并保证当前正在使用的素材不会被容量上限淘汰。 */
 export function mergeCandidateHistory(current: CandidateAsset[] | undefined, fresh: CandidateAsset[], currentAssetId?: string, max = MAX_CANDIDATES) {
@@ -78,10 +80,12 @@ export function mergeCandidateHistory(current: CandidateAsset[] | undefined, fre
   return kept.map((candidate) => ({ ...candidate, selected: candidate.assetId === selectedId }));
 }
 
-/** 参考图：镜头自己的 + 出场角色的定妆（上传 > 立绘 > 三视图）+ 场景参考，最多 8 张 */
-function referenceIds(doc: ProjectDoc, shot: Shot) {
-  const scene = shot.sceneId ? (doc.scenes.find((s) => s.id === shot.sceneId)?.referenceAssetIds ?? []) : [];
-  return [...new Set([...shotReferenceIds(doc, shot), ...scene])].slice(0, 8);
+/** 单张场景标准图 + 镜头自己的 + 出场角色的定妆，最多 8 张。 */
+export function referenceIds(doc: ProjectDoc, shot: Shot) {
+  const scene = doc.scenes.find((s) => s.id === shot.sceneId);
+  const stale = scene?.referenceSourceHash && scene.referenceSourceHash !== sceneSourceHash(scene, doc.visualStyle);
+  const refs = scene && !stale ? scene.referenceAssetIds.slice(0, 1) : [];
+  return [...new Set([...refs, ...shotReferenceIds(doc, shot)])].slice(0, 8);
 }
 
 export const shotGenerateStage = defineStage<ShotGenerateInput, { shotId: string; assets: string[]; candidateGroupId: string }>({
@@ -113,40 +117,28 @@ export const shotGenerateStage = defineStage<ShotGenerateInput, { shotId: string
         const current = doc.shots.find((item) => item.id === shot.id);
         if (!current) return null;
         const ready = slots.filter((asset): asset is string => !!asset);
-        const firstReady = slots.findIndex(Boolean);
         const fresh = ready.length
-          ? slots.flatMap((asset, candidateIndex) => asset ? [{ id: candidateIds[candidateIndex], assetId: asset, selected: false }] : [])
+          ? slots.flatMap((asset, candidateIndex) => asset ? [{ id: candidateIds[candidateIndex], assetId: asset, selected: false, promptHash: compiled.hash, generationPromptHash, kind: input.kind }] : [])
           : [];
         // 合并而不是替换：保留历史候选，用户点了新候选之后还能切回旧图。
         // 旧图若仍是当前 assetId，就保持选中——重生图不该把用户已经满意的画面顶掉。
-        const candidates = fresh.length
-          ? mergeCandidateHistory(current.candidates ?? [], fresh, current.assetId, MAX_CANDIDATES)
-          : current.candidates ?? [];
-        const selectedId = candidates.find((candidate) => candidate.selected)?.assetId ?? (firstReady >= 0 ? slots[firstReady] : undefined);
-        const variants = selectedId ? Object.fromEntries(outputSpecsFor(doc.settings).map((spec) => [spec.aspect, {
-          assetId: selectedId,
-          promptHash: generationPromptHash,
-          aspect: spec.aspect,
-          width: spec.width,
-          height: spec.height,
-          source: spec.aspect === frame.aspect ? "generated" : "shared",
-          sourceAspect: spec.aspect === frame.aspect ? undefined : frame.aspect,
-          generatedAt: new Date().toISOString(),
-        }])) : current.assetVariants;
+        const history = (current.candidates ?? []).map((candidate) => candidate.assetId === current.assetId && !candidate.promptHash
+          ? { ...candidate, promptHash: current.assetPromptHash, kind: current.kind === "video" ? "video" as const : "image" as const } : candidate);
+        const candidates = mergeCandidateHistory(history, fresh, current.assetId, MAX_CANDIDATES).map((candidate) => ({
+          ...candidate, selected: !!candidate.selected,
+          ...(candidate.assetId === current.assetId && !candidate.promptHash ? { promptHash: current.assetPromptHash } : {}),
+        }));
+        const selected = candidates.find((candidate) => candidate.selected);
+        let next: Shot = { ...current, candidates, candidateGroupId };
+        // 只有新图真正成为当前素材时才更新指纹；生成新候选不能把仍选中的旧图标成最新。
+        if (selected && fresh.some((candidate) => candidate.id === selected.id)) {
+          next = selectShotCandidate(next, selected.id, { aspect: frame.aspect, framing: assetFraming, aspects: outputSpecsFor(doc.settings).map((spec) => spec.aspect) }) ?? next;
+          const generated = next.assetVariants[frame.aspect];
+          if (generated) next.assetVariants = { ...next.assetVariants, [frame.aspect]: { ...generated, width: frame.width, height: frame.height, generatedAt: new Date().toISOString() } };
+        }
         return {
           ...doc,
-          shots: doc.shots.map((item) => item.id === shot.id ? {
-            ...item,
-            kind: input.kind,
-            assetId: selectedId ?? item.assetId,
-            candidateGroupId,
-            candidates,
-            assetPromptHash: compiled.hash,
-            assetVariants: selectedId ? (assetFraming === "shared" ? variants : {
-              ...item.assetVariants,
-              [frame.aspect]: { assetId: selectedId, promptHash: generationPromptHash, aspect: frame.aspect, width: frame.width, height: frame.height, source: "generated", generatedAt: new Date().toISOString() },
-            }) : item.assetVariants,
-          } : item),
+          shots: doc.shots.map((item) => item.id === shot.id ? next : item),
         };
       });
     };

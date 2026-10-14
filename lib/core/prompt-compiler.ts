@@ -8,6 +8,7 @@ import { shotSizeLabels, styleMediumLabels, type CharacterCard, type Mood, type 
  * 提示词编译器 —— 纯函数。把「画什么」和「怎么画」按槽位拼成生图提示词：
  *   [内容] 主体 + 动作 + 环境（来自分镜，过滤掉混进来的画风词）
  *   [人物] 出场角色的身份锚（来自角色卡，每个镜头逐字相同）
+ *   [场景] 关联场景的名称与空间陈设（来自场景卡）
  *   [镜头] 景别 + 镜头 + 景深 + 构图
  *   [风格] 画风 + 渲染 + 质感 + 调色 + 光影 + 氛围（来自风格卡，按强度取舍）
  *   [情绪] 在风格范围内调制光影和氛围
@@ -66,7 +67,7 @@ export type CompiledPrompt = {
   full: string;
   /** 指纹：判断已生成的素材是否过期、以及缓存键 */
   hash: string;
-  slots: { content: string; characters: string; camera: string; style: string; mood: string };
+  slots: { content: string; characters: string; scene: string; camera: string; style: string; mood: string };
   /** 从内容中剔除的画风词 */
   removed: string[];
   /** 情绪与风格冲突（风格不承载这种情绪），保持风格基调 */
@@ -80,6 +81,7 @@ export function compilePrompt(input: {
   content: string;
   filter?: boolean;
   characters?: string[];
+  scene?: string;
   shotSize?: ShotSize;
   style: VisualStyle | null;
   mood?: Mood;
@@ -125,9 +127,10 @@ export function compilePrompt(input: {
         ]);
   const negative = [...new Set([...GLOBAL_NEGATIVE, ...(style?.negative ?? [])].map((x) => x.trim()).filter(Boolean))];
   const characters = input.characters?.length ? `画面人物——${input.characters.join("；")}` : "";
-  const prompt = [content, characters, camera, styleSlot, moodSlot].filter(Boolean).join("。");
+  const scene = input.scene ? `画面场景——${input.scene}` : "";
+  const prompt = [content, characters, scene, camera, styleSlot, moodSlot].filter(Boolean).join("。");
   const full = `${prompt}。画面中不要出现：${negative.join("、")}`;
-  return { prompt, negative, full, hash: quickHash(full), slots: { content, characters, camera, style: styleSlot, mood: moodSlot }, removed: filtered.removed, moodConflict: denied ? mood : undefined };
+  return { prompt, negative, full, hash: quickHash(full), slots: { content, characters, scene, camera, style: styleSlot, mood: moodSlot }, removed: filtered.removed, moodConflict: denied ? mood : undefined };
 }
 
 /** 单个生成画面最多带几个建卡角色：再多模型基本画不对 */
@@ -138,14 +141,18 @@ export function shotCharacters(doc: Pick<ProjectDoc, "characters">, shot: Shot):
   return shot.characterIds.map((id) => doc.characters.find((c) => c.id === id)).filter((c): c is CharacterCard => !!c && !c.absent).slice(0, MAX_SHOT_CHARACTERS);
 }
 
-type CompileDoc = Pick<ProjectDoc, "shots" | "lines" | "brief" | "visualStyle" | "characters">;
+type CompileDoc = Pick<ProjectDoc, "shots" | "lines" | "brief" | "visualStyle" | "characters" | "scenes">;
 
 /** 为项目里的镜头编译：用户手写的提示词只替换内容槽（不过滤），角色和风格照样注入 */
 export function compileShotPrompt(doc: CompileDoc, shot: Shot): CompiledPrompt {
   const custom = shot.prompt?.trim();
   const content = custom || shot.description.trim() || shot.onScreenText?.trim() || doc.lines.find((l) => l.id === shot.at.lineId)?.text || doc.brief.title;
   const characters = shotCharacters(doc, shot).map((c) => anchorText(c, lookAt(c, shot.at.lineId, doc.lines)));
-  return compilePrompt({ content, filter: !custom, characters, shotSize: shot.shotSize, style: doc.visualStyle, mood: shotMood(doc, shot) });
+  const scene = doc.scenes.find((s) => s.id === shot.sceneId);
+  const compiled = compilePrompt({ content, filter: !custom, characters, scene: scene && join([scene.name, scene.description]), shotSize: shot.shotSize, style: doc.visualStyle, mood: shotMood(doc, shot) });
+  // 场景参考图也是生成输入；换图即过期，无场景镜头保留原有指纹。
+  if (scene) compiled.hash = quickHash({ prompt: compiled.hash, scene: { id: scene.id, name: scene.name, description: scene.description, style: scene.style, referenceAssetIds: scene.referenceAssetIds.slice(0, 1) } });
+  return compiled;
 }
 
 /** 镜头的参考图：镜头自己的 > 各角色（上传 > 立绘 > 三视图），按出场顺序交错，保证每个角色至少有一张 */
@@ -161,7 +168,7 @@ export function needsGeneratedImage(shot: Shot) {
   return shot.kind !== "title" && shot.kind !== "quote" && shot.kind !== "upload" && shot.mode !== "motion";
 }
 
-/** 已生成的素材是否因描述或风格变化而过期 */
+/** 已生成的素材是否因描述、风格或场景变化而过期 */
 export function assetStale(doc: CompileDoc, shot: Shot) {
-  return !!(shot.assetId && shot.assetPromptHash && (shot.kind === "image" || shot.kind === "video") && shot.assetPromptHash !== compileShotPrompt(doc, shot).hash);
+  return !!(shot.assetId && (shot.kind === "image" || shot.kind === "video") && (shot.assetPromptHash ? shot.assetPromptHash !== compileShotPrompt(doc, shot).hash : shot.sceneId));
 }

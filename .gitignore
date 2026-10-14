@@ -56,3 +56,6 @@ next-env.d.ts
 
 # 文字排版参考素材（仅本地参考，不进仓库）
 /文字排版参考案例/
+
+# Playwright MCP 调试产物（控制台日志、页面快照，不进仓库）
+/.playwright-mcp/

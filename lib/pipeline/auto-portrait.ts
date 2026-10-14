@@ -1,4 +1,5 @@
 import { castSourceHash, sheetSourceHash } from "../core/cast";
+import { needsAutoScene, sceneSourceHash } from "../core/scenes";
 import type { CharacterCard, Job, ProjectDoc } from "../core/types";
 import { all } from "../server/db";
 import { enqueue, latestJobByKey } from "../server/jobs";
@@ -33,7 +34,7 @@ export function isAutoPortraitInput(input: unknown): boolean {
 }
 
 export function isAutoPortraitJob(job: Pick<Job, "stage" | "input">) {
-  return job.stage === "character-sheet" && isAutoPortraitInput(job.input);
+  return (job.stage === "character-sheet" || job.stage === "scene-reference") && isAutoPortraitInput(job.input);
 }
 
 /** 每个角色 + 每个定妆指纹一个稳定键：任务在跑时不会重复提交，失败过的不再自动重提 */
@@ -108,6 +109,39 @@ export function enqueueAutoPortraits(projectId: string): Job[] {
     const last = latestJobByKey(item.key, projectId);
     if (last && (last.status === "failed" || last.status === "canceled")) continue;
     jobs.push(enqueue({ projectId, stage: item.step.stage, key: item.key, target: item.step.target, input: item.step.input, priority: item.step.priority, costEstimate: item.step.cost }));
+  }
+  return jobs;
+}
+
+/** 场景共用自动立绘开关、模型选择与队列；每个场景每个来源指纹仅一张。 */
+export function autoScenePlan(doc: ProjectDoc, projectId: string) {
+  if (doc.castAnalysis?.sourceHash !== castSourceHash(doc)) return [];
+  const cards = doc.scenes.filter((scene) => needsAutoScene(scene, doc));
+  const modelId = cards.length ? resolveImageModel() : undefined;
+  if (!modelId) return [];
+  const busy = new Set(all<{ sceneId: string }>(
+    "SELECT json_extract(input, '$.sceneId') AS sceneId FROM jobs WHERE project_id = ? AND stage = 'scene-reference' AND status IN ('queued', 'running')", projectId,
+  ).map((row) => row.sceneId));
+  return cards.map((card) => {
+    const sourceHash = sceneSourceHash(card, doc.visualStyle);
+    const key = `auto-scene:${projectId}:${card.id}:${sourceHash}`;
+    return { card, key, busy: busy.has(card.id), step: {
+      stage: "scene-reference", key, target: `场景图 ${card.name}`,
+      input: { projectId, sceneId: card.id, modelId, sourceHash, auto: true }, cost: 0, priority: 6,
+    } };
+  });
+}
+
+export function enqueueAutoScenes(projectId: string, onlyGenerated = false): Job[] {
+  const project = getProject(projectId);
+  if (!project) return [];
+  const jobs: Job[] = [];
+  for (const item of autoScenePlan(project.doc, projectId)) {
+    if (onlyGenerated && !item.card.referenceSourceHash) continue;
+    if (item.busy) continue;
+    const last = latestJobByKey(item.key, projectId);
+    if (last && ["failed", "canceled", "succeeded"].includes(last.status)) continue;
+    jobs.push(enqueue({ projectId, stage: item.step.stage, key: item.key, target: item.step.target, input: item.step.input, priority: item.step.priority }));
   }
   return jobs;
 }

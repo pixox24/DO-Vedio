@@ -3,6 +3,7 @@ import { fail, handle, parseBody } from "@/lib/api";
 import { projectDocSchema } from "@/lib/core/types";
 import { deleteProject, getProject, RevisionConflict, saveProject } from "@/lib/server/projects";
 import { purgeProjects } from "@/lib/server/gc";
+import { enqueueAutoScenes } from "@/lib/pipeline/auto-portrait";
 
 export async function GET(_req: Request, ctx: RouteContext<"/api/projects/[id]">) {
   return handle(async () => {
@@ -28,6 +29,7 @@ export async function PUT(req: Request, ctx: RouteContext<"/api/projects/[id]">)
     const { doc, revision } = await parseBody(req, body);
     try {
       const p = saveProject(id, doc, revision);
+      if (p) enqueueAutoScenes(id, true);
       return p ? Response.json({ revision: p.revision, updatedAt: p.updatedAt }) : fail("项目不存在", 404);
     } catch (e) {
       if (e instanceof RevisionConflict) return Response.json({ error: e.message, current: e.current }, { status: 409 });
@@ -45,6 +47,7 @@ export async function PATCH(req: Request, ctx: RouteContext<"/api/projects/[id]"
     if (!current) return fail("项目不存在", 404);
     try {
       const p = saveProject(id, mergePatch(current.doc, patch), revision);
+      if (p) enqueueAutoScenes(id, true);
       return p ? Response.json({ revision: p.revision, updatedAt: p.updatedAt, doc: p.doc }) : fail("项目不存在", 404);
     } catch (e) {
       if (e instanceof RevisionConflict) return Response.json({ error: e.message, current: e.current }, { status: 409 });

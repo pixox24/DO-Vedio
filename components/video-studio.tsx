@@ -13,6 +13,7 @@ import { SubtitlePanel } from "@/components/subtitle-panel";
 import { StudioStatusBar } from "@/components/studio-status-bar";
 import { VisualStylePanel } from "@/components/visual-style-panel";
 import { CastPanel } from "@/components/cast-panel";
+import { ScenePanel } from "@/components/scene-panel";
 import { Icon, SegmentedControl, Spinner } from "@/components/ui";
 import { useFinalCatchUp, type CatchUpResponse } from "@/components/studio/use-final-catch-up";
 import { postJson, useProject, useProjectEvents, useVoiceChange } from "@/lib/client";
@@ -42,7 +43,7 @@ const steps = [
   { stage: "annotate", label: "断句标注" },
   { stage: "voice-direction", label: "配音口吻", indeterminate: true },
   { stage: "tts", stages: ["tts", "tts-block"], label: "配音" },
-  { stage: "cast", label: "识别角色", indeterminate: true },
+  { stage: "cast", label: "识别角色和场景", indeterminate: true },
   { stage: "storyboard", label: "分镜", indeterminate: true },
   { stage: "render", label: "渲染" },
 ];
@@ -224,6 +225,7 @@ export function VideoStudio({ id }: { id: string }) {
   const [setupConfirmed, setSetupConfirmed] = useState(false);
   const [refreshError, setRefreshError] = useState("");
   const [panel, setPanel] = useState<Panel>("sentences");
+  const [castTab, setCastTab] = useState<"characters" | "scenes">("characters");
   /** 分镜板的临时全宽：右栏窄是卡片拥挤的结构性原因，密集编辑时给一条出路。刷新即复位。 */
   const [wide, setWide] = useState(false);
   const [previewPlaying, setPreviewPlaying] = useState(false);
@@ -685,7 +687,10 @@ export function VideoStudio({ id }: { id: string }) {
               <div id={`panel-${panel}`} role="tabpanel" aria-labelledby={`tab-${panel}`} className="min-w-0 pt-4">
                 {panel === "sentences" && <SentencePanel id={id} store={store} jobs={jobs} onChanged={() => { void runRefresh(); }} onSeek={seekLine} />}
                 {panel === "style" && <VisualStylePanel store={store} />}
-                {panel === "cast" && <CastPanel id={id} store={store} jobs={jobs} />}
+                {panel === "cast" && <div className="space-y-5">
+                  <SegmentedControl value={castTab} options={[{ value: "characters", label: "角色" }, { value: "scenes", label: "场景" }]} onChange={setCastTab} label="角色和场景" />
+                  {castTab === "characters" ? <CastPanel id={id} store={store} jobs={jobs} /> : <ScenePanel id={id} store={store} jobs={jobs} />}
+                </div>}
                 {panel === "storyboard" && <StoryboardPanel id={id} store={store} timeline={timeline} jobs={jobs} onSeek={(ms) => previewRef.current?.seekToMs(ms)} wide={wide} onToggleWide={() => setWide((current) => !current)} />}
                 {panel === "subtitle" && <SubtitlePanel doc={doc} setDoc={store.setDoc} />}
                 {panel === "music" && <MusicPanel id={id} store={store} />}
@@ -733,7 +738,7 @@ async function waitForRenderJobs(result: CatchUpResponse) {
   throw new Error("成片更新超时");
 }
 
-const panelLabels: Record<Panel, string> = { sentences: "句子", style: "画面风格", cast: "角色", storyboard: "镜头", subtitle: "字幕", music: "配乐", settings: "设置", voice: "语音" };
+const panelLabels: Record<Panel, string> = { sentences: "句子", style: "画面风格", cast: "角色和场景", storyboard: "镜头", subtitle: "字幕", music: "配乐", settings: "设置", voice: "语音" };
 
 /** 图标让页签可以扫读，不必逐个念完标签 */
 const panelIcons: Record<Panel, string> = {
@@ -767,7 +772,7 @@ function setupFacts(doc: ProjectDoc, voiceName: string): SetupFact[] {
     { label: "素材策略", value: assetFramingLabels[doc.settings.assetFraming], panel: "settings" },
     { label: "预算", value: doc.settings.budgetYuan == null ? "不设上限" : `¥${doc.settings.budgetYuan.toFixed(2)}`, panel: "settings" },
     { label: "画面风格", value: doc.visualStyle?.name.trim() || "推荐", panel: "style" },
-    { label: "角色立绘", value: doc.settings.autoPortrait ? "自动生成" : "手动", panel: "settings" },
+    { label: "角色和场景标准图", value: doc.settings.autoPortrait ? "自动生成" : "手动", panel: "settings" },
     { label: "字幕", value: subtitle.enabled ? subtitlePresetMeta(subtitle.preset).name : "关闭", panel: "subtitle" },
     { label: "配乐", value: doc.settings.music.enabled ? "开启" : "关闭", panel: "music" },
   ];
@@ -818,7 +823,7 @@ function SetupConfirm({ doc, costYuan, onOpen, onConfirm }: { doc: ProjectDoc; c
           <h2 id="setup-confirm-title" className="text-sm font-medium text-text">开工确认</h2>
           <p className="mt-1 text-2xs text-text-faint">
             确认后开始断句、配音和分镜。成片需要再点生成。任一项设置变动都会让确认失效，需要重新确认。
-            {doc.settings.autoPortrait && " 已开启自动立绘：识别角色后会为每个角色生成一张，图片费用以服务商账单为准，不计入上面的预估。"}
+            {doc.settings.autoPortrait && " 已开启自动标准图：识别后会为每个需要立绘的角色、每个缺少标准图的场景各生成一张，图片费用以服务商账单为准，不计入上面的预估。"}
           </p>
         </div>
         <div className="relative shrink-0">

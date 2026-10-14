@@ -65,12 +65,12 @@ export function SettingsPanel({ store }: { store: ProjectStore }) {
           </div>}
         </SettingGroup>
 
-        <SettingGroup title="角色">
-          <SettingRow label="自动生成立绘">
-            <Switch checked={doc.settings.autoPortrait} label="自动生成立绘" onChange={(checked) => store.setDoc((current) => ({ ...current, settings: { ...current.settings, autoPortrait: checked } }))} />
+        <SettingGroup title="角色和场景">
+          <SettingRow label="自动生成角色和场景标准图">
+            <Switch checked={doc.settings.autoPortrait} label="自动生成角色和场景标准图" onChange={(checked) => store.setDoc((current) => ({ ...current, settings: { ...current.settings, autoPortrait: checked } }))} />
           </SettingRow>
           <p className="mt-2 text-2xs leading-5 text-text-faint">
-            开启后，识别角色完成时会为每个角色自动生成 1 张立绘，并直接作为这个角色的标准形象（之后的镜头以它为参考）。画面风格或角色外貌改了会重新生成并覆盖标准形象，旧图留在候选里。生图费用由图片服务商收取，不计入上面的预算与开工预估。
+            开启后，阅读全文识别角色和主要地点，为需要立绘的角色生成 1 张立绘，为每个缺少标准图的场景生成 1 张空场景图，之后的镜头共用。场景描述或画面风格修改后会更新自动生成的场景图；上传的参考图保留。生图费用由图片服务商收取，不计入预算与开工预估。
           </p>
         </SettingGroup>
 

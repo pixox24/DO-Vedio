@@ -617,7 +617,7 @@ function ShotDetail({ shot, timed, timeline, index, lineIndex, lineIds, estimate
           {status === "failed" && <div role="alert" className="flex flex-wrap items-center gap-2 text-xs"><p className="text-red-300">{effectiveError || "生成失败"}</p>{job && <button className="chip h-6 px-2.5 text-2xs" title={`重新提交这个镜头的生成请求（${candidateCount} 张）`} onClick={() => void retryJobWithCost()}>重试 · {candidateCount} 张</button>}</div>}
           {status === "canceled" && <p className="text-xs text-white/45">任务已取消，可重新生成</p>}
           {error && <p role="alert" className="text-xs text-red-300">{error}</p>}
-          {stale && <p className="text-xs text-amber-200/80">画面描述或风格已改，图片已过期</p>}
+          {stale && <p className="text-xs text-amber-200/80">画面描述、风格或场景已改，图片已过期</p>}
           {wantsImage && !shot.assetId && !generating && <p className="text-xs text-amber-200/70">暂无素材，使用占位画面</p>}
           {shot.intent && <p className="text-xs leading-5 text-white/70"><span className="text-white/40">意图 · </span>{shot.intent}</p>}
           {shot.characterIds.length > 0 && store.doc && <p className="flex flex-wrap gap-1">{shot.characterIds.map((cid) => store.doc!.characters.find((c) => c.id === cid)).filter(Boolean).map((c) => <span key={c!.id} className="rounded-full bg-white/[0.06] px-2 py-0.5 text-3xs text-white/60">{c!.name}</span>)}</p>}
@@ -654,6 +654,14 @@ function ShotDetail({ shot, timed, timeline, index, lineIndex, lineIds, estimate
           </div>
           <p className="text-2xs text-white/40">{shotExpression(shot, timed)}</p>
           {!isTextShot && <AutoTextarea value={shot.description} onChange={(e) => shotUpdate(store, shot.id, (s) => ({ ...s, description: e.target.value }))} onBlur={() => { if (descriptionRef.current !== shot.description) { descriptionRef.current = shot.description; toast("已修改画面描述，现有成片需要重新渲染", "info"); } }} className="input min-h-16 text-xs" placeholder="画面描述" />}
+          {wantsImage && store.doc && <div className="space-y-1">
+            <p className="text-2xs text-white/50">场景</p>
+            <Select value={shot.sceneId ?? ""} onChange={(sceneId) => shotUpdate(store, shot.id, (s) => ({ ...s, sceneId: sceneId || undefined }))} aria-label="镜头场景">
+              <option value="">不关联场景</option>
+              {store.doc.scenes.map((scene) => <option key={scene.id} value={scene.id}>{scene.name || "未命名场景"}</option>)}
+            </Select>
+            {!store.doc.scenes.length && <p className="text-2xs text-white/40">先在「场景」面板创建场景卡。</p>}
+          </div>}
           {isTextShot && <div className="space-y-2">
             <div className="flex items-center justify-between text-2xs text-white/50"><span>重点文字</span><span className={focusWidth > 8 ? "text-amber-200" : ""}>{focusWidth.toFixed(1)} / 8 字宽</span></div>
             <input className="input h-9 w-full text-sm" value={focus?.text ?? ""} onChange={(e) => updateFocus({ text: e.target.value })} placeholder="核心关键词或短句" aria-label="核心文字" />
@@ -726,7 +734,7 @@ function shotExpression(shot: Shot, timed: TimelineShot | undefined) {
 
 /** 编译后发给生图模型的提示词，按槽位展示 */
 function PromptSlots({ compiled }: { compiled: CompiledPrompt }) {
-  const rows: [string, string][] = [["内容", compiled.slots.content], ["人物", compiled.slots.characters], ["镜头", compiled.slots.camera], ["风格", compiled.slots.style], ["情绪", compiled.slots.mood], ["负面", compiled.negative.join("、")]];
+  const rows: [string, string][] = [["内容", compiled.slots.content], ["人物", compiled.slots.characters], ["场景", compiled.slots.scene], ["镜头", compiled.slots.camera], ["风格", compiled.slots.style], ["情绪", compiled.slots.mood], ["负面", compiled.negative.join("、")]];
   return <div className="space-y-1 rounded-md border border-white/10 bg-black/20 p-2 text-[11px] leading-5">
     <p className="text-white/40">发给生图模型的提示词</p>
     {rows.filter(([, text]) => text).map(([label, text]) => <p key={label}><span className="text-white/35">{label} · </span><span className="text-white/70">{text}</span></p>)}

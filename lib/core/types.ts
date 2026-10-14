@@ -254,7 +254,7 @@ export const shotSchema = z.object({
   controlAssetId: z.string().optional(),
   /** 同一批候选共享 candidateGroupId；assetId 是当前选中的候选。 */
   candidateGroupId: z.string().optional(),
-  candidates: z.array(z.object({ id: z.string(), assetId: z.string(), selected: z.boolean().default(false) })).default([]),
+  candidates: z.array(z.object({ id: z.string(), assetId: z.string(), selected: z.boolean().default(false), promptHash: z.string().optional(), generationPromptHash: z.string().optional(), kind: z.enum(["image", "video"]).optional() })).default([]),
   /** 生成当前素材时的提示词指纹；与现在编译出的不同，说明描述或风格改过、素材已过期 */
   assetPromptHash: z.string().optional(),
   /** 覆盖范围内句子文本的哈希；与当前不一致说明镜头过期 */
@@ -442,6 +442,8 @@ export const sceneCardSchema = z.object({
   description: z.string().default(""),
   style: z.string().default(""),
   referenceAssetIds: z.array(z.string()).default([]),
+  /** 自动生成标准图的来源指纹；上传参考图时清空，保护用户选择。 */
+  referenceSourceHash: z.string().optional(),
   locked: z.boolean().default(false),
 });
 export type SceneCard = z.infer<typeof sceneCardSchema>;

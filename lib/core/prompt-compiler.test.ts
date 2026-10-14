@@ -3,7 +3,7 @@ import { aixFixture } from "../aix/test-fixture";
 import { blankShot } from "./shots";
 import { assetStale, compilePrompt, compileShotPrompt, filterStyleWords, needsGeneratedImage, shotMood, shotReferenceIds } from "./prompt-compiler";
 import { themeOf, defaultTheme } from "./theme";
-import { characterCardSchema, emptyDoc, type Line, type VisualStyle } from "./types";
+import { characterCardSchema, emptyDoc, sceneCardSchema, type Line, type VisualStyle } from "./types";
 
 const style = (id: string): VisualStyle => {
   const base = aixFixture({ id, name: id, rendering: id });
@@ -131,6 +131,43 @@ describe("镜头编译", () => {
     expect(needsGeneratedImage({ ...shot, kind: "placeholder", mode: "motion" })).toBe(false);
     expect(needsGeneratedImage({ ...shot, kind: "title" })).toBe(false);
     expect(needsGeneratedImage({ ...shot, kind: "upload" })).toBe(false);
+  });
+});
+
+describe("镜头里的场景", () => {
+  const cafe = sceneCardSchema.parse({ id: "cafe", name: "街角咖啡厅", description: "临街落地窗，窗边圆木桌，墨绿座椅", referenceAssetIds: ["cafe-ref"] });
+  const other = sceneCardSchema.parse({ id: "other", name: "书店", description: "整面书架" });
+  const doc = { ...emptyDoc(), scenes: [cafe, other] };
+  const shot = { ...blankShot("s", "a"), kind: "image" as const, sceneId: cafe.id, description: "女孩坐下", prompt: "女孩望向窗外" };
+  const generated = { ...shot, assetId: "img", assetPromptHash: compileShotPrompt(doc, shot).hash };
+
+  it("自定义画面内容仍注入关联场景，不带入其他场景", () => {
+    const compiled = compileShotPrompt(doc, shot);
+    expect(compiled.slots.content).toBe("女孩望向窗外");
+    expect(compiled.slots.scene).toContain(cafe.description);
+    expect(compiled.full).toContain("街角咖啡厅");
+    expect(compiled.full).not.toContain(other.description);
+  });
+
+  it("改名称、描述、标准参考图或解除关联会让已有图片过期", () => {
+    expect(assetStale(doc, generated)).toBe(false);
+    for (const patch of [{ name: "新咖啡厅" }, { description: "窗边方桌" }, { referenceAssetIds: ["new-ref"] }, { referenceAssetIds: [] }]) {
+      expect(assetStale({ ...doc, scenes: [{ ...cafe, ...patch }, other] }, generated)).toBe(true);
+    }
+    expect(assetStale(doc, { ...generated, sceneId: undefined })).toBe(true);
+    expect(assetStale(doc, { ...generated, sceneId: other.id })).toBe(true);
+  });
+
+  it("其他场景或锁定状态的修改不影响当前图片，无场景镜头保留原指纹", () => {
+    expect(assetStale({ ...doc, scenes: [{ ...cafe, locked: true }, { ...other, description: "新书架" }] }, generated)).toBe(false);
+    const unbound = { ...shot, sceneId: undefined };
+    expect(compileShotPrompt(doc, unbound).hash).toBe(compileShotPrompt(emptyDoc(), unbound).hash);
+  });
+
+  it("关联场景的旧图片没有生成指纹时要求更新，重新生成后恢复有效", () => {
+    expect(assetStale(doc, { ...generated, assetPromptHash: undefined })).toBe(true);
+    const changed = { ...doc, scenes: [{ ...cafe, referenceAssetIds: ["new-ref"] }] };
+    expect(assetStale(changed, { ...generated, assetPromptHash: compileShotPrompt(changed, shot).hash })).toBe(false);
   });
 });
 

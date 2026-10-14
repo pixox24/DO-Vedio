@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { mergeCandidateHistory } from "../shot-generate";
+import { mergeCandidateHistory, referenceIds } from "../shot-generate";
+import { emptyDoc, sceneCardSchema } from "../../../core/types";
+import { blankShot } from "../../../core/shots";
+
+it("参考图已满时仍消费一张场景标准图，不超过八张", () => {
+  const scene = sceneCardSchema.parse({ id: "cafe", referenceAssetIds: ["scene-standard", "unused-second-view"] });
+  const doc = { ...emptyDoc(), scenes: [scene] };
+  const shot = { ...blankShot("s", "a"), sceneId: scene.id, referenceAssetIds: Array.from({ length: 8 }, (_, i) => `shot-${i}`) };
+  const refs = referenceIds(doc, shot);
+  expect(refs).toHaveLength(8);
+  expect(refs[0]).toBe("scene-standard");
+  expect(refs).not.toContain("unused-second-view");
+});
 
 const candidates = (prefix: string, count: number) =>
   Array.from({ length: count }, (_, index) => ({

@@ -9,6 +9,7 @@ import { ensureProjectVisualStyle } from "@/lib/visual-styles/store";
 import { outputSpecForRequest, outputSpecsFor, previewSpecFor, type GenerationFrame } from "@/lib/core/output-spec";
 import { selectShotCandidate } from "@/lib/core/shot-asset";
 import type { Aspect, OutputSpecId } from "@/lib/core/types";
+import { enqueueAutoPortraits, enqueueAutoScenes } from "@/lib/pipeline/auto-portrait";
 
 const body = z.object({ kind: z.enum(["image", "video"]), modelId: z.string().optional(), candidateCount: z.number().int().min(1).max(4).optional(), outputSpecId: z.enum(["landscape-1080p", "portrait-1080p"]).optional(), aspect: z.enum(["16:9", "9:16"]).optional(), assetFraming: z.enum(["smart-dual", "per-output", "shared"]).optional() });
 
@@ -31,6 +32,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; sh
     const key = shotGenerationKey(project.doc, shot, input.kind, selectedId, frame);
     const previous = latestJobByKey(key, id);
     if (previous && ["queued", "running"].includes(previous.status)) return Response.json({ job: previous, reused: true });
+    enqueueAutoPortraits(id);
+    enqueueAutoScenes(id);
     const job = enqueue({ projectId: id, stage: "shot-generate", key, target: `镜头 ${shotId}`, input: { projectId: id, shotId, kind: input.kind, modelId: selectedId, candidateCount: input.candidateCount ?? 1, outputSpecId: spec.id, frame, assetFraming: input.assetFraming ?? project.doc.settings.assetFraming, batchId: randomUUID() }, priority: 6 });
     return Response.json({ job, model: { providerId: model.providerId, modelId: model.modelId } });
   });

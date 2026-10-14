@@ -16,6 +16,13 @@ describe("production safety helpers", () => {
     expect(setupFingerprint(doc.settings)).toBe(setupFingerprint({ ...doc.settings }));
   });
 
+  it("旧的仅立绘费用确认失效，自动标准图开关变更也需重新确认", () => {
+    const settings = emptyDoc().settings;
+    const fingerprint = setupFingerprint(settings);
+    expect(setupConfirmationMatches(JSON.stringify({ ...JSON.parse(fingerprint), version: 1 }), settings)).toBe(false);
+    expect(setupConfirmationMatches(fingerprint, { ...settings, autoPortrait: true })).toBe(false);
+  });
+
   it("keeps setup confirmation when a generated reading direction is filled in", () => {
     const doc = emptyDoc();
     const fingerprint = setupFingerprint(doc.settings);

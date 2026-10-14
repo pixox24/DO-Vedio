@@ -20,6 +20,6 @@ export async function POST(req: Request, ctx: RouteContext<"/api/projects/[id]/c
     const key = `cast:${id}:${castSourceHash(project.doc)}${force ? `:force:${Date.now()}` : ""}`;
     const previous = latestJobByKey(key, id);
     if (previous && ["queued", "running"].includes(previous.status)) return Response.json({ job: previous });
-    return Response.json({ job: enqueue({ projectId: id, stage: "cast", key, target: "识别角色", input: { projectId: id, modelId, force }, priority: 4 }) });
+    return Response.json({ job: enqueue({ projectId: id, stage: "cast", key, target: "识别角色和场景", input: { projectId: id, modelId, force }, priority: 4 }) });
   });
 }

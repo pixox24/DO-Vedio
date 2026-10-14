@@ -6,12 +6,12 @@ export function playbackAssetId(shot: Pick<Shot, "assetId" | "assetVariants">, a
   return shot.assetVariants?.[aspect]?.assetId || shot.assetId;
 }
 
-function variantFor(shot: Shot, aspect: Aspect, assetId: string, source: ShotAssetVariant["source"], sourceAspect?: Aspect): ShotAssetVariant {
+function variantFor(shot: Shot, aspect: Aspect, assetId: string, source: ShotAssetVariant["source"], sourceAspect?: Aspect, promptHash?: string): ShotAssetVariant {
   const existing = shot.assetVariants?.[aspect];
   const spec = outputSpecs[outputSpecIdForAspect(aspect)];
   const next: ShotAssetVariant = {
     assetId,
-    promptHash: existing?.promptHash || shot.assetPromptHash || "",
+    promptHash: promptHash ?? (existing?.assetId === assetId ? existing.promptHash : ""),
     aspect,
     width: existing?.width ?? spec.width,
     height: existing?.height ?? spec.height,
@@ -38,11 +38,14 @@ export function selectShotCandidate(shot: Shot, candidateId: string, options: { 
   const assetVariants = { ...shot.assetVariants };
   for (const aspect of targets) {
     const source = options.framing === "shared" && aspect !== options.aspect ? "shared" : "generated";
-    assetVariants[aspect] = variantFor(shot, aspect, candidate.assetId, source, source === "shared" ? options.aspect : undefined);
+    assetVariants[aspect] = variantFor(shot, aspect, candidate.assetId, source, source === "shared" ? options.aspect : undefined, candidate.generationPromptHash);
   }
   return {
     ...shot,
+    kind: candidate.kind ?? shot.kind,
     assetId: candidate.assetId,
+    // 旧候选没有来源记录时保守标记过期，不能沿用另一张图的生成指纹。
+    assetPromptHash: candidate.promptHash ?? (candidate.assetId === shot.assetId ? shot.assetPromptHash : "unknown"),
     candidates: shot.candidates.map((item) => ({ ...item, selected: item.id === candidateId })),
     assetVariants,
   };

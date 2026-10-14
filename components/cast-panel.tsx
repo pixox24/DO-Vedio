@@ -111,7 +111,7 @@ export function CastPanel({ id, store, jobs }: { id: string; store: Store; jobs:
   const pick = (card: CharacterCard) => setSelectedId(card.id);
 
   async function analyze(force: boolean) {
-    if (force && !(await confirm({ title: "重新识别角色？", message: "会重新阅读全文。锁定的角色、你改过的字段和已定妆的图片都会保留。", confirmLabel: "重新识别", bullets: ["预计费用：会调用一次文本模型，费用以服务商账单为准。", "影响范围：重新分析全文；锁定字段和已定妆图片保留。", "可恢复：新结果写回前可停止任务，已有角色字段不会被锁定内容覆盖。"] }))) return;
+    if (force && !(await confirm({ title: "重新识别角色和场景？", message: "会重新阅读全文，识别角色和主要场景。已有场景描述、参考图、锁定角色和手动修改都会保留。开启自动标准图时会补生成缺少的角色立绘和场景图，图片费用以服务商账单为准。", confirmLabel: "重新识别", bullets: ["预计费用：会调用一次文本模型，费用以服务商账单为准。", "影响范围：重新分析全文；锁定字段和已定妆图片保留。", "可恢复：新结果写回前可停止任务，已有角色字段不会被锁定内容覆盖。"] }))) return;
     setBusy(true);
     setError("");
     try {
@@ -155,7 +155,7 @@ export function CastPanel({ id, store, jobs }: { id: string; store: Store; jobs:
         </div>
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant={analysis || present.length ? "ghost" : "primary"} loading={busy || running} icon={<Icon name="sparkle" className="size-3.5" />} onClick={() => analyze(!!analysis)}>
-            {running ? `识别中${castJob?.progress ? ` · ${Math.round(castJob.progress * 100)}%` : ""}` : analysis ? "重新识别" : "识别角色"}
+            {running ? `识别中${castJob?.progress ? ` · ${Math.round(castJob.progress * 100)}%` : ""}` : analysis ? "重新识别角色和场景" : "识别角色和场景"}
           </Button>
           <Button size="sm" variant="ghost" icon={<Icon name="plus" className="size-3.5" />} onClick={addCharacter}>
             新增角色
@@ -219,7 +219,7 @@ export function CastPanel({ id, store, jobs }: { id: string; store: Store; jobs:
       {present.length === 0 ? (
         <div className="rounded-surface border border-dashed border-line px-6 py-10 text-center">
           <p className="text-sm text-text">{analysis ? "这期视频的画面不需要固定角色" : "还没有角色"}</p>
-          <p className="mt-1 text-xs text-text-muted">{analysis ? "需要的话可以手动新增。" : `识别角色会让 AI 读完整篇文案；一键成片时也会自动识别。${autoPortrait ? "已开启自动立绘，识别后会为每个角色生成一张标准形象。" : ""}`}</p>
+          <p className="mt-1 text-xs text-text-muted">{analysis ? "需要的话可以手动新增。" : `识别角色和场景会让 AI 读完整篇文案；一键成片时也会自动识别。${autoPortrait ? "已开启自动立绘，识别后会为每个角色生成一张标准形象。" : ""}`}</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3 @md:grid-cols-3 @xl:grid-cols-4">{roster(present)}</div>
