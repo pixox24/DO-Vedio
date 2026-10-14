@@ -65,6 +65,15 @@ export function SettingsPanel({ store }: { store: ProjectStore }) {
           </div>}
         </SettingGroup>
 
+        <SettingGroup title="角色">
+          <SettingRow label="自动生成立绘">
+            <Switch checked={doc.settings.autoPortrait} label="自动生成立绘" onChange={(checked) => store.setDoc((current) => ({ ...current, settings: { ...current.settings, autoPortrait: checked } }))} />
+          </SettingRow>
+          <p className="mt-2 text-2xs leading-5 text-text-faint">
+            开启后，识别角色完成时会为每个角色自动生成 1 张立绘，并直接作为这个角色的标准形象（之后的镜头以它为参考）。画面风格或角色外貌改了会重新生成并覆盖标准形象，旧图留在候选里。生图费用由图片服务商收取，不计入上面的预算与开工预估。
+          </p>
+        </SettingGroup>
+
         <SettingGroup title="成片选项">
           <SettingRow label="字幕">
             <Switch checked={doc.settings.subtitle.enabled} label="字幕" onChange={(checked) => store.setDoc((current) => ({ ...current, settings: { ...current.settings, subtitle: { ...current.settings.subtitle, enabled: checked } } }))} />

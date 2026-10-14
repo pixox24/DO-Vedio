@@ -31,6 +31,8 @@ export function setupFingerprint(settings: Settings): string {
     assetFraming: settings.assetFraming,
     budgetYuan: settings.budgetYuan,
     pauseAfterPreview: settings.pauseAfterPreview,
+    // 开启后会自动提交生图任务：改变费用与提交内容，切换它必须让上一次开工确认失效
+    autoPortrait: settings.autoPortrait,
     modelId: settings.modelId,
     subtitle: settings.subtitle,
     music: settings.music,

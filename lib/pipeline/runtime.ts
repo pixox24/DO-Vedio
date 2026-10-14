@@ -3,6 +3,7 @@ import type { Job } from "../core/types";
 import { hasFfmpeg } from "../server/ffmpeg";
 import { ensureSfx, scanLibrary } from "../server/music";
 import { run } from "../server/db";
+import { enqueueAutoPortraits, isAutoPortraitJob } from "./auto-portrait";
 
 /** Worker 启动自检：FFmpeg、曲库、内置音效 */
 export async function preflight() {
@@ -37,8 +38,12 @@ export async function onSettled(job: Job, ok: boolean) {
     const cur = (await import("../server/jobs")).getJob(job.id);
     // 还会自动重试的不算失败
     if (cur?.status === "queued") return;
-    if (job.projectId) run("UPDATE project_goals SET blocked = ?, updated_at = ? WHERE project_id = ?", cur?.status === "canceled" ? "已取消" : `「${job.target || job.stage}」失败：${cur?.error ?? ""}`, Date.now(), job.projectId);
+    // 自动立绘是支线：失败只留在角色面板等用户处理，不暂停整条自动推进
+    if (job.projectId && !isAutoPortraitJob(job)) run("UPDATE project_goals SET blocked = ?, updated_at = ? WHERE project_id = ?", cur?.status === "canceled" ? "已取消" : `「${job.target || job.stage}」失败：${cur?.error ?? ""}`, Date.now(), job.projectId);
     return;
   }
   advance(job);
+  // 识别角色完成后补自动立绘。自动推进那条路已由 advance() 的编排排好，这里管的是
+  // 手动「重新识别角色」——它不属于任何制作目标，advance() 看不到它。
+  if (job.projectId && job.stage === "cast") enqueueAutoPortraits(job.projectId);
 }

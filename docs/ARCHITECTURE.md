@@ -70,7 +70,7 @@
 | 分镜 / 镜头 | `lib/core/shots.ts` + `stages/storyboard.ts` + `components/studio/storyboard-panel.tsx` |
 | 一句话的**运镜**候选 | `lib/core/motion-library.ts` 的 `motionChoices(text)`；UI 在 `components/motion-preset-picker.tsx` |
 | **入场 / 转场动效** | `lib/core/animation.ts` + `remotion/animation/` |
-| 角色 | `lib/core/cast.ts` + `stages/cast.ts` + `components/cast-panel.tsx` |
+| 角色 | `lib/core/cast.ts` + `stages/cast.ts` + `components/cast-panel.tsx` | 自动立绘（识别角色后每个角色一张）由 `lib/pipeline/auto-portrait.ts` 排入 `character-sheet`，开关是 `settings.autoPortrait` |
 | 渲染成片 | `lib/pipeline/render.ts` + `stages/render.ts`；composition 注册在 `remotion/root.tsx`（主 id `"Video"`，props 由 `lib/core/video-composition.ts` 组装） |
 | 配乐 / 音效 | `lib/server/music.ts` + `lib/core/sfx.ts` + `components/studio/music-panel.tsx` |
 | **计费与单价** | `config/pricing.json`（真正的单价表，按 `provider/model` 键）；`lib/pipeline/pricing.ts` 只是通用查表，无 provider 分支 |

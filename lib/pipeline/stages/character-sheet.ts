@@ -5,6 +5,7 @@ import { compilePrompt, type CompiledPrompt } from "../../core/prompt-compiler";
 import type { CharacterCard, ProjectDoc, ShotSize } from "../../core/types";
 import { beginGenerationRun, failGenerationRun, finishGenerationRun, noteGenerationRun } from "../../providers/runs";
 import { getProject, mutateProject } from "../../server/projects";
+import { ensureProjectVisualStyle } from "../../visual-styles/store";
 import { defaultGenerationFrame, generateBatch, generateMediaAssets, mediaProviderId } from "../media-gen";
 import { defineStage, PermanentError } from "../stage";
 
@@ -52,18 +53,30 @@ export function characterSheetKey(doc: ProjectDoc, card: CharacterCard, kind: Sh
   return `character-sheet:${quickHash({ v: STAGE_VERSION.characterSheet, card: card.id, kind, lookId, prompts: sheetPrompts(doc, card, kind, lookId, count).map((p) => p.hash), refs, modelId })}`;
 }
 
-export type CharacterSheetInput = { projectId: string; characterId: string; kind: SheetKind; lookId?: string; modelId: string; count?: number };
+export type CharacterSheetInput = {
+  projectId: string;
+  characterId: string;
+  kind: SheetKind;
+  lookId?: string;
+  modelId: string;
+  count?: number;
+  /** 自动立绘：由编排层在识别角色后排入，固定 1 张并直接设为这个角色的标准形象 */
+  auto?: boolean;
+};
 
 export const characterSheetStage = defineStage<CharacterSheetInput, { assets: string[] }>({
   name: "character-sheet",
   concurrency: 4,
   async run(input, ctx) {
+    // 自动立绘是编排层排的，没有手动入口那次「先确保画面风格」的调用：这里补上，
+    // 否则立绘不带项目风格，和之后的镜头各画一套。
+    if (input.auto) await ensureProjectVisualStyle(input.projectId);
     const project = getProject(input.projectId);
     const card = project?.doc.characters.find((c) => c.id === input.characterId);
     if (!project || !card) throw new PermanentError("角色不存在");
     if (card.locked) throw new PermanentError("角色已锁定，请先解锁后再定妆");
     if (card.presentation !== "full") throw new PermanentError("这个角色不露正脸，不需要定妆");
-    const count = Math.max(1, Math.min(4, input.count ?? 4));
+    const count = Math.max(1, Math.min(4, input.count ?? (input.auto ? 1 : 4)));
     const prompts = sheetPrompts(project.doc, card, input.kind, input.lookId, count);
     const references = sheetReferences(card, input.kind);
     const key = characterSheetKey(project.doc, card, input.kind, input.modelId, input.lookId, count);
@@ -78,7 +91,13 @@ export const characterSheetStage = defineStage<CharacterSheetInput, { assets: st
           if (c.id !== card.id) return c;
           const sheet = { ...c.sheet };
           const got = slots.filter((x): x is string => !!x);
-          if (input.kind === "portrait") Object.assign(sheet, { candidates: [...got, ...sheet.candidates.filter((x) => !got.includes(x))].slice(0, 16), sourceHash: sheetSourceHash(card, doc.visualStyle) });
+          if (input.kind === "portrait")
+            Object.assign(sheet, {
+              candidates: [...got, ...sheet.candidates.filter((x) => !got.includes(x))].slice(0, 16),
+              sourceHash: sheetSourceHash(card, doc.visualStyle),
+              // 自动立绘直接成为标准形象（镜头以它为参考）；定妆过期重跑会覆盖它，旧图仍留在候选里
+              ...(input.auto && got[0] ? { portraitAssetId: got[0] } : {}),
+            });
           else if (input.kind === "turnaround") sheet.turnaroundAssetIds = got;
           else if (input.kind === "expressions") sheet.expressionAssetIds = got;
           else if (input.lookId && got[0]) sheet.lookAssetIds = { ...sheet.lookAssetIds, [input.lookId]: got[0] };

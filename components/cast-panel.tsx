@@ -104,6 +104,8 @@ export function CastPanel({ id, store, jobs }: { id: string; store: Store; jobs:
   const needsSheet = present.filter((c) => c.presentation === "full");
   const styled = needsSheet.filter((c) => c.sheet.portraitAssetId).length;
   const todo = needsSheet.filter((c) => !c.sheet.portraitAssetId && !c.locked);
+  // 自动立绘开启时，识别角色后编排层会自动补一张并设为标准形象，这里只把话说清楚
+  const autoPortrait = doc.settings.autoPortrait;
   // 工作区：用户点过的优先；否则落在第一个待定妆的角色上
   const active = doc.characters.find((c) => c.id === selectedId) ?? todo[0] ?? present[0] ?? absent[0] ?? null;
   const pick = (card: CharacterCard) => setSelectedId(card.id);
@@ -173,7 +175,9 @@ export function CastPanel({ id, store, jobs }: { id: string; store: Store; jobs:
             <div className="min-w-0 space-y-2.5">
               <div>
                 <p className="text-sm font-medium text-text">下一步：为 {todo.length} 个角色定妆</p>
-                <p className="mt-0.5 text-xs leading-5 text-text-muted">先生成标准形象，之后镜头都以它为参考，人物前后才长得一样。</p>
+                <p className="mt-0.5 text-xs leading-5 text-text-muted">
+                  {autoPortrait ? "已开启自动立绘：识别角色后会自动生成一张并设为标准形象，也可以现在手动生成。" : "先生成标准形象，之后镜头都以它为参考，人物前后才长得一样。"}
+                </p>
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {todo.map((c) => (
@@ -215,7 +219,7 @@ export function CastPanel({ id, store, jobs }: { id: string; store: Store; jobs:
       {present.length === 0 ? (
         <div className="rounded-surface border border-dashed border-line px-6 py-10 text-center">
           <p className="text-sm text-text">{analysis ? "这期视频的画面不需要固定角色" : "还没有角色"}</p>
-          <p className="mt-1 text-xs text-text-muted">{analysis ? "需要的话可以手动新增。" : "识别角色会让 AI 读完整篇文案；一键成片时也会自动识别。"}</p>
+          <p className="mt-1 text-xs text-text-muted">{analysis ? "需要的话可以手动新增。" : `识别角色会让 AI 读完整篇文案；一键成片时也会自动识别。${autoPortrait ? "已开启自动立绘，识别后会为每个角色生成一张标准形象。" : ""}`}</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3 @md:grid-cols-3 @xl:grid-cols-4">{roster(present)}</div>

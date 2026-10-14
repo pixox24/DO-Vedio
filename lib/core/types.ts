@@ -513,6 +513,8 @@ export const settingsSchema = z.object({
     .default({ enabled: true, position: "auto" }),
   budgetYuan: z.number().min(0).nullable().default(null),
   pauseAfterPreview: z.boolean().default(false),
+  /** 识别角色完成后，自动为每个角色生成 1 张立绘并设为标准形象（默认关闭，会产生生图费用） */
+  autoPortrait: z.boolean().default(false),
   modelId: z.string().default(""),
 });
 export type Settings = z.infer<typeof settingsSchema>;

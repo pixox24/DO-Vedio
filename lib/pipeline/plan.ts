@@ -20,6 +20,7 @@ import { estimateSubtitleTranslateCost } from "./subtitle-translate";
 import { ttsJobKeyOf, ttsSteps } from "./tts-jobs";
 import type { Quality } from "./render";
 import { staleRanges } from "./stages/storyboard";
+import { autoPortraitPlan, isAutoPortraitInput } from "./auto-portrait";
 import { castSourceHash } from "../core/cast";
 import { voiceDirectionKey, type VoiceDirectionCache } from "./voice-direction";
 
@@ -152,6 +153,11 @@ export function planPipeline(projectId: string, doc: ProjectDoc, goal: Goal): Pl
     steps.push({ stage: "cast", key: `cast:${projectId}:${castHash}`, target: "识别角色", input: { projectId, modelId }, cost: estimateLlmCost(modelId, 3500 + chars, 2000), priority: 4 });
   }
 
+  // 3.5) 自动立绘（默认关闭）：识别角色完成后，为每个还没有当前风格立绘的角色排一张。
+  // 与分镜、渲染并行；正在定妆的角色不入队，但要留在 currentKeys 里，否则会被当成「上一轮旧任务」。
+  const portraits = autoPortraitPlan(doc, projectId);
+  steps.push(...portraits.filter((p) => !p.busy).map((p) => p.step));
+
   // 4) 分镜（配音齐了才做，因为节奏依赖真实时长）
   let shotsReady = doc.shots.length > 0 && staleRanges(doc).length === 0;
   if (voiced && !castReady && !shotsReady) waiting.push("等待识别角色");
@@ -220,6 +226,7 @@ export function planPipeline(projectId: string, doc: ProjectDoc, goal: Goal): Pl
   // 同块的多句共享一个块键，需去重，否则进度分母按句数虚高。
   currentKeys.push(...new Set(keys.map((item) => ttsJobKeyOf(item))));
   if (modelId) currentKeys.push(`cast:${projectId}:${castHash}`);
+  currentKeys.push(...portraits.map((p) => p.key));
   if (voiced && modelId) {
     const sig = JSON.stringify(doc.lines.map((line) => line.id + line.text)) + JSON.stringify(doc.shots.map((shot) => shot.id + shot.sourceHash + shot.locked));
     currentKeys.push(`storyboard:${projectId}:${hashStr(sig)}`);
@@ -341,6 +348,9 @@ export function drive(projectId: string, goal: Goal, confirmBudget = false) {
   return r;
 }
 
+/** 自动立绘失败不计入「有任务失败」：它是支线，不该拦住断句、配音、分镜和成片 */
+const NOT_AUTO_PORTRAIT = "NOT (stage = 'character-sheet' AND json_extract(input, '$.auto') = 1)";
+
 function settle(projectId: string, r: ProduceResult) {
   if (r.blocked) return block(projectId, r.blocked);
   const goalId = getGoal(projectId)?.goal.goalId;
@@ -349,10 +359,13 @@ function settle(projectId: string, r: ProduceResult) {
     : get<{ n: number }>("SELECT COUNT(*) AS n FROM jobs WHERE project_id = ? AND status IN ('queued', 'running')", projectId)?.n ?? 0;
   if (active > 0) return;
   if (r.plan.steps.length === 0) return r.plan.waiting.length ? block(projectId, r.plan.waiting[0]) : setGoal(projectId, null);
+  // 自动立绘失败过就不再自动重提。只剩这类任务时直接收掉目标：一张立绘不该把已经做完的流水线停在「无法继续」。
+  const left = r.plan.steps.filter((s) => isAutoPortraitInput(s.input));
+  if (left.length === r.plan.steps.length && left.every((s) => ["failed", "canceled"].includes(latestJobByKey(s.key, projectId)?.status ?? ""))) return setGoal(projectId, null);
   // 还有步骤但都没法提交（之前失败过），等待用户重试
   const failed = goalId
-    ? all<{ n: number }>("SELECT COUNT(*) AS n FROM jobs WHERE project_id = ? AND status = 'failed' AND json_extract(input, '$.goalId') = ?", projectId, goalId)[0]?.n ?? 0
-    : all<{ n: number }>("SELECT COUNT(*) AS n FROM jobs WHERE project_id = ? AND status = 'failed'", projectId)[0]?.n ?? 0;
+    ? all<{ n: number }>(`SELECT COUNT(*) AS n FROM jobs WHERE project_id = ? AND status = 'failed' AND ${NOT_AUTO_PORTRAIT} AND json_extract(input, '$.goalId') = ?`, projectId, goalId)[0]?.n ?? 0
+    : all<{ n: number }>(`SELECT COUNT(*) AS n FROM jobs WHERE project_id = ? AND status = 'failed' AND ${NOT_AUTO_PORTRAIT}`, projectId)[0]?.n ?? 0;
   block(projectId, failed ? "有任务失败，请处理后点「重试」" : r.plan.waiting[0] ?? "无法继续");
 }
 
