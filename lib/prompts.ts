@@ -572,14 +572,16 @@ ${input.script}`,
 }
 
 export type StoryboardPayload = {
+  visualPipeline?: "image" | "video";
+  visualStyle?: string;
   title: string;
   brief: { summary: string; audience: string; perspective: "first" | "third" };
   /** 解说风格（文案风格，不是画风） */
   style?: { name: string; description: string; tone: string };
   segments: { index: number; title: string; points?: string }[];
-  lines: { id: string; segmentIndex: number; text: string; ms: number; keywords: string[]; mood?: string }[];
+  lines: { id: string; segmentIndex: number; text: string; ms: number; keywords: string[]; mood?: string; startMs?: number; endMs?: number; chars?: { i: number; startMs: number; endMs: number }[]; estimated?: boolean }[];
   /** 建卡角色：分镜只写他们在做什么，外貌由系统从角色卡补上 */
-  cast?: { id: string; name: string; role: string; brief: string; presentation?: string }[];
+  cast?: { id: string; name: string; role: string; brief: string; presentation?: string; anchor?: string }[];
   /** 固定场景：同一地点复用同一个 sceneId，陈设由编译器注入。 */
   scenes?: { id: string; name: string; description: string }[];
   /** 增量模式：只为这个范围出镜头，前后是固定的镜头 */
@@ -587,6 +589,7 @@ export type StoryboardPayload = {
 };
 
 export function storyboardPrompt(input: StoryboardPayload): Prompt {
+  if (input.visualPipeline === "video") return videoStoryboardPrompt(input);
   let cur = -1;
   const body: string[] = [];
   for (const l of input.lines) {
@@ -640,6 +643,25 @@ ${input.brief.summary ? `\n内容概要：\n${input.brief.summary}\n` : ""}${inp
 ${body.join("\n")}
 
 输出镜头列表，lineId 必须是上面出现过的句子 ID，按时间顺序排列。`,
+  };
+}
+
+/** Same director call, but video plans never use the image-card choreography. */
+export function videoStoryboardPrompt(input: StoryboardPayload): Prompt {
+  return {
+    instructions: `你是旁白视频导演。输入包含原文、真实 TTS 的句子/字级时间、现有角色卡、场景卡和视觉风格。
+只根据输入事实设计画面，不重写旁白，不新增无依据的人物或地点。
+输出严格 JSON，顶层为 shots 数组；每项必须包含 lineId、char（句中起始字符，默认0）、intent、kind="placeholder"、mode="generate"、shotSize、description、motion="none"、importance（1-3）、groupId、videoPlan。
+videoPlan 为 {startState,action,camera,endState}，四项必须用英文；intent/description 用中文。startState 要具体描述起始构图、主体可见特征、服饰、位置、环境和光线，角色特征准确翻译输入身份锚，不能更换造型；场景固定陈设、视觉风格与光线也准确翻译为英文。action 说明动作先后、位移和对象变化，camera 写明确、相容的相机运动，endState 写自然收束状态。
+表达紧凑：startState 用1–2句英文，action/camera/endState 各用一句英文；保留身份、服饰、陈设和关键动作，不堆叠重复形容词。intent/description 各用一句中文。
+按旁白语义组织 groupId，同一语义段可包含多个独立镜头；组只用于界面组织，每个 shot 独立生成一个连续视频。groupId 使用简短语义名称。同组不等于一次生成，不能输出嵌套镜头。
+沿用 lineId+char 合法锚点，第一镜从第一句 char=0 开始，按时间排序，覆盖完整旁白，无重叠遗漏。时长由程序按 TTS 推导，通常3–8秒，连续动作可更长，但最终区间不得超过15秒。用真实字级时间选择切点，不把停顿删除，不为凑15秒加入无关动作。不在单镜头安排剪切/蒙太奇。
+当前输入可能只是全文中的一段。只为 lines 中的句子生成镜头；segments/brief 用于理解全文，partial.before/after 用于衔接相邻镜头，禁止为这些上下文再输出镜头。接续上一镜的结束状态，同一语义段沿用简短的组名。
+角色出现时用 characters 数组绑定表内 id，地点匹配时用 sceneId 绑定表内 id；没有人物或匹配场景时允许省略，禁止编造 id。按照该句造型和身份锚保持人物一致；真实公众人物按指定背影/剪影/手部/象征物呈现，不生成正脸。
+每镜均为可生成的视频画面，禁止 motion 模式、独立文字卡、real/stock 素材卡。重点文字可写 focusText={text,emphasis?,support?}，以后期叠加；text/support 各最多8个等价汉字宽度，数字必须与原文一致，不复制整句字幕，不要求模型绘制文字。
+旁白由外部 TTS 播放，不要求角色说旁白、对白、口型配合、声音、配乐或字幕。画面中的手机屏幕遵守物理朝向，只有抽象色块，不写可读文字。上传图片只能使用用户说明，不能声称已视觉检查图片。
+只输出规划，不输出推理过程。`,
+    prompt: JSON.stringify(input),
   };
 }
 

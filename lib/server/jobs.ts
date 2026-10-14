@@ -137,7 +137,7 @@ function waitingReferenceShotIds(): string[] {
     if (ref.stage === "character-sheet" && input.kind === "portrait" && input.characterId) characters.add(`${ref.project_id}:${input.characterId}`);
   }
   return all<{ id: string; project_id: string; input: string; doc: string }>(
-    "SELECT j.id, j.project_id, j.input, p.doc FROM jobs j JOIN projects p ON p.id = j.project_id WHERE j.stage = 'shot-generate' AND j.status = 'queued'",
+    "SELECT j.id, j.project_id, j.input, p.doc FROM jobs j JOIN projects p ON p.id = j.project_id WHERE j.stage IN ('shot-generate', 'shot-reference') AND j.status = 'queued'",
   ).filter((row) => {
     const input = parseJson<{ shotId?: string }>(row.input, {});
     const doc = parseJson<{ shots?: { id: string; sceneId?: string; characterIds?: string[] }[] }>(row.doc, {});
@@ -152,11 +152,13 @@ export function claim(workerId: string, stages: string[]): Job | undefined {
   return tx(() => {
     const now = Date.now();
     const lockToken = randomUUID();
-    const waiting = stages.includes("shot-generate") ? waitingReferenceShotIds() : [];
+    const waiting = stages.some((stage) => stage === "shot-generate" || stage === "shot-reference") ? waitingReferenceShotIds() : [];
     const r = get<Row>(
       `UPDATE jobs SET status = 'running', locked_by = ?, lock_token = ?, lease_until = ?, attempts = attempts + 1, error = NULL, started_at = ?, updated_at = ?
        WHERE id = (
           SELECT id FROM jobs WHERE status = 'queued' AND run_after <= ? AND stage IN (${stages.map(() => "?").join(",")})
+          AND (stage != 'shot-generate' OR COALESCE(json_extract(input, '$.kind'), '') != 'video'
+            OR (SELECT COUNT(*) FROM jobs active WHERE active.stage = 'shot-generate' AND active.status = 'running' AND json_extract(active.input, '$.kind') = 'video') < 2)
           ${waiting.length ? `AND id NOT IN (${waiting.map(() => "?").join(",")})` : ""}
          ORDER BY priority, created_at LIMIT 1
        )

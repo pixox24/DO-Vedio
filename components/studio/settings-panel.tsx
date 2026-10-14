@@ -16,10 +16,24 @@ type VoiceCatalog = { providers: { id: string; models: { id: string; voices: { i
 export function SettingsPanel({ store }: { store: ProjectStore }) {
   const doc = store.doc;
   const [catalog, setCatalog] = useState<VoiceCatalog | null>(null);
+  const [mediaModels, setMediaModels] = useState<{ id: string; label: string; kind: string }[]>([]);
   const [outputMore, setOutputMore] = useState(false);
   const [publishMore, setPublishMore] = useState(false);
   const { confirm } = useFeedback();
   useEffect(() => { fetch("/api/voices").then((r) => r.json()).then(setCatalog).catch(() => setCatalog(null)); }, []);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/providers", { cache: "no-store" }).then((r) => r.json()).then((data) => {
+      if (alive) setMediaModels((data.providers ?? []).filter((m: { configured: boolean; enabled: boolean; kind: string }) => m.configured && m.enabled && ["image", "video"].includes(m.kind)).map((m: { providerId: string; modelId: string; providerLabel: string; modelLabel: string; kind: string }) => ({ id: `${m.providerId}::${m.modelId}`, label: `${m.providerLabel} · ${m.modelLabel}`, kind: m.kind })));
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  useEffect(() => {
+    const modelId = mediaModels.find((model) => model.kind === "image")?.id;
+    if (modelId && doc?.settings.visualPipeline === "video" && !doc.settings.video.referenceImageModelId) {
+      store.setDoc((current) => ({ ...current, settings: { ...current.settings, video: { ...current.settings.video, referenceImageModelId: current.settings.video.referenceImageModelId || modelId } } }));
+    }
+  }, [mediaModels, doc?.settings.visualPipeline, doc?.settings.video.referenceImageModelId, store]);
   if (!doc) return null;
   async function toggleAiLabel(enabled: boolean) {
     if (!enabled && !(await confirm({ title: "关闭 AI 生成标识？", message: "部分发布平台要求保留 AI 生成标识，请确认你仍要关闭。", confirmLabel: "关闭标识", tone: "danger", bullets: ["预计费用：不产生新的服务商费用。", "影响范围：后续导出的视频不再显示 AI 生成标识。", "可恢复：可以随时重新打开标识。"] }))) return;
@@ -38,6 +52,24 @@ export function SettingsPanel({ store }: { store: ProjectStore }) {
       <div className="space-y-0 px-5 sm:px-6">
         <SettingGroup title="预设">
           <PresetSection doc={doc} store={store} catalog={catalog} />
+        </SettingGroup>
+
+        <SettingGroup title="画面驱动">
+          <Select aria-label="画面驱动管线" value={doc.settings.visualPipeline} onChange={(value) => store.setDoc((current) => ({ ...current, settings: { ...current.settings, visualPipeline: value as "image" | "video", video: { ...current.settings.video, referenceImageModelId: current.settings.video.referenceImageModelId || (value === "video" ? mediaModels.find((m) => m.kind === "image")?.id ?? "" : "") } } }))}>
+            <option value="image">图片驱动</option><option value="video">AI 视频驱动</option>
+          </Select>
+          {doc.settings.visualPipeline === "video" && <div className="mt-3 space-y-3">
+            <label className="block space-y-1 text-xs"><span>视频模型</span><Select aria-label="视频模型" value={doc.settings.video.modelId} onChange={(modelId) => store.setDoc((current) => ({ ...current, settings: { ...current.settings, video: { ...current.settings.video, modelId } } }))}>
+              {!mediaModels.some((m) => m.id === doc.settings.video.modelId) && <option value={doc.settings.video.modelId}>MiniMax H3 · 未配置或未启用</option>}
+              {mediaModels.filter((m) => m.kind === "video").map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+            </Select></label>
+            <label className="block space-y-1 text-xs"><span>参考图模型</span><Select aria-label="参考图模型" value={doc.settings.video.referenceImageModelId} onChange={(referenceImageModelId) => store.setDoc((current) => ({ ...current, settings: { ...current.settings, video: { ...current.settings.video, referenceImageModelId } } }))}>
+              <option value="">自动选择可用图片模型</option>{mediaModels.filter((m) => m.kind === "image").map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+            </Select></label>
+            <label className="block space-y-1 text-xs"><span>视频生成分辨率</span><Select aria-label="视频生成分辨率" value={doc.settings.video.resolution} onChange={(resolution) => store.setDoc((current) => ({ ...current, settings: { ...current.settings, video: { ...current.settings.video, resolution: resolution as "480p" | "768p" } } }))}><option value="480p">480p</option><option value="768p">768p</option></Select></label>
+            <SettingRow label="参考图完成后自动连续生成视频"><Switch label="参考图完成后自动连续生成视频" checked={doc.settings.video.autoContinue} onChange={(autoContinue) => store.setDoc((current) => ({ ...current, settings: { ...current.settings, video: { ...current.settings.video, autoContinue } } }))} /></SettingRow>
+            <p className="text-2xs leading-5 text-text-faint">默认先确认每镜参考图。开启自动连续后，参考图成功即继续提交视频请求；服务商可能收费，费用暂未知。生成源为 {doc.settings.video.resolution}，1080p 成片导出不会增加源视频细节。</p>
+          </div>}
         </SettingGroup>
 
         <SettingGroup title="输出">

@@ -102,7 +102,7 @@ export async function generatePlain(modelId: string, { instructions, prompt }: P
   return text.trim();
 }
 
-export async function generateJson<T extends z.ZodType>(modelId: string, schema: T, { instructions, prompt }: Prompt, signal?: AbortSignal, maxRetries: number = 2) {
+export async function generateJson<T extends z.ZodType>(modelId: string, schema: T, { instructions, prompt }: Prompt, signal?: AbortSignal, maxRetries: number = 2, opts: { maxOutputTokens?: number } = {}) {
   const { model, isClaude } = getModel(modelId);
   let lastError: unknown;
 
@@ -113,6 +113,7 @@ export async function generateJson<T extends z.ZodType>(modelId: string, schema:
         instructions: `${instructions}\n\n只输出一个 JSON 对象，不要任何解释，结构必须符合以下 JSON Schema：\n${JSON.stringify(z.toJSONSchema(schema))}`,
         prompt,
         abortSignal: signal,
+        ...(opts.maxOutputTokens !== undefined ? { maxOutputTokens: opts.maxOutputTokens } : {}),
         output: Output.object({ schema }),
         providerOptions: isClaude ? claudeOptions : undefined,
       });

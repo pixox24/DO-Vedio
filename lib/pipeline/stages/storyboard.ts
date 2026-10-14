@@ -1,10 +1,13 @@
 import { randomUUID } from "crypto";
 import { z } from "zod";
+import { NoObjectGeneratedError } from "ai";
 import { storyboardKey } from "../../core/keys";
 import { sanitizeCard } from "../../core/cards";
 import { focusNumbersMatchSource, focusTextFromLegacy, focusVisualWidth, normalizeFocusText } from "../../core/focus";
-import { distributeMotionCards, isMotionCardShot, normalizeShots, repairShots, sortShots, stampShots, blankShot, shotLineIds } from "../../core/shots";
-import { layoutLines } from "../../core/timeline";
+import { distributeMotionCards, isMotionCardShot, normalizeShots, normalizeVideoShots, repairShots, sortShots, stampShots, blankShot, shotLineIds } from "../../core/shots";
+import { buildTimeline, layoutLines } from "../../core/timeline";
+import { previewSpecFor } from "../../core/output-spec";
+import { anchorText, lookAt } from "../../core/cast";
 import { MAX_SHOT_CHARACTERS } from "../../core/prompt-compiler";
 import { characterRoleLabels, motions, presentationLabels, shotSizeLabels, shotSizes, type Card, type Line, type ProjectDoc, type Shot } from "../../core/types";
 import { generateJson } from "../../llm";
@@ -14,8 +17,8 @@ import { cacheGet, cachePut } from "../../server/cache";
 import { mutateProject } from "../../server/projects";
 import { loadArtifacts } from "../artifacts";
 import { estimateLlmCost } from "../pricing";
-import { defineStage } from "../stage";
-import { beginGenerationRun, failGenerationRun, finishGenerationRun } from "../../providers/runs";
+import { defineStage, PermanentError } from "../stage";
+import { beginGenerationRun, failGenerationRun, finishGenerationRun, noteGenerationRun } from "../../providers/runs";
 
 /**
  * 分镜：大模型先写意图、再选表达方式（生成画面 / 信息卡）、再出内容；规则定「节奏」。
@@ -45,6 +48,30 @@ export const draftSchema = z.object({
     }).strict().refine((shot) => shot.mode !== "motion" || !!shot.focusText, "文字镜头必须提炼 focusText"),
   ),
 });
+export const videoDraftSchema = z.object({ shots: z.array(z.object({
+  lineId: z.string(), char: z.number().int().min(0).optional(), intent: z.string(),
+  kind: z.literal("placeholder"), mode: z.literal("generate"), shotSize: z.enum(shotSizes),
+  description: z.string(), motion: z.literal("none"), importance: z.number().int().min(1).max(3),
+  groupId: z.string().trim().min(1),
+  videoPlan: z.object({ startState: z.string().trim().min(1), action: z.string().trim().min(1), camera: z.string().trim().min(1), endState: z.string().trim().min(1) }).strict(),
+  characters: z.array(z.string()).optional(), sceneId: z.string().optional(),
+  focusText: z.object({ text: z.string().trim().min(1).refine((value) => focusVisualWidth(value.replace(/\s+/g, "")) <= 8), emphasis: z.string().optional(), support: z.string().refine((value) => focusVisualWidth(value.replace(/\s+/g, "")) <= 8).optional() }).optional(),
+}).strict()).min(1) });
+
+export function toVideoShots(draft: z.infer<typeof videoDraftSchema>["shots"], lines: Line[], characterIds: Set<string>, sceneIds: Set<string>): Shot[] {
+  const byAnchor = new Map(draft.map((entry) => [`${entry.lineId}:${entry.char ?? 0}`, entry]));
+  return toShots(draft, lines, characterIds, sceneIds).map((shot) => {
+    const entry = byAnchor.get(`${shot.at.lineId}:${shot.at.char}`) ?? draft.find((item) => item.lineId === shot.at.lineId);
+    const caption = lines.map((line) => line.text).join("");
+    const focus = entry?.focusText;
+    const focusText = focus && focusNumbersMatchSource(focus.text, caption) ? {
+      ...focus, support: focus.support && focusNumbersMatchSource(focus.support, caption) ? focus.support : undefined, layoutMode: "auto" as const,
+    } : undefined;
+    return { ...shot, kind: "video", mode: "generate", motion: "none", groupId: entry?.groupId, videoPlan: entry?.videoPlan,
+      focusText };
+  });
+}
+
 /** Legacy draft shape is accepted only while converting cached/persisted content. */
 type Draft = (Omit<z.infer<typeof draftSchema>["shots"][number], "kind"> & { kind: "placeholder" | "title" | "quote"; card?: Card; onScreenText?: string })[];
 
@@ -72,6 +99,7 @@ export function rangeMatchesCurrent(source: Line[], current: Line[], range: { fr
 /** 需要重做的连续句子范围 */
 export function staleRanges(doc: ProjectDoc): { from: number; to: number }[] {
   if (doc.shots.length === 0) return doc.lines.length ? [{ from: 0, to: doc.lines.length - 1 }] : [];
+  if (doc.settings.visualPipeline === "video" && doc.shots.some((shot) => !shot.locked && !shot.videoPlan)) return doc.lines.length ? [{ from: 0, to: doc.lines.length - 1 }] : [];
   const { shots, stale } = repairShots(doc.shots, doc.lines, doc.lines);
   const order = new Map(doc.lines.map((l, k) => [l.id, k]));
   const sorted = sortShots(shots, doc.lines);
@@ -192,7 +220,7 @@ export function castForStoryboard(doc: ProjectDoc): NonNullable<StoryboardPayloa
 /** 给大模型看的镜头摘要（局部重做时描述前后的镜头） */
 export function describeShot(s: Shot): string {
   if (isMotionCardShot(s)) return `重点文字「${s.focusText?.text ?? s.onScreenText ?? s.card?.headline ?? ""}」`;
-  return [s.shotSize && shotSizeLabels[s.shotSize], s.description].filter(Boolean).join("，") || "画面待定";
+  return [s.shotSize && shotSizeLabels[s.shotSize], s.description, s.videoPlan && `结束状态：${s.videoPlan.endState}`].filter(Boolean).join("，") || "画面待定";
 }
 
 /** 局部重做的前后文：相邻句子 + 相邻镜头（之前取覆盖前一句的最后一个镜头，之后取从后一句开始的镜头） */
@@ -223,32 +251,59 @@ export const storyboardStage = defineStage<StoryboardInput, { shots: number; llm
     const template = await getTemplate(doc.brief.templateId).catch(() => undefined);
     // 章节与大纲一一对应时带上本章要点
     const points = doc.sections.length === doc.segments.length ? doc.sections.map((x) => x.points) : [];
+    const video = doc.settings.visualPipeline === "video";
     const cast = castForStoryboard(doc);
     const castIds = new Set(cast.map((c) => c.id));
 
-    const ranges = input.mode === "full" ? (doc.lines.length ? [{ from: 0, to: doc.lines.length - 1 }] : []) : staleRanges(doc);
+    const sourceRanges = input.mode === "full" ? (doc.lines.length ? [{ from: 0, to: doc.lines.length - 1 }] : []) : staleRanges(doc);
+    // 视频草稿比图片草稿长得多。限制每次输出的句子数，成功片段照常缓存；
+    // 格式错误时只缩小失败范围，不再重复提交整篇英文动作规划。
+    const ranges = sourceRanges.flatMap((range) => {
+      if (!video) return [range];
+      const chunks: typeof sourceRanges = [];
+      for (let from = range.from; from <= range.to; from += 6) chunks.push({ from, to: Math.min(from + 5, range.to) });
+      return chunks;
+    });
+    const totalLines = ranges.reduce((total, range) => total + range.to - range.from + 1, 0);
+    let completedLines = 0;
     let calls = 0;
     const fresh: Shot[] = [];
-    for (const [k, r] of ranges.entries()) {
-      ctx.progress((k + 0.1) / Math.max(1, ranges.length), `第 ${k + 1}/${ranges.length} 段`);
+    for (let k = 0; k < ranges.length;) {
+      if (!ctx.current()) throw ctx.signal.reason ?? new DOMException("任务已取消", "AbortError");
+      const r = ranges[k];
+      ctx.progress((completedLines + 0.1) / Math.max(1, totalLines), video ? `视频分镜 ${completedLines}/${totalLines} 句 · 第 ${k + 1}/${ranges.length} 段` : `第 ${k + 1}/${ranges.length} 段`);
       const slice = doc.lines.slice(r.from, r.to + 1);
+      const partial = ranges.length === 1 && r.from === 0 && r.to === doc.lines.length - 1 ? undefined : partialContext(doc, r);
+      if (video && partial && k > 0 && ranges[k - 1].to === r.from - 1 && fresh.length) {
+        partial.before = { text: doc.lines[r.from - 1].text.slice(-30), shot: describeShot(fresh[fresh.length - 1]) };
+      }
       const payload: StoryboardPayload = {
         title: doc.brief.title,
+        visualPipeline: video ? "video" : undefined,
+        visualStyle: video ? JSON.stringify(doc.visualStyle) : undefined,
         brief: { summary: doc.brief.summary, audience: doc.brief.audience, perspective: doc.brief.perspective },
         style: template && { name: template.name, description: template.description, tone: template.tone },
         segments: doc.segments.map((s, index) => ({ index, title: s.title, points: points[index] || undefined })),
-        cast: cast.length ? cast : undefined,
+        cast: cast.length ? cast.map((entry) => ({ ...entry, anchor: video ? slice.map((line) => `${line.id}: ${anchorText(doc.characters.find((card) => card.id === entry.id)!, lookAt(doc.characters.find((card) => card.id === entry.id)!, line.id, doc.lines))}`).join("\n") : undefined })) : undefined,
         scenes: doc.scenes.map(({ id, name, description }) => ({ id, name, description })),
-        lines: slice.map((l) => ({ id: l.id, segmentIndex: l.segmentIndex, text: l.text, ms: ms.get(l.id) ?? 0, keywords: l.keywords, mood: l.mood })),
-        partial: ranges.length === 1 && r.from === 0 && r.to === doc.lines.length - 1 ? undefined : partialContext(doc, r),
+        lines: slice.map((l) => ({ id: l.id, segmentIndex: l.segmentIndex, text: l.text, ms: ms.get(l.id) ?? 0, keywords: l.keywords, mood: l.mood, ...(video ? (() => { const time = laid.lines.find((item) => item.id === l.id)!; return { startMs: time.startMs, endMs: time.endMs, chars: time.chars, estimated: time.estimated }; })() : {}) })),
+        partial,
       };
-      const key = storyboardKey({ payload, modelId: input.modelId }, input.projectId);
+      const key = storyboardKey({ payload, modelId: input.modelId, ...(video ? { directorVersion: 2 } : {}) }, input.projectId);
+      const splitRange = () => {
+        const middle = Math.floor((r.from + r.to) / 2);
+        ranges.splice(k, 1, { from: r.from, to: middle }, { from: middle + 1, to: r.to });
+      };
       let draft = cacheGet<Draft>(key);
+      if (!draft && video && r.from < r.to && cacheGet<{ split: boolean }>(`${key}:split`)?.split) {
+        splitRange();
+        continue;
+      }
       if (!draft) {
         const prompt = storyboardPrompt(payload);
         const generation = beginGenerationRun({ projectId: input.projectId, jobId: ctx.job.id, providerId: input.modelId === "claude" ? "anthropic" : input.modelId, modelId: input.modelId, kind: "text", inputHash: key, params: { stage: "storyboard", lineCount: slice.length, range: [r.from, r.to] } });
         try {
-          const raw = await generateJson(input.modelId, draftSchema, prompt, ctx.signal);
+          const raw = await generateJson(input.modelId, video ? videoDraftSchema : draftSchema, prompt, ctx.signal, video ? 0 : 2, video ? { maxOutputTokens: 8192 } : undefined);
           if (!ctx.current()) throw ctx.signal.reason ?? new DOMException("任务已取消", "AbortError");
           draft = raw.shots;
           cachePut(key, "storyboard", draft);
@@ -258,14 +313,28 @@ export const storyboardStage = defineStage<StoryboardInput, { shots: number; llm
           finishGenerationRun(generation.id, { status: "succeeded", latencyMs: Date.now() - generation.startedAt, costYuan, ledgerId });
         } catch (e) {
           failGenerationRun(generation, e, ctx.signal.aborted);
+          if (video && NoObjectGeneratedError.isInstance(e) && ctx.current()) {
+            const canSplit = r.from < r.to;
+            noteGenerationRun(generation.id, { finishReason: e.finishReason, responseChars: e.text?.length ?? 0, usage: e.usage, recovery: canSplit ? "split-range" : "stopped" });
+            if (canSplit) {
+              cachePut(`${key}:split`, "storyboard", { split: true });
+              splitRange();
+              ctx.log(`视频分镜第 ${r.from + 1}–${r.to + 1} 句响应无法解析，缩小范围继续（${e.finishReason ?? "unknown"}）。`);
+              continue;
+            }
+            throw new PermanentError(`第 ${r.from + 1} 句视频分镜${e.finishReason === "length" ? "输出达到长度上限" : "返回的 JSON 格式不正确"}，已停止自动重试。请切换文本模型后重新生成成片。`);
+          }
           throw e;
         }
       }
       if (!ctx.current()) throw ctx.signal.reason ?? new DOMException("任务已取消", "AbortError");
-      const shots = toShots(draft, slice, castIds, new Set(doc.scenes.map((scene) => scene.id)));
+      const shots = video ? toVideoShots(videoDraftSchema.parse({ shots: draft }).shots, slice, castIds, new Set(doc.scenes.map((scene) => scene.id))) : toShots(draft, slice, castIds, new Set(doc.scenes.map((scene) => scene.id)));
       // 保证范围的第一句有镜头
-      if (!shots.some((s) => s.at.lineId === slice[0].id && s.at.char === 0)) shots.unshift(blankShot(randomUUID(), slice[0].id));
+      if (!shots.some((s) => s.at.lineId === slice[0].id && s.at.char === 0)) shots.unshift(video && shots[0] ? { ...shots[0], id: randomUUID(), at: { lineId: slice[0].id, char: 0 } } : blankShot(randomUUID(), slice[0].id));
       fresh.push(...shots);
+      completedLines += slice.length;
+      k++;
+      ctx.progress(completedLines / Math.max(1, totalLines), video ? `视频分镜 ${completedLines}/${totalLines} 句` : `第 ${k}/${ranges.length} 段完成`);
     }
 
     if (!ctx.current()) throw ctx.signal.reason ?? new DOMException("任务已取消", "AbortError");
@@ -274,7 +343,7 @@ export const storyboardStage = defineStage<StoryboardInput, { shots: number; llm
     // 当前镜头及其旧 sourceHash，让编排层在下一轮继续识别为过期。
     let count = 0;
     mutateProject(input.projectId, (cur) => {
-      if (!ctx.current()) return null;
+      if (!ctx.current() || cur.settings.visualPipeline !== doc.settings.visualPipeline) return null;
       const lineIds = new Set(cur.lines.map((l) => l.id));
       const replaced = new Set<string>();
       ranges.forEach((r) => {
@@ -287,11 +356,12 @@ export const storyboardStage = defineStage<StoryboardInput, { shots: number; llm
       const curArt = loadArtifacts(cur, input.projectId);
       const curLaid = layoutLines(cur.lines, curArt);
       const times = new Map(curLaid.lines.map((l) => [l.id, l]));
-      const normalized = normalizeShots(merged, cur.lines, times, curLaid.endMs, () => randomUUID());
+      const totalMs = video ? buildTimeline(cur, curArt, previewSpecFor(cur.settings)).durationMs : curLaid.endMs;
+      const normalized = (video ? normalizeVideoShots : normalizeShots)(merged, cur.lines, times, totalMs, () => randomUUID());
       const stampedFreshIds = new Set(fresh.map((s) => s.id));
       const existingById = new Map(cur.shots.map((s) => [s.id, s]));
       const editableIds = new Set(normalized.filter((s) => stampedFreshIds.has(s.id) || (!existingById.has(s.id) && replaced.has(s.at.lineId))).map((s) => s.id));
-      const spaced = distributeMotionCards(sortShots(normalized, cur.lines), editableIds);
+      const spaced = video ? sortShots(normalized, cur.lines) : distributeMotionCards(sortShots(normalized, cur.lines), editableIds);
       const stamped = stampShots(spaced, cur.lines).map((s) => {
         // Keep concurrent/current shots' sourceHash untouched. Only drafts
         // generated from a matching snapshot (and normalization shots inside

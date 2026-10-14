@@ -20,6 +20,19 @@ const lines = [line("a", "全世界每年浪费的粮食，高达十三亿吨。
 const draft = (over: Record<string, unknown>) => ({ lineId: "a", intent: "", kind: "placeholder" as const, mode: "generate" as const, description: "", motion: "zoom-in" as const, importance: 1, ...over });
 
 describe("分镜草稿转镜头", () => {
+  it("视频草稿保持扁平语义组、合法绑定与后期重点文字", async () => {
+    const { videoDraftSchema, toVideoShots } = await import("@/lib/pipeline/stages/storyboard");
+    const videoPlan = { startState: "A woman stands at the window.", action: "She opens the window.", camera: "Static camera.", endState: "The window is open." };
+    const drafts = videoDraftSchema.parse({ shots: [
+      { ...draft({ intent: "开窗", description: "女人打开窗户", shotSize: "medium", motion: "none", groupId: "开窗", videoPlan, characters: ["known", "unknown"], sceneId: "room", focusText: { text: "开窗" } }) },
+      { ...draft({ lineId: "b", intent: "停留", description: "女人看向室外", shotSize: "close", motion: "none", groupId: "开窗", videoPlan, sceneId: "unknown" }) },
+    ] }).shots;
+    const shots = toVideoShots(drafts, lines, new Set(["known"]), new Set(["room"]));
+    expect(shots).toHaveLength(2);
+    expect(shots[0]).toMatchObject({ kind: "video", mode: "generate", motion: "none", groupId: "开窗", characterIds: ["known"], sceneId: "room", videoPlan, focusText: { text: "开窗" } });
+    expect(shots[1].sceneId).toBeUndefined();
+    expect(shots[1].groupId).toBe(shots[0].groupId);
+  });
   it("旧草稿转为统一重点文字，生成画面带景别", async () => {
     const { toShots } = await import("@/lib/pipeline/stages/storyboard");
     const shots = toShots(

@@ -24,6 +24,8 @@ import { ShelfPicker } from "@/components/shelf-picker";
 import { jobBatchId, type ProjectStore } from "./shared";
 import { columnCount, shotRows, shotState, shotTime, type ShotServerStatus } from "./shot-view";
 
+import { VideoStoryboardPanel } from "./video-storyboard-panel";
+
 const ShotThumbnail = dynamic(() => import("../shot-thumbnail").then((m) => m.ShotThumbnail), { ssr: false, loading: () => <div className="grid h-full place-items-center bg-stage text-xs text-white/40">正在加载预览</div> });
 
 function shotUpdate(store: ProjectStore, id: string, fn: (shot: Shot) => Shot) {
@@ -41,7 +43,11 @@ type ShotCommon = {
   onSelect: () => void; onUpload: (file: File) => void; onGenerate: () => void; onCandidate: (id: string) => void; onSplit: () => void; onMerge: () => void;
 };
 
-export function StoryboardPanel({ id, store, timeline, jobs, onSeek, wide = false, onToggleWide }: { id: string; store: ProjectStore; timeline: Timeline | null; jobs: Map<string, Job>; onSeek: (ms: number) => void; wide?: boolean; onToggleWide?: () => void }) {
+export function StoryboardPanel(props: Parameters<typeof ImageStoryboardPanel>[0]) {
+  return props.store.doc?.settings.visualPipeline === "video" ? <VideoStoryboardPanel {...props} /> : <ImageStoryboardPanel {...props} />;
+}
+
+function ImageStoryboardPanel({ id, store, timeline, jobs, onSeek, wide = false, onToggleWide }: { id: string; store: ProjectStore; timeline: Timeline | null; jobs: Map<string, Job>; onSeek: (ms: number) => void; wide?: boolean; onToggleWide?: () => void }) {
   const doc = store.doc;
   const { confirm, toast } = useFeedback();
   /** 卡片（扫读+展开）还是表格（原先把所有内容铺在单列里） */
@@ -637,7 +643,7 @@ function ShotDetail({ shot, timed, timeline, index, lineIndex, lineIds, estimate
                   aria-pressed={candidate.selected}
                   onClick={() => onCandidate(candidate.id)}
                 >
-                  {shot.kind === "video" ? <video muted preload="metadata" src={mediaUrl(candidate.assetId)} className="h-full w-full object-cover" /> : <Image src={mediaUrl(candidate.assetId)} alt="" fill sizes="200px" unoptimized className="object-cover" />}
+                  {(candidate.kind ?? shot.kind) === "video" ? <video muted playsInline preload="metadata" src={mediaUrl(candidate.assetId)} className="h-full w-full object-cover" /> : <Image src={mediaUrl(candidate.assetId)} alt="" fill sizes="200px" unoptimized className="object-cover" />}
                   {candidate.selected && <span className="absolute right-1 top-1 inline-flex items-center gap-0.5 rounded-full bg-accent px-1.5 py-0.5 text-3xs font-medium text-ink shadow-lg"><Icon name="check" className="size-2.5" />当前</span>}
                   <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-1 py-1 text-left text-3xs text-white">候选 {candidateIndex + 1}</span>
                 </button>;

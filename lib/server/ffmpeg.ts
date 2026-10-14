@@ -36,6 +36,7 @@ export type Probe = {
   sampleRate: number | null;
   channels: number | null;
   bitRate: number | null;
+  fps?: number | null;
 };
 
 export type FfprobeStream = {
@@ -47,6 +48,8 @@ export type FfprobeStream = {
   height?: number;
   duration?: string;
   bit_rate?: string;
+  avg_frame_rate?: string;
+  r_frame_rate?: string;
   disposition?: { attached_pic?: number };
 };
 
@@ -64,6 +67,8 @@ export function probeFromJson(data: FfprobeOutput): Probe {
   const dur = Number(data.format?.duration ?? video?.duration ?? audio?.duration);
   const sampleRate = Number(audio?.sample_rate);
   const bitRate = Number(data.format?.bit_rate ?? audio?.bit_rate);
+  const [fpsNumerator, fpsDenominator = 1] = (video?.avg_frame_rate || video?.r_frame_rate || "").split("/").map(Number);
+  const fps = fpsNumerator / fpsDenominator;
   return {
     durationMs: Number.isFinite(dur) ? Math.round(dur * 1000) : null,
     width: video?.width ?? null,
@@ -75,6 +80,7 @@ export function probeFromJson(data: FfprobeOutput): Probe {
     sampleRate: Number.isFinite(sampleRate) ? sampleRate : null,
     channels: audio?.channels ?? null,
     bitRate: Number.isFinite(bitRate) ? bitRate : null,
+    fps: Number.isFinite(fps) && fps > 0 ? fps : null,
   };
 }
 

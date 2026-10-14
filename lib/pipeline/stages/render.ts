@@ -4,6 +4,7 @@ import { animationHash, contentHash, timelineHash } from "../../core/timeline";
 import { getProject } from "../../server/projects";
 import { timelineFor } from "../artifacts";
 import { renderTimeline, type Quality, type RenderOutput } from "../render";
+import { videoRenderProblems } from "../video-generation";
 import { defineStage, PermanentError } from "../stage";
 import { beginGenerationRun, failGenerationRun, finishGenerationRun } from "../../providers/runs";
 
@@ -21,6 +22,8 @@ export const renderStage = defineStage<RenderInput, RenderOutput & { timelineHas
     if (!p) throw new PermanentError("项目不存在");
     const spec = outputSpecForRequest(p.doc.settings, input.outputSpecId, input.aspect);
     const t = timelineFor(p.doc, input.projectId, spec.id);
+    const videoProblems = videoRenderProblems(p.doc, t, spec);
+    if (videoProblems.length) throw new PermanentError(videoProblems[0]);
     if (t.voice.length === 0) throw new PermanentError("还没有任何配音，无法渲染");
     const hash = timelineHash(t);
     const content = contentHash(t);

@@ -22,6 +22,9 @@ import type { Quality } from "./render";
 import { staleRanges } from "./stages/storyboard";
 import { autoPortraitPlan, autoScenePlan, isAutoPortraitInput } from "./auto-portrait";
 import { castSourceHash } from "../core/cast";
+import { sourceImageStale, videoGenerationSnapshot } from "../core/video";
+import { referenceJobKey, standardReferencesPending, videoAttempt, videoFrame, videoPrerequisite, videoRenderProblems, videoModelAvailable, videoAssetFraming } from "./video-generation";
+import { resolveImageModel } from "./image-models";
 import { voiceDirectionKey, type VoiceDirectionCache } from "./voice-direction";
 
 /**
@@ -159,15 +162,18 @@ export function planPipeline(projectId: string, doc: ProjectDoc, goal: Goal): Pl
   steps.push(...portraits.filter((p) => !p.busy).map((p) => p.step));
 
   // 4) 分镜（配音齐了才做，因为节奏依赖真实时长）
-  let shotsReady = doc.shots.length > 0 && staleRanges(doc).length === 0;
+  const storyboardSig = JSON.stringify(doc.lines.map((line) => line.id + line.text)) + JSON.stringify(doc.shots.map((shot) => shot.id + shot.sourceHash + shot.locked)) + JSON.stringify(doc.settings.visualPipeline ?? "image");
+  const storyboardJobKey = `storyboard:${projectId}:${hashStr(storyboardSig)}`;
+  let shotsReady = doc.shots.length > 0 && staleRanges(doc).length === 0 && (doc.settings.visualPipeline !== "video" || doc.shots.every((shot) => shot.kind === "video" && !!shot.videoPlan));
   if (voiced && !castReady && !shotsReady) waiting.push("等待识别角色和场景");
-  if (voiced && castReady && !shotsReady && modelId) {
+  const lockedNonVideo = doc.settings.visualPipeline === "video" && doc.shots.some((shot) => shot.locked && (shot.kind !== "video" || !shot.videoPlan));
+  if (lockedNonVideo) waiting.push("锁定镜头还不是视频分镜，请解锁并重新导演");
+  if (voiced && castReady && !shotsReady && modelId && !(lockedNonVideo && staleRanges(doc).length === 0)) {
     const mode = doc.shots.length === 0 ? "full" : "stale";
-    const sig = JSON.stringify(doc.lines.map((l) => l.id + l.text)) + JSON.stringify(doc.shots.map((s) => s.id + s.sourceHash + s.locked));
     const chars = doc.lines.reduce((s, l) => s + l.text.length, 0);
     steps.push({
       stage: "storyboard",
-      key: `storyboard:${projectId}:${hashStr(sig)}`,
+      key: storyboardJobKey,
       target: mode === "full" ? "全片" : "改动部分",
       input: { projectId, modelId, mode },
       cost: estimateLlmCost(modelId, 2500 + chars * 1.3, chars * 2),
@@ -176,7 +182,7 @@ export function planPipeline(projectId: string, doc: ProjectDoc, goal: Goal): Pl
   }
   if (voiced && !modelId) {
     waiting.push("没有可用文本模型，请在模型中心配置并启用");
-    shotsReady = doc.shots.length > 0;
+    shotsReady = doc.shots.length > 0 && (doc.settings.visualPipeline !== "video" || doc.shots.every((shot) => shot.kind === "video" && !!shot.videoPlan));
   }
   if (!shotsReady && voiced) waiting.push("等待分镜");
 
@@ -199,7 +205,60 @@ export function planPipeline(projectId: string, doc: ProjectDoc, goal: Goal): Pl
 
   // 配乐由用户在面板里选定，不选也不挡住预览和成片。
   // 双语没译完时不排渲染：渲染键在入队时就按当前文稿算好，译文还没写回会做出没有副行的成片。
-  const preview = voiced && shotsReady && translationsReady;
+  const mediaKeys: string[] = [];
+  let videosReady = true;
+  if (doc.settings.visualPipeline === "video") {
+    videosReady = false;
+    if (voiced && shotsReady) {
+      const referenceFrame = videoFrame(doc);
+      const imageModel = doc.settings.video.referenceImageModelId && resolveImageModel(doc.settings.video.referenceImageModelId);
+      const activeReferences = all<{ shotId: string; key: string }>("SELECT json_extract(input, '$.shotId') AS shotId, key FROM jobs WHERE project_id = ? AND stage = 'shot-reference' AND status IN ('queued','running')", projectId);
+      for (const shot of doc.shots) {
+        const activeReference = activeReferences.find((job) => job.shotId === shot.id);
+        const refKey = referenceJobKey(doc, shot, referenceFrame);
+        mediaKeys.push(refKey);
+        if (activeReference) {
+          mediaKeys.push(activeReference.key);
+          waiting.push(`镜头 ${shot.id} 等待镜头参考图`);
+          continue;
+        }
+        const pending = standardReferencesPending(projectId, shot) || portraits.some((item) => {
+          const related = item.step.stage === "scene-reference" ? item.card.id === shot.sceneId : shot.characterIds.includes(item.card.id);
+          const last = latestJobByKey(item.key, projectId);
+          return related && (!last || ["queued", "running"].includes(last.status));
+        });
+        if (pending) { waiting.push(`镜头 ${shot.id} 等待角色和场景标准图`); continue; }
+        if (!shot.sourceImageAssetId || sourceImageStale(doc, shot, referenceFrame)) {
+          if (shot.locked) { waiting.push(`镜头 ${shot.id} 已锁定且缺少当前参考图`); continue; }
+          if (!imageModel) { waiting.push("请选择并保存可用的镜头参考图模型"); continue; }
+          steps.push({ stage: "shot-reference", key: refKey, target: `镜头参考 ${shot.id}`, input: { projectId, shotId: shot.id, modelId: imageModel, frame: referenceFrame }, cost: 0, priority: 6 });
+          waiting.push(`镜头 ${shot.id} 等待镜头参考图`);
+          continue;
+        }
+        const specs = videoAssetFraming(doc) === "shared" ? [referenceFrame] : goal.aspects.map((aspect) => outputSpecForRequest(doc.settings, undefined, aspect));
+        for (const frame of specs) {
+          const timeline = timelineFor(doc, projectId, frame.aspect);
+          const snapshot = videoGenerationSnapshot(doc, shot, timeline, frame);
+          mediaKeys.push(snapshot.key);
+          const prerequisite = videoPrerequisite(doc, shot, timeline);
+          if (prerequisite) { waiting.push(`镜头 ${shot.id} ${prerequisite}`); continue; }
+          if (!videoRenderProblems({ ...doc, shots: [shot] }, timeline, frame).length) continue;
+          if (shot.candidates.some((candidate) => candidate.kind === "video" && candidate.promptHash === snapshot.hash)) { waiting.push(`镜头 ${shot.id} 已有新视频候选，请选择后继续`); continue; }
+          if (shot.locked) { waiting.push(`镜头 ${shot.id} 已锁定且视频缺失或过期`); continue; }
+          if (!videoModelAvailable(doc.settings.video.modelId)) { waiting.push("视频模型不可用，请在模型中心检查配置"); continue; }
+          const attempt = videoAttempt(projectId, shot.id, snapshot.hash);
+          steps.push({ stage: "shot-generate", key: snapshot.key, target: `视频镜头 ${shot.id}`, input: { projectId, shotId: shot.id, kind: "video", modelId: snapshot.modelId, frame, requestHash: snapshot.hash, attemptId: attempt.attemptId, allowNewAttempt: false, candidateCount: attempt.candidateCount ?? 1, assetFraming: videoAssetFraming(doc) }, cost: 0, priority: 6 });
+        }
+      }
+      const problems = goal.aspects.flatMap((aspect) => {
+        const frame = outputSpecForRequest(doc.settings, undefined, aspect);
+        return videoRenderProblems(doc, timelineFor(doc, projectId, frame.id), frame);
+      });
+      videosReady = problems.length === 0;
+      if (!videosReady && !waiting.length) waiting.push(problems[0]);
+    }
+  }
+  const preview = voiced && shotsReady && translationsReady && videosReady;
 
   // 6) 渲染。确认开工（compose）不排这一步。
   const scheduleRender = goal.until === "preview" || goal.until === "render";
@@ -220,6 +279,7 @@ export function planPipeline(projectId: string, doc: ProjectDoc, goal: Goal): Pl
 
   const currentKeys = currentAnnotateKeys(doc, projectId);
   if (direction) currentKeys.push(direction.key);
+  currentKeys.push(...mediaKeys);
   // 必须用任务键（段落模式是块键），不能用成员句键：任务是以块为单位提交的，
   // 用句键会导致 JobStrip 匹配不到任何任务——进度显示 0、没有取消入口，
   // 且 running 判定漏掉配音（主按钮不禁用、「停止」不出现）。
@@ -228,8 +288,7 @@ export function planPipeline(projectId: string, doc: ProjectDoc, goal: Goal): Pl
   if (modelId) currentKeys.push(`cast:${projectId}:${castHash}`);
   currentKeys.push(...portraits.map((p) => p.key));
   if (voiced && modelId) {
-    const sig = JSON.stringify(doc.lines.map((line) => line.id + line.text)) + JSON.stringify(doc.shots.map((shot) => shot.id + shot.sourceHash + shot.locked));
-    currentKeys.push(`storyboard:${projectId}:${hashStr(sig)}`);
+    currentKeys.push(storyboardJobKey);
   }
   if (doc.settings.subtitle.bilingual) currentKeys.push(subtitleTranslateKey(projectId, doc.lines));
   if (preview && scheduleRender) {
@@ -272,8 +331,8 @@ function planForGoal(plan: Plan, goalId?: string): Plan {
   if (!goalId) return plan;
   return {
     ...plan,
-    steps: plan.steps.map((step) => ({ ...step, key: isAutoPortraitInput(step.input) ? step.key : goalJobKey(step.key, goalId) })),
-    currentKeys: plan.currentKeys.map((key) => key.startsWith("auto-portrait:") || key.startsWith("auto-scene:") ? key : goalJobKey(key, goalId)),
+    steps: plan.steps.map((step) => ({ ...step, key: isAutoPortraitInput(step.input) || ["shot-reference", "shot-generate"].includes(step.stage) ? step.key : goalJobKey(step.key, goalId) })),
+    currentKeys: plan.currentKeys.map((key) => key.startsWith("auto-portrait:") || key.startsWith("auto-scene:") || key.startsWith("shot-reference:") || key.startsWith("shot:") ? key : goalJobKey(key, goalId)),
   };
 }
 
@@ -303,7 +362,7 @@ export function produce(projectId: string, goal: Goal, opts: { dryRun?: boolean;
     const input = opts.goalId && typeof s.input === "object" && s.input !== null
       ? { ...(s.input as Record<string, unknown>), goalId: opts.goalId }
       : s.input;
-    enqueued.push(enqueue({ projectId, stage: s.stage, key: s.key, target: s.target, input, priority: s.priority, costEstimate: s.cost }));
+    enqueued.push(enqueue({ projectId, stage: s.stage, maxAttempts: ["shot-reference", "shot-generate"].includes(s.stage) ? 1 : undefined, key: s.key, target: s.target, input, priority: s.priority, costEstimate: s.cost }));
   }
   return { plan, enqueued, spentYuan: spent };
 }
@@ -353,11 +412,13 @@ const NOT_AUTO_PORTRAIT = "NOT (stage IN ('character-sheet', 'scene-reference') 
 
 function settle(projectId: string, r: ProduceResult) {
   if (r.blocked) return block(projectId, r.blocked);
+  run("UPDATE project_goals SET blocked = NULL, updated_at = ? WHERE project_id = ?", Date.now(), projectId);
   const goalId = getGoal(projectId)?.goal.goalId;
   const active = goalId
     ? get<{ n: number }>("SELECT COUNT(*) AS n FROM jobs WHERE project_id = ? AND status IN ('queued', 'running') AND json_extract(input, '$.goalId') = ?", projectId, goalId)?.n ?? 0
     : get<{ n: number }>("SELECT COUNT(*) AS n FROM jobs WHERE project_id = ? AND status IN ('queued', 'running')", projectId)?.n ?? 0;
-  if (active > 0) return;
+  const activeMedia = all<{ key: string }>("SELECT key FROM jobs WHERE project_id = ? AND stage IN ('shot-reference','shot-generate') AND status IN ('queued','running')", projectId).some((job) => r.plan.currentKeys.includes(job.key));
+  if (active > 0 || activeMedia) return;
   if (r.plan.steps.length === 0) return r.plan.waiting.length ? block(projectId, r.plan.waiting[0]) : setGoal(projectId, null);
   // 自动立绘失败过就不再自动重提。只剩这类任务时直接收掉目标：一张立绘不该把已经做完的流水线停在「无法继续」。
   const left = r.plan.steps.filter((s) => isAutoPortraitInput(s.input));
@@ -373,8 +434,10 @@ function settle(projectId: string, r: ProduceResult) {
 export function advance(job: Job) {
   if (!job.projectId) return;
   const g = getGoal(job.projectId);
-  if (!g || g.blocked) return;
-  if (g.goal.goalId && (typeof job.input !== "object" || job.input === null || (job.input as { goalId?: unknown }).goalId !== g.goal.goalId)) return;
+  if (!g) return;
+  const referenceSettled = job.stage === "character-sheet" || job.stage === "scene-reference" || job.stage === "shot-reference" || job.stage === "shot-generate" && (job.input as { kind?: string } | null)?.kind === "video";
+  if (g.blocked && !referenceSettled) return;
+  if (!referenceSettled && g.goal.goalId && (typeof job.input !== "object" || job.input === null || (job.input as { goalId?: unknown }).goalId !== g.goal.goalId)) return;
   if (!getProject(job.projectId)) return setGoal(job.projectId, null);
   settle(job.projectId, produce(job.projectId, g.goal, { confirmBudget: g.confirmBudget, goalId: g.goal.goalId }));
 }
@@ -385,3 +448,10 @@ export function restamp(doc: ProjectDoc) {
 }
 
 export { loadArtifacts };
+
+/** A valid confirmation or standard-reference completion can release recoverable waiting. */
+export function wakeCurrentGoal(projectId: string) {
+  const state = getGoal(projectId);
+  if (!state) return;
+  settle(projectId, produce(projectId, state.goal, { confirmBudget: state.confirmBudget, goalId: state.goal.goalId }));
+}

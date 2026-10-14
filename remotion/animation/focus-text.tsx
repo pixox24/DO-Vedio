@@ -79,7 +79,7 @@ export function focusCounterValue(value: string, progress: number): string {
   return `${match[1].includes(".") ? number.toFixed(match[1].split(".")[1].length) : Math.round(number)}${match[2]}`;
 }
 
-export function FocusTextShot({ shot, durationInFrames }: { shot: TimelineShot; durationInFrames: number }) {
+export function FocusTextShot({ shot, durationInFrames, overlay = false }: { shot: TimelineShot; durationInFrames: number; overlay?: boolean }) {
   const frame = useCurrentFrame();
   const { width, height } = useVideoConfig();
   const theme = useTheme();
@@ -158,8 +158,8 @@ export function FocusTextShot({ shot, durationInFrames }: { shot: TimelineShot; 
       }}>{char}</span>;
     });
   };
-  return <div style={{ position: "absolute", inset: 0, overflow: "hidden", background: INK, opacity }}>
-    <Background accent={accent} variant={recipe.background} />
+  return <div style={{ position: "absolute", inset: 0, overflow: "hidden", background: overlay ? "transparent" : INK, textShadow: overlay ? "0 2px 8px #000, 0 0 2px #000" : undefined, opacity }}>
+    {!overlay && <Background accent={accent} variant={recipe.background} />}
     <div style={{ position: "absolute", left: 0, right: 0, top: contentTop, height: contentHeight }}>
     <div style={{ position: "absolute", left: "8%", top: "13%", width: Math.max(24, width * .025), height: 2, background: accent, opacity: revealProgress }} />
     {recipe.rule && <div style={{ position: "absolute", left: "13%", top: `${Math.min(.95, supportY + .1) * 100}%`, width: "48%", height: 1, background: "#ffffff29", opacity: revealProgress }} />}
@@ -207,5 +207,5 @@ export function FocusTextShot({ shot, durationInFrames }: { shot: TimelineShot; 
 }
 
 export function isFocusTextShot(shot: TimelineShot) {
-  return !!shot.focusText && (shot.mode === "motion" || shot.kind === "title" || shot.kind === "quote");
+  return shot.kind !== "video" && !!shot.focusText && (shot.mode === "motion" || shot.kind === "title" || shot.kind === "quote");
 }

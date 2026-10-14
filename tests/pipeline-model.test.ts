@@ -31,11 +31,11 @@ describe("自动分镜推进", () => {
     const project = createProject(doc);
     cachePut(ttsKey(lineSpeech(doc.lines[0], []).spoken, doc.settings.voice), "tts", { assetId: "test", speechStartMs: 0, speechEndMs: 1000, durationMs: 1000, chars: [], aligned: false, spokenChars: 7 });
     const goal: Parameters<typeof planPipeline>[2] = { until: "render", aspects: ["16:9"], quality: "draft" };
-    // 先识别角色（和配音并行），分镜等它完成
+    // 先识别角色和场景（和配音并行），分镜等它完成
     const first = planPipeline(project.id, doc, goal);
     expect(first.steps.find((step) => step.stage === "cast")?.input).toMatchObject({ modelId: listTextModels()[0].id });
     expect(first.steps.some((step) => step.stage === "storyboard")).toBe(false);
-    expect(first.waiting).toContain("等待识别角色");
+    expect(first.waiting).toContain("等待识别角色和场景");
     const { castSourceHash } = await import("@/lib/core/cast");
     const cast = { ...doc, castAnalysis: { sourceHash: castSourceHash(doc), modes: [], skipped: [], issues: [] } };
     const plan = planPipeline(project.id, cast, goal);

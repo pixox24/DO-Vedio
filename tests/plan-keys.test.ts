@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import path from "path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { emptyDoc, voiceSettingsSchema } from "@/lib/core/types";
 
 let dir = "";
@@ -15,6 +15,53 @@ afterAll(async () => {
 });
 
 describe("计划中的段落配音任务键", () => {
+  it("同一目标切换画面管线使用新分镜键，无关设置保持键稳定", async () => {
+    const registry = await import("@/lib/providers/registry");
+    const models = vi.spyOn(registry, "listTextModels").mockReturnValue([{ id: "test-text" } as ReturnType<typeof registry.listTextModels>[number]]);
+    try {
+      const { createProject, mutateProject } = await import("@/lib/server/projects");
+      const { cachePut } = await import("@/lib/server/cache");
+      const { castSourceHash } = await import("@/lib/core/cast");
+      const { lineTtsKeys } = await import("@/lib/pipeline/artifacts");
+      const { produce } = await import("@/lib/pipeline/plan");
+      const { run } = await import("@/lib/server/db");
+      const doc = emptyDoc();
+      doc.settings.modelId = "test-text";
+      doc.settings.voice.instruction = "自然口播";
+      doc.segments = [{ title: "开场", text: "同一段旁白。" }];
+      doc.lines = [{ id: "line-switch", segmentIndex: 0, text: "同一段旁白。", spans: [], keywords: [], locked: true }];
+      doc.castAnalysis = { sourceHash: castSourceHash(doc), modes: [], skipped: [], issues: [] };
+      const project = createProject(doc);
+      for (const item of lineTtsKeys(doc, project.id)) {
+        cachePut(item.key, "tts", { assetId: "test", speechStartMs: 0, speechEndMs: 1000, durationMs: 1000, chars: [], aligned: false, spokenChars: item.spoken.length });
+      }
+      const goal = { until: "compose" as const, aspects: ["16:9" as const], quality: "draft" as const };
+      const opts = { goalId: "same-goal", confirmBudget: true };
+      const image = produce(project.id, goal, opts);
+      const imageJob = image.enqueued.find((job) => job.stage === "storyboard")!;
+      expect(imageJob).toBeDefined();
+      expect(image.plan.currentKeys).toContain(imageJob.key);
+      expect(produce(project.id, goal, opts).enqueued.find((job) => job.stage === "storyboard")?.id).toBe(imageJob.id);
+      run("UPDATE jobs SET status = 'succeeded' WHERE id = ?", imageJob.id);
+      mutateProject(project.id, (current) => ({ ...current, settings: { ...current.settings, visualPipeline: "video" } }));
+      const video = produce(project.id, goal, opts);
+      const videoJob = video.enqueued.find((job) => job.stage === "storyboard")!;
+      expect(videoJob).toBeDefined();
+      expect(videoJob.key).not.toBe(imageJob.key);
+      expect(videoJob.key).toMatch(/:goal:same-goal$/);
+      expect(video.plan.currentKeys).toContain(videoJob.key);
+      expect(video.plan.currentKeys).not.toContain(imageJob.key);
+      expect(videoJob.id).not.toBe(imageJob.id);
+      mutateProject(project.id, (current) => ({ ...current, settings: { ...current.settings, budgetYuan: 999 } }));
+      const stable = produce(project.id, { ...goal, quality: "final" }, { ...opts, dryRun: true });
+      expect(stable.plan.steps.find((step) => step.stage === "storyboard")?.key).toBe(videoJob.key);
+      mutateProject(project.id, (current) => ({ ...current, settings: { ...current.settings, visualPipeline: "image" } }));
+      expect(produce(project.id, goal, { ...opts, dryRun: true }).plan.steps.find((step) => step.stage === "storyboard")?.key).toBe(imageJob.key);
+    } finally {
+      models.mockRestore();
+    }
+  });
+
   it("currentKeys 使用块键且文案改动不会改变任务数量", async () => {
     const { createProject } = await import("@/lib/server/projects");
     const { planPipeline } = await import("@/lib/pipeline/plan");

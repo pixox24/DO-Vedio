@@ -25,6 +25,7 @@ import { isTtsStage } from "@/lib/core/keys";
 import { outputReadiness, renderBadge, visibleRenders, type ExportFile } from "@/lib/core/output-flow";
 import { storyboardImageHint, voiceDirectionHint, type StepHint } from "@/lib/core/step-status";
 import { mediaUrl, type Aspect, type ProjectDoc, type VoiceSettings } from "@/lib/core/types";
+import { sourceImageConfirmed, videoAssetStale } from "@/lib/core/video";
 import { outputSpecsFor } from "@/lib/core/output-spec";
 import { subtitlePresetMeta } from "@/lib/core/subtitle/presets";
 import { quickHash } from "@/lib/core/hash";
@@ -48,17 +49,28 @@ const steps = [
   { stage: "render", label: "渲染" },
 ];
 
-function produceSteps(bilingual: boolean) {
-  if (!bilingual) return steps;
+function produceSteps(bilingual: boolean, video = false) {
   const renderAt = steps.findIndex((step) => step.stage === "render");
-  return [...steps.slice(0, renderAt), { stage: "subtitle-translate", label: "翻译" }, ...steps.slice(renderAt)];
+  return [...steps.slice(0, renderAt), ...(video ? [{ stage: "shot-reference", label: "参考图" }, { stage: "shot-generate", label: "视频" }] : []), ...(bilingual ? [{ stage: "subtitle-translate", label: "翻译" }] : []), ...steps.slice(renderAt)];
 }
 
-function stepHints(doc: ProjectDoc, jobs: { stage: string; status: string }[], storyboardPending: boolean): Record<string, StepHint> {
+function stepHints(doc: ProjectDoc, jobs: { stage: string; status: string }[], storyboardPending: boolean, timeline: Timeline | null): Record<string, StepHint> {
   const hints: Record<string, StepHint> = {};
   const voice = voiceDirectionHint(doc.settings.voice, jobs.some((job) => job.stage === "voice-direction" && job.status === "succeeded"));
   if (voice) hints["voice-direction"] = voice;
-  if (!storyboardPending) {
+  if (doc.settings.visualPipeline === "video" && storyboardPending) {
+    hints["shot-reference"] = { tone: "hold", message: "等待视频分镜" };
+    hints["shot-generate"] = { tone: "hold", message: "等待视频分镜" };
+  } else if (doc.settings.visualPipeline === "video" && doc.shots.length) {
+    const frame = outputSpecsFor(doc.settings)[0];
+    const videoShots = doc.shots.filter((shot) => shot.kind === "video" && !!shot.videoPlan);
+    const pending = videoShots.filter((shot) => !shot.locked && !sourceImageConfirmed(doc, shot, frame));
+    if (pending.length && !doc.settings.video.autoContinue) hints["shot-reference"] = { tone: "hold", message: `待生成或确认参考图 · ${pending.length} 镜` };
+    else if (!pending.length) hints["shot-reference"] = { tone: "done" };
+    const missing = videoShots.filter((shot) => !shot.locked && (!shot.assetId || !timeline || videoAssetStale(doc, shot, timeline, frame)));
+    hints["shot-generate"] = missing.length ? { tone: "hold", message: `待生成视频 · ${missing.length} 镜` } : { tone: "done" };
+  }
+  if (!storyboardPending && doc.settings.visualPipeline !== "video") {
     const generating = jobs.some((job) => job.stage === "shot-generate" && (job.status === "queued" || job.status === "running"));
     const image = storyboardImageHint(doc, generating);
     if (image) hints.storyboard = image;
@@ -359,6 +371,12 @@ export function VideoStudio({ id }: { id: string }) {
     void runRefresh();
   });
   const ttsJobRevision = ["queued", "running", "succeeded", "failed"].map((status) => [...jobs.values()].filter((job) => isTtsStage(job.stage) && job.status === status).length).join(":");
+  // 分镜失败不会修改文档，因此仅靠文档 revision 无法刷新目标的暂停状态。
+  // 同目标内的旧键也纳入终态刷新，避免修复/输入变化切键后漏掉完成事件。
+  const settledStoryboardRevision = [...jobs.values()]
+    .filter((job) => job.stage === "storyboard" && ["succeeded", "failed", "canceled"].includes(job.status)
+      && (plan?.plan.currentKeys.includes(job.key) || !!plan?.goal?.goal.goalId && jobBelongsToGoal(job, plan.goal.goal.goalId)))
+    .map((job) => `${job.id}:${job.status}:${job.updatedAt}`).sort().join("|");
   /** 粗粒度内容签名：打字高频字段不进签名，所以编辑画面描述不会触发刷新 */
   const docSig = useMemo(() => (store.doc ? signatureOf(store.doc) : ""), [store.doc]);
 
@@ -402,6 +420,9 @@ export function VideoStudio({ id }: { id: string }) {
   useEffect(() => {
     if (ttsJobRevision !== "0:0:0:0") scheduleRefresh(true);
   }, [ttsJobRevision, scheduleRefresh]);
+  useEffect(() => {
+    if (settledStoryboardRevision) scheduleRefresh(true);
+  }, [settledStoryboardRevision, scheduleRefresh]);
   useEffect(() => {
     if (!store.doc) return;
     try {
@@ -631,9 +652,9 @@ export function VideoStudio({ id }: { id: string }) {
           />
           {legacyActiveJobs.length > 0 && <p className="rounded-xl border border-amber-300/20 bg-amber-300/[0.04] px-4 py-2 text-xs text-amber-100/75">仍有 {legacyActiveJobs.length} 个旧版本或独立任务在运行；停止当前制作不会取消它们。</p>}
           <JobStrip
-            steps={produceSteps(doc.settings.subtitle.bilingual)}
+            steps={produceSteps(doc.settings.subtitle.bilingual, doc.settings.visualPipeline === "video")}
             jobs={currentJobs}
-            hints={stepHints(doc, studioJobs, plan?.plan.steps.some((step) => step.stage === "storyboard") ?? false)}
+            hints={stepHints(doc, studioJobs, plan?.plan.steps.some((step) => step.stage === "storyboard") ?? false, timeline)}
             currentKeys={currentKeys}
             confirm={confirm}
           />
@@ -766,16 +787,21 @@ function setupFacts(doc: ProjectDoc, voiceName: string): SetupFact[] {
   const voiceValue = voice.granularity === "paragraph" ? `${voiceName} · ${rate} · 段落` : `${voiceName} · ${rate}`;
   const aspects = (["16:9", "9:16"] as const).filter((aspect) => doc.settings.aspects.includes(aspect));
   const subtitle = doc.settings.subtitle;
-  return [
+  const facts: SetupFact[] = [
     { label: "配音", value: voiceValue, panel: "voice" },
     { label: "画幅", value: aspects.join("、") || "16:9", panel: "settings" },
-    { label: "素材策略", value: assetFramingLabels[doc.settings.assetFraming], panel: "settings" },
+    { label: "素材策略", value: doc.settings.visualPipeline === "video" && doc.settings.assetFraming !== "per-output" ? "共享主画幅视频" : assetFramingLabels[doc.settings.assetFraming], panel: "settings" },
     { label: "预算", value: doc.settings.budgetYuan == null ? "不设上限" : `¥${doc.settings.budgetYuan.toFixed(2)}`, panel: "settings" },
     { label: "画面风格", value: doc.visualStyle?.name.trim() || "推荐", panel: "style" },
     { label: "角色和场景标准图", value: doc.settings.autoPortrait ? "自动生成" : "手动", panel: "settings" },
     { label: "字幕", value: subtitle.enabled ? subtitlePresetMeta(subtitle.preset).name : "关闭", panel: "subtitle" },
     { label: "配乐", value: doc.settings.music.enabled ? "开启" : "关闭", panel: "music" },
   ];
+  if (doc.settings.visualPipeline === "video") facts.splice(3, 0,
+    { label: "画面驱动", value: `AI 视频 · ${doc.settings.video.resolution}`, panel: "settings" },
+    { label: "镜头参考图", value: doc.settings.video.autoContinue ? "生成后自动继续视频" : "逐镜确认后生成视频", panel: "settings" },
+  );
+  return facts;
 }
 
 function useVoiceLabel(voice: VoiceSettings) {
@@ -824,6 +850,8 @@ function SetupConfirm({ doc, costYuan, onOpen, onConfirm }: { doc: ProjectDoc; c
           <p className="mt-1 text-2xs text-text-faint">
             确认后开始断句、配音和分镜。成片需要再点生成。任一项设置变动都会让确认失效，需要重新确认。
             {doc.settings.autoPortrait && " 已开启自动标准图：识别后会为每个需要立绘的角色、每个缺少标准图的场景各生成一张，图片费用以服务商账单为准，不计入上面的预估。"}
+            {doc.settings.visualPipeline === "video" && " 预估仅包含已知费用；镜头参考图与视频另由服务商收费，当前价格未知。"}
+            {doc.settings.visualPipeline === "video" && doc.settings.video.autoContinue && " 自动连续已开启：参考图成功后会继续提交视频请求，停止本地等待不能撤销云端接单。"}
           </p>
         </div>
         <div className="relative shrink-0">

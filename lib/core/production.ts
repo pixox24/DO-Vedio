@@ -8,7 +8,9 @@ import type { Job, ProjectDoc, Settings } from "./types";
  */
 export function setupFingerprint(settings: Settings): string {
   return JSON.stringify({
-    version: 2, // 自动立绘现在包含场景标准图，旧费用确认需重新确认。
+    version: 3, // 视频与参考图模型/自动连续都会改变制作费用。
+    visualPipeline: settings.visualPipeline,
+    video: settings.video,
     voice: {
       provider: settings.voice.provider,
       model: settings.voice.model,

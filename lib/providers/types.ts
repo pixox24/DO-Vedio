@@ -68,6 +68,26 @@ export type ModelProfileOverride = {
 export type GenerationKind = ProviderKind;
 export type GenerationStatus = "running" | "succeeded" | "failed" | "canceled";
 
+export type MediaRecoveryContext = {
+  projectId: string;
+  jobId: string;
+  attemptId: string;
+  requestHash: string;
+  candidateIndex: number;
+  /** 只有用户明确选择重新生成时允许绕过原未决尝试。 */
+  allowNewAttempt?: boolean;
+};
+export type MediaRecoveryPhase = "submitting" | "submission-unknown" | "polling" | "downloading" | "ready" | "failed" | "canceled";
+export type MediaCostStatus = "unknown" | "estimated" | "verified";
+export type MediaRecoveryState = {
+  runId: string;
+  attemptId: string;
+  phase: MediaRecoveryPhase;
+  providerTaskId?: string;
+  outputUrl?: string;
+  costStatus: MediaCostStatus;
+};
+
 export type AdapterHealth = {
   status: "ready" | "unconfigured" | "error";
   message?: string;

@@ -11,6 +11,10 @@ import { outputSpecForRequest, outputSpecsFor, type GenerationFrame } from "../.
 import { quickHash } from "../../core/hash";
 import { selectShotCandidate } from "../../core/shot-asset";
 import { sceneSourceHash } from "../../core/scenes";
+import { compileVideoPrompt } from "../../core/video-prompt-compiler";
+import { videoGenerationSnapshot } from "../../core/video";
+import { timelineFor } from "../artifacts";
+import { videoFrame, videoPrerequisite, standardReferencesPending, videoAssetFraming } from "../video-generation";
 
 export type ShotGenerateInput = {
   projectId: string;
@@ -21,6 +25,9 @@ export type ShotGenerateInput = {
   outputSpecId?: OutputSpecId;
   frame?: GenerationFrame;
   assetFraming?: AssetFramingMode;
+  attemptId?: string;
+  requestHash?: string;
+  allowNewAttempt?: boolean;
 };
 
 /**
@@ -29,7 +36,7 @@ export type ShotGenerateInput = {
  */
 const MAX_CANDIDATES = 8;
 
-export type CandidateAsset = { id: string; assetId: string; selected?: boolean; promptHash?: string; generationPromptHash?: string; kind?: "image" | "video" };
+export type CandidateAsset = { frame?: { aspect: GenerationFrame["aspect"] }; id: string; assetId: string; selected?: boolean; promptHash?: string; generationPromptHash?: string; kind?: "image" | "video" };
 
 /** 合并候选历史，并保证当前正在使用的素材不会被容量上限淘汰。 */
 export function mergeCandidateHistory(current: CandidateAsset[] | undefined, fresh: CandidateAsset[], currentAssetId?: string, max = MAX_CANDIDATES) {
@@ -92,6 +99,7 @@ export const shotGenerateStage = defineStage<ShotGenerateInput, { shotId: string
   name: "shot-generate",
   concurrency: 20,
   async run(input, ctx) {
+    if (input.kind === "video") return runVideoShot(input, ctx);
     const project = getProject(input.projectId);
     const shot = project?.doc.shots.find((s) => s.id === input.shotId);
     if (!project || !shot) throw new PermanentError("镜头不存在");
@@ -198,3 +206,56 @@ export const shotGenerateStage = defineStage<ShotGenerateInput, { shotId: string
     return { shotId: shot.id, assets, candidateGroupId };
   },
 });
+
+
+async function runVideoShot(input: ShotGenerateInput, ctx: import("../stage").StageContext) {
+  const project = getProject(input.projectId);
+  const shot = project?.doc.shots.find((item) => item.id === input.shotId);
+  if (!project || !shot) throw new PermanentError("镜头不存在");
+  if (shot.locked) throw new PermanentError("镜头已锁定，请先解锁");
+  const frame = videoFrame(project.doc, input.frame);
+  const timeline = timelineFor(project.doc, input.projectId, frame.aspect);
+  const prerequisite = videoPrerequisite(project.doc, shot, timeline);
+  if (prerequisite) throw new PermanentError(prerequisite);
+  if (standardReferencesPending(input.projectId, shot)) throw new PermanentError("等待关联标准图完成后再生成视频");
+  const snapshot = videoGenerationSnapshot(project.doc, shot, timeline, frame);
+  if (!input.attemptId || input.requestHash !== snapshot.hash || input.modelId !== snapshot.modelId) throw new PermanentError("视频输入已变化，请重新确认并生成");
+  const compiled = compileVideoPrompt({ doc: project.doc, shot, referenceAssetIds: snapshot.referenceAssetIds, requestDurationSeconds: snapshot.timing.requestDurationSeconds, targetDurationMs: snapshot.timing.targetDurationMs });
+  const candidateGroupId = input.attemptId;
+  const count = Math.max(1, Math.min(4, Math.floor(input.candidateCount ?? 1)));
+  const assets: string[] = [];
+  for (let index = 0; index < count; index++) {
+    if (!ctx.current()) break;
+    const { assets: generated } = await generateMediaAssets({
+      kind: "video", modelId: input.modelId, prompt: compiled.prompt, frame, references: snapshot.referenceAssetIds,
+      seed: shot.seed === undefined ? undefined : shot.seed + index,
+      targetDurationMs: snapshot.timing.targetDurationMs, requestDurationSeconds: snapshot.timing.requestDurationSeconds,
+      resolution: project.doc.settings.video.resolution,
+      recovery: { projectId: input.projectId, jobId: ctx.job.id, attemptId: input.attemptId, requestHash: snapshot.hash, candidateIndex: index, allowNewAttempt: input.allowNewAttempt },
+      onRecovery: (state) => { if (ctx.current()) ctx.progress((index + (state.phase === "ready" ? 1 : 0.1)) / count, state.phase); },
+      meta: { projectId: input.projectId, shotId: shot.id, candidateGroupId, candidateIndex: index, frame },
+    }, ctx.signal);
+    const assetId = generated[0];
+    if (!assetId) throw new PermanentError("视频生成没有返回素材，请恢复原尝试");
+    assets.push(assetId);
+    mutateProject(input.projectId, (doc) => {
+      const current = doc.shots.find((item) => item.id === shot.id);
+      if (!ctx.current() || doc.settings.visualPipeline !== "video" || !current || current.locked || videoGenerationSnapshot(doc, current, timelineFor(doc, input.projectId, frame.aspect), frame).hash !== snapshot.hash) return null;
+      const fresh = assets.map((asset, candidateIndex) => ({ id: `${input.attemptId}:${candidateIndex}`, assetId: asset, selected: false, kind: "video" as const, frame: { aspect: frame.aspect }, promptHash: snapshot.hash, generationPromptHash: snapshot.hash }));
+      // A preexisting image output must not prevent adoption of the first video.
+      const currentAssetId = current.kind === "video" ? current.assetVariants[frame.aspect]?.assetId ?? (frame.aspect === videoFrame(doc).aspect ? current.assetId : undefined) : undefined;
+      const history = current.candidates.map((candidate) => candidate.assetId === current.assetId && !candidate.promptHash ? { ...candidate, kind: current.kind === "video" ? "video" as const : "image" as const, promptHash: current.assetPromptHash } : candidate);
+      const candidates = mergeCandidateHistory(history, fresh, currentAssetId).map((candidate) => ({ ...candidate, selected: !!candidate.selected }));
+      const selected = candidates.find((candidate) => candidate.selected);
+      let next: Shot = { ...current, candidates, candidateGroupId };
+      if (selected && fresh.some((candidate) => candidate.id === selected.id)) {
+        next = selectShotCandidate(next, selected.id, { aspect: frame.aspect, framing: videoAssetFraming(doc), aspects: outputSpecsFor(doc.settings).map((spec) => spec.aspect) }) ?? next;
+        const variant = next.assetVariants[frame.aspect];
+        if (variant) next.assetVariants = { ...next.assetVariants, [frame.aspect]: { ...variant, width: frame.width, height: frame.height, generatedAt: new Date().toISOString() } };
+      }
+      return { ...doc, shots: doc.shots.map((item) => item.id === shot.id ? next : item) };
+    });
+  }
+  ctx.progress(1, "视频生成完成");
+  return { shotId: shot.id, assets, candidateGroupId };
+}

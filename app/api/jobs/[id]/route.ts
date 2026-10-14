@@ -1,3 +1,8 @@
+import { getProject } from "@/lib/server/projects";
+import { videoRenderProblems } from "@/lib/pipeline/video-generation";
+import { timelineFor } from "@/lib/pipeline/artifacts";
+import { outputSpecForRequest } from "@/lib/core/output-spec";
+import type { RenderInput } from "@/lib/pipeline/stages/render";
 import { z } from "zod";
 import { fail, handle, parseBody } from "@/lib/api";
 import { run } from "@/lib/server/db";
@@ -17,6 +22,16 @@ export async function POST(req: Request, ctx: RouteContext<"/api/jobs/[id]">) {
   return handle(async () => {
     const { id } = await ctx.params;
     const { action } = await parseBody(req, body);
+    const existing = getJob(id);
+    if (action === "retry" && existing?.stage === "render" && existing.projectId) {
+      const project = getProject(existing.projectId);
+      if (project) {
+        const input = existing.input as RenderInput;
+        const frame = outputSpecForRequest(project.doc.settings, input.outputSpecId, input.aspect);
+        const problems = videoRenderProblems(project.doc, timelineFor(project.doc, project.id, frame.id), frame);
+        if (problems.length) return fail(problems[0], 409);
+      }
+    }
     const ok = action === "cancel" ? cancelJob(id) : retryJob(id);
     // 重试后解除「一键成片」的暂停状态，任务成功后会继续自动推进
     const job = getJob(id);

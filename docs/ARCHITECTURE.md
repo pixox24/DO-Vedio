@@ -68,6 +68,11 @@
 | 字幕 UI | `components/subtitle-panel.tsx`（数据驱动，加预设不用改它） |
 | 时间轴计算 | `lib/core/timeline.ts` —— **唯一派生点**，`buildTimeline(文档, 产物)` |
 | 分镜 / 镜头 | `lib/core/shots.ts` + `stages/storyboard.ts` + `components/studio/storyboard-panel.tsx` |
+| AI 视频管线 / 真实配音时长 / 参考与输出指纹 | `lib/core/video.ts` + `lib/core/types.ts`（`settings.visualPipeline/video`）；主时间线仍是 `timeline.ts`，`artifacts.ts` 读取已入库视频实测元数据 |
+| 视频导演 / 镜头静态参考 / H3 动作提示词 | `lib/prompts.ts` + `stages/storyboard.ts` + `lib/core/video-prompt-compiler.ts`；语义 `groupId` 仅用于 UI，镜头独立生成 |
+| 镜头参考确认 / 视频批量与单镜生成 | `stages/shot-reference.ts` · `stages/shot-generate.ts` · `lib/pipeline/video-generation.ts` · `lib/pipeline/plan.ts` · `app/api/projects/[id]/shots/`；源图不占输出候选槽 |
+| 视频大卡 / 独立画幅操作 | `components/studio/video-storyboard-panel.tsx` + `settings-panel.tsx`；默认 smart-dual/shared 共用首输出源，per-output 分别提交，status 用 `outputSpecId` 查询对应输出；候选保存源画幅 |
+| AutoDL 视频 / 原任务恢复 | `lib/providers/media/autodl.ts` + `lib/pipeline/media-gen.ts` + `lib/providers/runs.ts`；`AUTODL_API_TOKEN` 仅服务端配置，恢复状态存在现有 `generation_runs.params` |
 | 一句话的**运镜**候选 | `lib/core/motion-library.ts` 的 `motionChoices(text)`；UI 在 `components/motion-preset-picker.tsx` |
 | **入场 / 转场动效** | `lib/core/animation.ts` + `remotion/animation/` |
 | 角色 | `lib/core/cast.ts` + `stages/cast.ts` + `components/cast-panel.tsx` | 自动立绘（识别角色后每个角色一张）由 `lib/pipeline/auto-portrait.ts` 排入 `character-sheet`，开关是 `settings.autoPortrait` |
@@ -129,7 +134,8 @@ grep -rn '"dashscope"\|"google-gemini"\|dashscope\|google-gemini' lib app compon
 
 1. **创作线（文案）**：`app/page.tsx` → `components/home-composer.tsx` → `/projects/[id]` → `components/workbench.tsx` → 角度 → 大纲 → 逐章写稿 → 去 AI 味 → 发布素材。纯前端 + `/api/{angles,outline,section,rewrite,metadata}`。
 2. **制作线（视频）**：`/projects/[id]/video` → `components/video-studio.tsx` → 派发 jobs → worker 跑 stages → 预览 → 导出。
-   ⚠️ **别把 `steps` 和 `allStages` 当镜像**：`lib/pipeline/stages/index.ts` 的 `allStages` 是**注册表**（14 项全量，决定调度）；`components/video-studio.tsx` 的 `steps` 只是**进度条显示项**（6 项子集，顺序与 `allStages` 不同，双语时还由 `produceSteps()` 在 render 前动态插入 `subtitle-translate`）。
+   项目画面驱动默认 `image`；`video` 使用真实 TTS → 视频导演 → 镜头参考图 → 确认（或 `autoContinue`）→ 每镜独立视频。复用角色/场景分析、自动标准图、素材、候选和同一时间线；不提供 mixed。视频源分辨率与成片输出分辨率是两个设置。
+   ⚠️ **别把 `steps` 和 `allStages` 当镜像**：`lib/pipeline/stages/index.ts` 的 `allStages` 是**注册表**（16 项全量，决定调度）；`components/video-studio.tsx` 的 `steps` 只是**进度条显示项**（6 项子集，顺序与 `allStages` 不同，`produceSteps()` 按管线在 render 前插入参考图/视频，双语时再插入 `subtitle-translate`）。
 3. **复创线（爆款）**：`/viral` → `components/viral/viral-workspace.tsx` → 任务跑在 `lib/pipeline/viral/` → 审校通过后**移交**到制作线（`lib/server/viral/handoff.ts`）。
 
 ## 六、约定与坑
@@ -139,6 +145,9 @@ grep -rn '"dashscope"\|"google-gemini"\|dashscope\|google-gemini' lib app compon
 - **文档与产物分离**：`ProjectDoc`（`lib/core/types.ts`）只装用户可编辑的内容；音频/图片/缓存存在 `assets` 表和 `data/media/`，文档里只留 hash 引用。改结构时别把产物塞进文档。
 - **新增一个步骤**：写 `lib/pipeline/stages/xxx.ts` → 注册进 `stages/index.ts` 的 `allStages` → 前端加进 `video-studio.tsx` 的 `steps`。三处都要改，但后两处**不是镜像关系**（见第五节）。
 - **缓存键**：`lib/core/keys.ts`。改提示词或参数会改变缓存命中，通常是对的（旧产物不该被复用）。
+- **AI 视频恢复**：`attemptId` 表示一次生成尝试，跨 job/goal 恢复保留原值。已保存远端 taskId 时仅查询/下载；提交已开始但没有 taskId 时为未决，禁止自动重提。停止仅中断本地等待，不能表示云端取消或未收费。
+- **视频分镜响应**：`stages/storyboard.ts` 每次最多规划 6 句并显式请求 8192 输出 token，传递相邻镜头结束状态；JSON/结构校验失败时二分失败范围，单句仍失败则暂停。成功范围沿用现有缓存，失败记录在 `generation_runs.params` 保留结束原因、响应长度与用量，不保存完整响应。`plan.ts` 的分镜任务键区分图片/视频管线。
+- **AI 视频播放**：`remotion/shots/video.tsx` 同时服务预览与成片，强制静音、不循环、不叠图片运镜。时间线裁多余尾段，只允许不超过 100ms 的末帧保持；缺失/过期/过短视频须由生产与渲染门禁提示。
 - **迁移只增不改**：往 `migrations.ts` 末尾追加，id 递增（当前最大 22）。修改历史条目会让老库直接跳过——已执行记录在 `schema_migrations` 表。
 - **重试语义**：抛 `PermanentError`（`lib/pipeline/stage.ts`）表示不重试；其它错误只有 408/429/5xx 才重试。
 - **只读接口**：`lib/server/db.ts` 的 `all/get/run/tx` 是唯一的数据库入口，不要绕过它 new 连接。

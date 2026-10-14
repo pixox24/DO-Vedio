@@ -9,6 +9,8 @@ import { get } from "../server/db";
 import { effectiveLexicon } from "../server/lexicon";
 import { appAsset, listTracks } from "../server/music";
 import { voiceKeyOf } from "../core/keys";
+import { getAsset } from "../server/media";
+import type { VideoArtifact } from "../core/video";
 
 /** 块内一句的合成材料 */
 export type BlockMember = { lineId: string; key: string; text: string; spoken: string; map: number[] };
@@ -70,12 +72,21 @@ export function loadArtifacts(doc: ProjectDoc, projectId: string, media: (hash: 
   const keys = lineTtsKeys(doc, projectId);
   const hits = cacheMany<TtsResult>(keys.map((k) => k.key));
   const tracks = listTracks();
+  const videoIds = [...new Set(doc.shots.filter((shot) => shot.kind === "video").flatMap((shot) => [shot.assetId, ...Object.values(shot.assetVariants).map((variant) => variant?.assetId)]).filter((id): id is string => !!id))];
+  const videos = new Map<string, VideoArtifact>();
+  for (const assetId of videoIds) {
+    const asset = getAsset(assetId);
+    if (!asset || asset.kind !== "video" || !asset.durationMs) continue;
+    const fps = typeof asset.meta.fps === "number" && Number.isFinite(asset.meta.fps) && asset.meta.fps > 0 ? asset.meta.fps : undefined;
+    videos.set(assetId, { durationMs: asset.durationMs, width: asset.width ?? undefined, height: asset.height ?? undefined, fps });
+  }
   return {
     tts: new Map(keys.map((k) => [k.line.id, hits.get(k.key)])),
     tracks: new Map(tracks.map((t) => [t.id, t])),
     sfx: { sources: sfxSourcesOf(media) },
     charsPerMinute: measuredCpm(doc),
     media,
+    videos,
   };
 }
 

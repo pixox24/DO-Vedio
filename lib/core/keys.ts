@@ -4,6 +4,8 @@ import { compileShotPrompt } from "./prompt-compiler";
 import type { Line, Mood, ProjectDoc, Shot, VoiceSettings, VoiceTag } from "./types";
 import { outputSpecs } from "./types";
 import type { GenerationFrame } from "./output-spec";
+import type { Timeline } from "./timeline";
+import { videoGenerationSnapshot, type VideoSnapshotOptions } from "./video";
 
 /**
  * 各步骤的缓存键。键 = hash(步骤名@版本 + 决定结果的全部输入)。
@@ -170,7 +172,8 @@ export function renderKey(timelineHash: string, quality: string, output?: Pick<G
 }
 
 /** 镜头生成键：编译后的提示词（内容 + 景别 + 风格 + 情绪）加上参考输入，支持单镜头精确重算。 */
-export function shotGenerationKey(doc: ProjectDoc, shot: Shot, kind: "image" | "video", modelId: string, frame: GenerationFrame = { ...outputSpecs["landscape-1080p"] }) {
+export function shotGenerationKey(doc: ProjectDoc, shot: Shot, kind: "image" | "video", modelId: string, frame: GenerationFrame = { ...outputSpecs["landscape-1080p"] }, video?: VideoSnapshotOptions & { timeline: Timeline }) {
+  if (kind === "video" && video) return videoGenerationSnapshot(doc, shot, video.timeline, frame, { ...video, modelId }).key;
   const characters = doc.characters.filter((c) => shot.characterIds.includes(c.id));
   const scene = shot.sceneId ? doc.scenes.find((s) => s.id === shot.sceneId) : undefined;
   return `shot:${quickHash({

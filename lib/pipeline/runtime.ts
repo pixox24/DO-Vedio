@@ -29,6 +29,7 @@ export async function preflight() {
 
 /** 任务结束后：失败/取消则暂停自动推进；成功则继续对账 */
 export async function onSettled(job: Job, ok: boolean) {
+  const standardReference = job.stage === "character-sheet" || job.stage === "scene-reference";
   const { advance } = await import("./plan");
   if (isTtsStage(job.stage) && job.projectId && job.key.startsWith(`voice-change:${job.projectId}:`)) {
     if (ok && (await import("../server/voice-change")).finalizeVoiceChange(job.projectId)) advance(job);
@@ -39,8 +40,8 @@ export async function onSettled(job: Job, ok: boolean) {
     // 还会自动重试的不算失败
     if (cur?.status === "queued") return;
     // 自动立绘是支线：失败只留在角色面板等用户处理，不暂停整条自动推进
-    if (job.projectId && !isAutoPortraitJob(job)) run("UPDATE project_goals SET blocked = ?, updated_at = ? WHERE project_id = ?", cur?.status === "canceled" ? "已取消" : `「${job.target || job.stage}」失败：${cur?.error ?? ""}`, Date.now(), job.projectId);
-    if (isAutoPortraitJob(job)) advance(job);
+    if (job.projectId && !isAutoPortraitJob(job) && !standardReference) run("UPDATE project_goals SET blocked = ?, updated_at = ? WHERE project_id = ?", cur?.status === "canceled" ? "已取消" : `「${job.target || job.stage}」失败：${cur?.error ?? ""}`, Date.now(), job.projectId);
+    if (isAutoPortraitJob(job) || standardReference) advance(job);
     if (job.projectId && job.stage === "scene-reference") enqueueAutoScenes(job.projectId, true);
     return;
   }

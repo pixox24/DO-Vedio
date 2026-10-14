@@ -7,6 +7,9 @@ import { longRequest, networkError } from "../providers/http";
 import { cacheGet, cachePut } from "../server/cache";
 import { outputSpecs, type OutputSpec } from "../core/types";
 import { type GenerationFrame } from "../core/output-spec";
+import { generateAutoDlMedia, AUTODL_MODEL_ID } from "../providers/media/autodl";
+import type { MediaRecoveryContext, MediaRecoveryState } from "../providers/types";
+export type { MediaRecoveryState } from "../providers/types";
 
 /** 生图 / 生视频的公共流程：调用适配器 → 下载 → 校验文件类型 → 入素材库。镜头生成和风格样张共用。 */
 
@@ -21,6 +24,11 @@ export type MediaRequest = {
   firstFrame?: string;
   lastFrame?: string;
   controlImage?: string;
+  targetDurationMs?: number;
+  requestDurationSeconds?: number;
+  resolution?: "480p" | "768p";
+  recovery?: MediaRecoveryContext;
+  onRecovery?: (state: MediaRecoveryState) => void | Promise<void>;
   /** 写进素材元数据 */
   meta: Record<string, unknown>;
 };
@@ -33,7 +41,7 @@ export function frameForOutput(spec: OutputSpec): GenerationFrame {
 
 /** 模型中心里自定义的 OpenAI 兼容生图模型（有参考图时走 /images/edits） */
 export const isCustomImageModel = (kind: MediaRequest["kind"], modelId: string) => kind === "image" && modelId.startsWith("custom-");
-export const mediaProviderId = (kind: MediaRequest["kind"], modelId: string) => (isCustomImageModel(kind, modelId) ? modelId.split("::")[0] : "replicate");
+export const mediaProviderId = (kind: MediaRequest["kind"], modelId: string) => modelId === AUTODL_MODEL_ID ? "autodl" : (isCustomImageModel(kind, modelId) ? modelId.split("::")[0] : "replicate");
 
 async function loadAsset(hash: string) {
   const asset = getAsset(hash);
@@ -47,9 +55,12 @@ export async function assetDataUri(hash: string | undefined) {
   return `data:${mime};base64,${Buffer.from(bytes).toString("base64")}`;
 }
 
-export type MediaResult = { assets: string[]; /** 参考图没有生效的原因（写进生成记录） */ referenceFallback?: string };
+export type MediaResult = { assets: string[]; runId?: string; /** 参考图没有生效的原因（写进生成记录） */ referenceFallback?: string };
 
 export async function generateMediaAssets(req: MediaRequest, signal: AbortSignal): Promise<MediaResult> {
+  if (req.modelId === AUTODL_MODEL_ID) {
+    return generateAutoDlMedia(req, signal, assetDataUri);
+  }
   const frame = req.frame ?? defaultGenerationFrame;
   const custom = isCustomImageModel(req.kind, req.modelId);
   const refs = req.references ?? [];

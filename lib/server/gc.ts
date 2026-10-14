@@ -50,6 +50,8 @@ export function reachableHashes(): Set<string> {
   }
   for (const r of all<{ asset_hash: string }>("SELECT asset_hash FROM music_tracks UNION ALL SELECT asset_hash FROM app_assets")) addHashes(r.asset_hash, out);
   for (const r of all<{ result: string }>("SELECT result FROM tts_takes")) addHashes(r.result, out);
+  // 恢复原付费任务与找回未采用的结果依赖生成记录，不能当成可重建缓存回收。
+  for (const r of all<{ output_assets: string }>("SELECT output_assets FROM generation_runs WHERE provider_id = 'autodl'")) addHashes(r.output_assets, out);
   for (const r of all<{ input: string; result: string | null }>("SELECT input, result FROM jobs WHERE status IN ('queued', 'running')")) {
     addHashes(r.input, out);
     addHashes(r.result, out);

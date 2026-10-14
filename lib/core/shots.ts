@@ -231,6 +231,54 @@ export function blankShot(id: string, lineId: string, char = 0): Shot {
   return { id, at: { lineId, char }, kind: "placeholder", description: "", motion: "zoom-in", importance: 1, referenceAssetIds: [], characterIds: [], candidates: [], assetVariants: {}, sourceHash: "", locked: false };
 }
 
+/** Video requests have their own 15s bound; never apply image pacing or motion-card rules. */
+export function normalizeVideoShots(shots: Shot[], lines: Line[], times: Map<string, LineTime>, totalMs: number, newId: () => string): Shot[] {
+  if (!lines.length) return [];
+  const sorted = sortShots(shots, lines);
+  if (!sorted.length) sorted.push({ ...blankShot(newId(), lines[0].id), kind: "video", mode: "generate", motion: "none" });
+  const out: Shot[] = [];
+  const limit = 15_000;
+  for (let index = 0; index < sorted.length; index++) {
+    const original = sorted[index];
+    const shot = original.locked ? original : { ...original, kind: "video" as const, mode: "generate" as const, motion: "none" as const, transitionIn: "cut" as const };
+    const startMs = index === 0 ? 0 : (anchorMs(shot.at, times) ?? 0);
+    const endMs = index + 1 < sorted.length ? (anchorMs(sorted[index + 1].at, times) ?? totalMs) : totalMs;
+    out.push(shot);
+    if (shot.locked || endMs - startMs <= limit) continue;
+    const semantic: { at: Shot["at"]; ms: number }[] = [];
+    const characters: { at: Shot["at"]; ms: number }[] = [];
+    for (const line of lines) {
+      const time = times.get(line.id);
+      if (!time || time.endMs <= startMs || time.startMs >= endMs) continue;
+      semantic.push({ at: { lineId: line.id, char: 0 }, ms: time.startMs });
+      for (const char of softCuts(line)) {
+        const ms = anchorMs({ lineId: line.id, char }, times);
+        if (ms !== undefined) semantic.push({ at: { lineId: line.id, char }, ms });
+      }
+      for (const char of time.chars) if (char.i < line.text.length) characters.push({ at: { lineId: line.id, char: char.i }, ms: char.startMs });
+    }
+    let cursor = startMs;
+    while (endMs - cursor > limit) {
+      const target = cursor + (endMs - cursor) / Math.ceil((endMs - cursor) / limit);
+      const eligible = (candidate: { ms: number }) => candidate.ms > cursor && candidate.ms <= cursor + limit && candidate.ms < endMs;
+      const semanticCuts = semantic.filter(eligible);
+      const candidates = semanticCuts.length ? semanticCuts : characters.filter(eligible);
+      if (!candidates.length) break; // Long silence/no legal anchor: preserve interval for the readiness error.
+      const best = candidates.reduce((a, b) => Math.abs(b.ms - target) < Math.abs(a.ms - target) ? b : a);
+      const child: Shot = {
+        ...shot, id: newId(), at: best.at, locked: false, assetId: undefined, assetPromptHash: undefined,
+        assetVariants: {}, candidates: [], candidateGroupId: undefined, sourceHash: "",
+        sourceImageAssetId: undefined, sourceImagePromptHash: undefined, sourceImageConfirmedHash: undefined, sourceImageDescription: undefined,
+        card: undefined, focusText: undefined, animation: undefined, onScreenText: undefined,
+        motion: "none", motionLocked: undefined, transitionIn: "cut", transitionLocked: undefined,
+      };
+      out.push(child);
+      cursor = best.ms;
+    }
+  }
+  return out;
+}
+
 /** 刷新每个镜头的 sourceHash（生成或确认后调用） */
 export function stampShots(shots: Shot[], lines: Line[]): Shot[] {
   const covers = shotLineIds(shots, lines);

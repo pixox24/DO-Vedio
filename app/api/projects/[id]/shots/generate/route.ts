@@ -1,3 +1,6 @@
+import { enqueueVideoShot, videoFrame, videoRenderProblems, videoAssetFraming } from "@/lib/pipeline/video-generation";
+import { timelineFor } from "@/lib/pipeline/artifacts";
+import { PermanentError } from "@/lib/pipeline/stage";
 import { z } from "zod";
 import { randomUUID } from "crypto";
 import { fail, handle, parseBody } from "@/lib/api";
@@ -13,7 +16,7 @@ import { outputSpecsFor } from "@/lib/core/output-spec";
 import type { Aspect, OutputSpecId } from "@/lib/core/types";
 import { enqueueAutoPortraits, enqueueAutoScenes } from "@/lib/pipeline/auto-portrait";
 
-const body = z.object({ modelId: z.string().min(1), candidateCount: z.number().int().min(1).max(4).default(1), outputSpecId: z.enum(["landscape-1080p", "portrait-1080p"]).optional(), aspect: z.enum(["16:9", "9:16"]).optional(), assetFraming: z.enum(["smart-dual", "per-output", "shared"]).optional() });
+const body = z.object({ modelId: z.string().min(1).optional(), kind: z.enum(["image", "video"]).optional(), shotIds: z.array(z.string().min(1)).min(1).optional(), candidateCount: z.number().int().min(1).max(4).default(1), outputSpecId: z.enum(["landscape-1080p", "portrait-1080p"]).optional(), aspect: z.enum(["16:9", "9:16"]).optional(), assetFraming: z.enum(["smart-dual", "per-output", "shared"]).optional() });
 
 export async function POST(req: Request, ctx: RouteContext<"/api/projects/[id]/shots/generate">) {
   return handle(async () => {
@@ -21,17 +24,37 @@ export async function POST(req: Request, ctx: RouteContext<"/api/projects/[id]/s
     const project = (await ensureProjectVisualStyle(id)) ?? getProject(id);
     if (!project) return fail("项目不存在", 404);
     const input = await parseBody(req, body);
-    const model = listProviderProfiles().find((p) => p.kind === "image" && p.configured && p.enabled && `${p.providerId}::${p.modelId}` === input.modelId);
+    const kind = input.kind ?? project.doc.settings.visualPipeline;
+    if (kind === "video") {
+      if (project.doc.settings.visualPipeline !== "video") return fail("请先切换到 AI 视频驱动", 409);
+      if (input.modelId && input.modelId !== project.doc.settings.video.modelId) return fail("请先保存视频模型设置再生成", 409);
+      const batchId = randomUUID();
+      const targetShots = project.doc.shots.filter((shot) => !input.shotIds || input.shotIds.includes(shot.id));
+      const frames = input.outputSpecId || input.aspect ? [outputSpecForRequest(project.doc.settings, input.outputSpecId, input.aspect)] : videoAssetFraming(project.doc) === "shared" ? [videoFrame(project.doc)] : outputSpecsFor(project.doc.settings);
+      const jobs = [];
+      let skipped = 0;
+      let reason = "没有需要生成的视频镜头";
+      for (const shot of targetShots) for (const frame of frames) {
+        if (shot.locked || !videoRenderProblems({ ...project.doc, shots: [shot] }, timelineFor(project.doc, id, frame.aspect), frame).length) { skipped++; continue; }
+        try {
+          const result = enqueueVideoShot({ projectId: id, doc: project.doc, shot, frame, candidateCount: input.candidateCount, batchId });
+          if (result.reused) skipped++; else jobs.push(result.job);
+        } catch (error) { if (!(error instanceof PermanentError)) throw error; skipped++; reason = error.message; }
+      }
+      if (!jobs.length) return fail(reason, 409);
+      return Response.json({ batchId, count: jobs.length, skipped, jobs });
+    }
+    const model = listProviderProfiles().find((p) => p.kind === "image" && p.configured && p.enabled && (!input.modelId || `${p.providerId}::${p.modelId}` === input.modelId));
     if (!model) return fail("图片模型不可用，请在模型中心检查配置", 409);
     if (projectJobs(id).some((job) => job.stage === "shot-generate" && (job.status === "queued" || job.status === "running") && typeof job.input === "object" && job.input !== null && "batchId" in job.input)) {
       return fail("已有全量生图任务正在执行，请先停止本次生成", 409);
     }
-    const selectedId = model.custom ? input.modelId : model.modelId;
+    const selectedId = model.custom ? `${model.providerId}::${model.modelId}` : model.modelId;
     const selectedSpec = outputSpecForRequest(project.doc.settings, input.outputSpecId as OutputSpecId | undefined, input.aspect as Aspect | undefined);
     const specs = input.outputSpecId || input.aspect ? [selectedSpec] : outputSpecsFor(project.doc.settings);
     const framing = input.assetFraming ?? project.doc.settings.assetFraming;
     // 缺素材或素材已过期（描述、景别、风格改过）的生成画面镜头；信息卡、标题卡、金句卡不生图
-    const shots = project.doc.shots.filter((shot) => !shot.locked && needsGeneratedImage(shot));
+    const shots = project.doc.shots.filter((shot) => !shot.locked && needsGeneratedImage(shot) && (!input.shotIds || input.shotIds.includes(shot.id)));
     const tasks = shots.flatMap((shot) => {
       const separate = framing === "per-output" || (framing === "smart-dual" && specs.length > 1 && (shot.importance === 3 || shot.characterIds.length > 0 || !!shot.onScreenText));
       const targetSpecs = separate ? specs : [specs[0]];

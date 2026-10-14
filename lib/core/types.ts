@@ -217,10 +217,18 @@ export const shotAssetVariantSchema = z.object({
 }).strict();
 export type ShotAssetVariant = z.infer<typeof shotAssetVariantSchema>;
 
+export const videoPlanSchema = z.object({
+  startState: z.string(), action: z.string(), camera: z.string(), endState: z.string(),
+});
+export type VideoPlan = z.infer<typeof videoPlanSchema>;
+
 export const shotSchema = z.object({
   id: z.string(),
   /** 锚点：从某句第 char 个字开始；时间由字级时间戳换算 */
   at: z.object({ lineId: z.string(), char: z.number().int().min(0).default(0) }),
+  /** 语义大卡分组；与候选批次 candidateGroupId 无关。 */
+  groupId: z.string().optional(),
+  videoPlan: videoPlanSchema.optional(),
   kind: z.enum(shotKinds),
   /** 导演意图：观众此刻应该看到或感受到什么 */
   intent: z.string().optional(),
@@ -242,6 +250,11 @@ export const shotSchema = z.object({
   transitionLocked: z.boolean().optional(),
   importance: z.union([z.literal(1), z.literal(2), z.literal(3)]).default(1),
   assetId: z.string().optional(),
+  /** 视频的输入参考图，不占用输出素材或候选。 */
+  sourceImageAssetId: z.string().optional(),
+  sourceImagePromptHash: z.string().optional(),
+  sourceImageConfirmedHash: z.string().optional(),
+  sourceImageDescription: z.string().optional(),
   assetVariants: z.partialRecord(z.enum(aspects), shotAssetVariantSchema).default({}),
   focus: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) }).optional(),
   /** 一致性输入：参考素材、角色卡、场景卡和首尾帧。 */
@@ -254,7 +267,7 @@ export const shotSchema = z.object({
   controlAssetId: z.string().optional(),
   /** 同一批候选共享 candidateGroupId；assetId 是当前选中的候选。 */
   candidateGroupId: z.string().optional(),
-  candidates: z.array(z.object({ id: z.string(), assetId: z.string(), selected: z.boolean().default(false), promptHash: z.string().optional(), generationPromptHash: z.string().optional(), kind: z.enum(["image", "video"]).optional() })).default([]),
+  candidates: z.array(z.object({ id: z.string(), assetId: z.string(), selected: z.boolean().default(false), promptHash: z.string().optional(), generationPromptHash: z.string().optional(), kind: z.enum(["image", "video"]).optional(), frame: z.object({ aspect: z.enum(aspects) }).optional() })).default([]),
   /** 生成当前素材时的提示词指纹；与现在编译出的不同，说明描述或风格改过、素材已过期 */
   assetPromptHash: z.string().optional(),
   /** 覆盖范围内句子文本的哈希；与当前不一致说明镜头过期 */
@@ -498,7 +511,18 @@ export const duckingSchema = z.object({
 });
 export type Ducking = z.infer<typeof duckingSchema>;
 
+export const videoSettingsSchema = z.object({
+  modelId: z.string().default("autodl::minimax_h3_zm_u08"),
+  /** 空值由调用方选择当前可用的图片模型，不能借用文本 modelId。 */
+  referenceImageModelId: z.string().default(""),
+  resolution: z.enum(["480p", "768p"]).default("768p"),
+  autoContinue: z.boolean().default(false),
+});
+export type VideoSettings = z.infer<typeof videoSettingsSchema>;
+
 export const settingsSchema = z.object({
+  visualPipeline: z.enum(["image", "video"]).default("image"),
+  video: videoSettingsSchema.default(videoSettingsSchema.parse({})),
   aspects: z.array(z.enum(aspects)).min(1).default(["16:9"]),
   outputSpecIds: z.array(z.enum(outputSpecIds)).min(1).optional(),
   previewAspect: z.enum(aspects).optional(),

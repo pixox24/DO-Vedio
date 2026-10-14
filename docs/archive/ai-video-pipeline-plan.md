@@ -1,6 +1,6 @@
 # AI 视频驱动管线实施规划与 Agent 执行 Prompt
 
-日期：2026-10-14。代码基线：项目更新 0.80.0，包含当前工作区尚未提交的角色/场景修改。本文是待实施规划，不代表功能已经上线。
+日期：2026-10-14。执行基线：`58932c1` / 0.80.0，已包含角色/场景能力，实际工作区初始干净。本地功能验收、运行配置与远端未验证项见第 13 节。
 
 ## 1. 最终建议与首期边界
 
@@ -416,3 +416,90 @@ typecheck/lint/changelog由统筹统一执行；不付费生成、不创建新�
 - [Codex 模型与推理档位说明](https://learn.chatgpt.com/docs/models?surface=app)：本规划使用 `gpt-6.1-sol`，不假设不同档位有固定速度/价格优势。
 
 实施前需要窄核对的未知项：真实状态字符串、输出 URL 保留/刷新、计费秒数基准、失败/取消扣费、服务商并发额度。不能为未知合同编造字段或保证。上述未知项不要求现在重开需求讨论，也不妨碍先完成 mock 可验证的首期实现。
+
+## 12. 本次执行冻结合同（2026-10-14）
+
+用户确认实际执行工作区为 `/Users/huazi/Desktop/DO-Vedio`；基线 `58932c1` 已包含 0.80.0 角色/场景能力，初始工作树干净。以下为实施合同，不表示已经验收。
+
+### API（D 独占实现，E 消费）
+
+- 单镜 `generate` POST：保留现有参数，新增 `operation?: generate | resume | regenerate`（默认 generate）、`resumeAttemptId?: string`。video 必须校验项目管线；resume 必须匹配原 attempt 和当前输入。成功保留 `{job, reused?, model?}`，视频额外返回 `attemptId`。generate 优先复用原尝试；regenerate 才明确新建尝试。
+- 批量 `generate` POST：保留现有参数，新增 `kind?: image | video`（按项目默认）、`shotIds?: string[]`（省略全量）。返回保留 `{batchId,count,skipped,jobs}`；只补当前缺失/过期未锁镜头，已有未决尝试不能被批次/新 goal 绕过。
+- 单镜 `reference` POST：`{assetId?, description?, modelId?, outputSpecId?}`。有 assetId 选择已有图片；否则派发 shot-reference。选图返回 `{shot,snapshotHash}`；派发返回 `{job,shot,snapshotHash?}`。参考图不写输出槽或视频候选。
+- 单镜 `reference` PATCH：`{confirmHash:string}`；仅确认当前快照，冲突 HTTP 409；返回 `{shot,snapshotHash}` 并唤醒当前生产目标。
+- `shots/status` 保持以 shotId 为键的现有状态映射，保留原聚合字段。video 增加 `state`（waiting-tts / waiting-reference / waiting-confirmation / ready-to-generate / queued / submitting / submission-unknown / polling / downloading / ready / stale / failed / canceled）、`snapshotHash?`（参考确认用）、`attemptId?`、`providerTaskId?`、`sourceImageAssetId?`、`costStatus?`（unknown / estimated / verified）、`targetDurationMs?`、`requestDurationSeconds?`。per-output 用 `?outputSpecId=` 查询对应输出；源图确认始终用首输出快照。E 必须依据 state 和 attemptId 提供可行动操作。
+- 动态与参考字段编辑沿用制作页现有文档保存与项目 PATCH（没有独立镜头 PATCH route）；候选选择仍走现有 generate PATCH。
+
+### 领域与播放（A 冻结 v1）
+
+- `settings.video.referenceImageModelId` 默认空串，由 D/E 解析当前可用图片模型；视频模型、分辨率和 autoContinue 默认见 3.1。
+- `lib/core/video.ts`：`VIDEO_MAX_DURATION_MS=15000`、`VIDEO_MAX_HOLD_MS=100`、`VIDEO_SNAPSHOT_VERSION=1`；`videoShotTiming(doc,shot,timeline)` 返回 start/end/target 毫秒、整数 requestDurationSeconds、coveredLineIds、missingTtsLineIds、ready 与 reason。缺失真实配音不可用估算时间提交。
+- `sourceImageSnapshot(doc,shot,frame,referenceAssetIds?)` 返回 `{hash,promptHash,referenceAssetIds}`，`sourceImageConfirmed` 同入参。静态 startState、人物造型、场景、风格、画幅与参考决定源图指纹；选图 assetId 决定确认快照，动态 action/camera/endState 不使静态图失效。
+- `videoGenerationSnapshot(doc,shot,timeline,frame,options?)` 返回统一 `{hash,key,referenceAssetIds,timing,...}`；options 可含 referenceAssetIds/compilerVersion/prompt/modelId，消费者使用统一默认版本与默认输入，不能 stage 多传 prompt 导致状态检查使用另一个 hash。`videoAssetStale` 同入参。
+- `normalizeVideoShots(shots,lines,times,totalMs,newId)` 使用合法字符锚点按 15 秒独立拆分，保留 groupId；第一镜从 0，末镜包含主时间线尾部；锁定长镜保留超限由门禁提示。
+- `Artifacts.videos?: Map<assetId,{durationMs,width?,height?,fps?}>`。`TimelineShot` 可选 videoTrimStartMs / videoPlayableDurationMs / videoHoldLastFrameMs / videoSourceDurationMs / videoSourceFps / videoDurationReady，F 使用同一播放组件。缺实际探测或超过 100ms 短缺不算可导出。
+
+### 媒体恢复（C 持久化，D 调用）
+
+- `MediaRequest` 最小增量：`targetDurationMs?`、`requestDurationSeconds?`、`resolution?: "480p" | "768p"`、`recovery?: {projectId,jobId,attemptId,requestHash,candidateIndex}`、`onRecovery?: (state: MediaRecoveryState) => void | Promise<void>`。`generateMediaAssets(req, signal)` 原返回 assets，可增加 `runId?`。
+- `MediaRecoveryState`：`{runId,attemptId,phase,providerTaskId?,outputUrl?,costStatus}`；phase 为 submitting / submission-unknown / polling / downloading / ready / failed / canceled。回调用于 job 进度，不承担持久化；C 必须先保存 submissionStarted/taskId/phase 再回调，D 不另建 AutoDL generation_run。
+- C 导出按 projectId + attemptId + requestHash + candidateIndex 查找恢复记录及按 projectId + shotId + requestHash 查找原尝试的 helper；最终签名向 D 报告，避免 D 查询自行复制持久化逻辑。明确拒绝与远端失败仍保留尝试记录；查询/下载重试不会生成 POST。
+- C 已冻结 `findMediaRecoveryRun({projectId,attemptId,requestHash,candidateIndex})`、`findOriginalMediaAttempt({projectId,shotId,requestHash})`，返回 `{id,job_id,status,error,params,outputAssets}`；params 含 attemptId/requestHash/candidateIndex/shotId/submissionStarted/taskId/outputUrl/phase/costStatus。`req.meta.shotId` 必须提供。显式 regenerate 可传 `recovery.allowNewAttempt:true`，普通 generate/新 goal 禁止绕过原未决提交。
+- C 在请求发出前持久化 submissionStarted；已开始但无 taskId 的尝试恢复为 submission-unknown，禁止盲重提。taskId/output asset 立即持久化；新 job/goal 保留 attemptId。
+- D 通过 A 的最终输入指纹作为 requestHash；candidateIndex 独立，候选批次与语义 groupId 无关。已知费用使用现有 ledger 幂等记录；未知费用不能伪装为免费。
+- B 已冻结 `VIDEO_PROMPT_VERSION='h3-full-reference-v1'`，`compileVideoPrompt({doc,shot,referenceAssetIds,requestDurationSeconds,targetDurationMs?})` 返回 `{prompt,hash,version,referenceAssetIds,labels}`；`compileVideoReferencePrompt(doc,shot)` 返回静态 CompiledPrompt。源图写回用 A 的 sourceImageSnapshot.promptHash，不用 B 的编译文本 hash。
+
+## 13. 本次验收与交付证据（2026-10-14）
+
+本地功能验收已按第 10 节收口，重大更新记录为 0.81.0。没有执行部署、真实 AutoDL 生成或付费 TTS/图片调用。所有协议验证使用 mock；浏览器操作使用临时源码副本、独立 DATA_DIR、假凭证与本地音视频夹具，未启动 worker。用户原开发服务与项目数据库保留。
+
+### 13.1 最小验收结果
+
+| 验收项 | 实际证据 |
+| --- | --- |
+| 旧图片项目 | schema 默认 image 定向测试；旧图片分镜/候选测试；隔离浏览器打开图片项目，分镜板与播放器正常，4 张图片完成加载，无错误覆盖层。角色/场景联合识别、自动标准图模块未重写 |
+| 参考确认 | 集成测试证明过时确认 409、当前确认唤醒目标、关联标准图终结唤醒、参考失败不提交视频、autoContinue 只跳过人工确认。浏览器确认中间镜头后可生成，修改手选图说明后再次待确认 |
+| 大卡独立生成 | 同组 3 镜集成测试，编辑中间动作仅一镜过期；浏览器显示 1 组/3 镜，候选采用保留旧来源指纹，另外两镜不被删除 |
+| 时间正确 | 定向测试覆盖已完成 TTS 缓存、真实时间线停顿/lead/tail、15 秒拆分、锁定长镜与 100ms 源短缺边界。收费提交不接受估算配音。浏览器音频夹具模拟已完成配音，不验证外部 TTS 服务质量 |
+| 不重复提交 | AutoDL mock 覆盖保存 taskId 后跨 job/新 goal 仅查询，提交开始却无 taskId 时禁止普通重提，下载失败/URL 过期恢复原任务；显式 regenerate 创建新尝试。浏览器次画幅排队→取消→恢复的 attemptId 同为 `382ec6ed-a1e3-403d-9150-12fb5fc68322` |
+| 结果采用 | 视频与参考阶段均直接测试生成回调期间编辑、锁定、失去执行权时不采用；jobs 测试覆盖旧 lockToken。新候选保留当前选择，旧候选回退仍显示过期；生成记录中的未采用输出由 GC 保留 |
+| 画幅 | smart-dual/shared 默认双输出只派一个源视频任务；per-output 集成测试覆盖次画幅状态/恢复/采用，错画幅候选 409，另一画幅变体保留。浏览器切到 9:16，显示 3 镜×2 画幅最多 6 次、比共享增加 3 次，并只提交当前画幅 |
+| 合成 | 本地 24fps/3 秒带音轨源视频，输出 30fps 的 2 秒裁尾及 3050ms 末帧保持样片。ffprobe 仅视频流；尾帧 hash 相同、无循环/黑尾，透明重点文字与单一字幕层可见。浏览器视频元素 muted=true、loop=false，媒体已解码 |
+| 发布记录 | 最终 `npm run typecheck`、`npm run lint` 与 `git diff --check` 通过；`/changelog` 浏览器正常显示 0.81.0，架构地图已补入口与恢复/播放约定 |
+
+### 13.2 实际检查
+
+以下是各文件 owner 的定向执行记录，重复补丁复跑不累计为全新覆盖；G 仅做独立只读审查，没有冒充执行测试。
+
+- A：`npx vitest run lib/core/video.test.ts lib/core/timeline.test.ts lib/core/keys.test.ts lib/core/shot-asset.test.ts lib/core/production.test.ts lib/core/preset.test.ts`，6 文件 / 75 tests 通过；新增字幕样式断言后复跑 video.test 通过。
+- B：`npx vitest run lib/core/video-prompt-compiler.test.ts tests/storyboard.test.ts lib/core/prompt-compiler.test.ts`，3 文件 / 38 tests 通过。
+- C：`npx vitest run lib/providers/media/autodl.test.ts lib/providers/runs.test.ts lib/providers/media/replicate.test.ts lib/providers/registry.test.ts`，4 文件 / 16 tests 通过。
+- D：`npx vitest run tests/video-pipeline.test.ts tests/plan-keys.test.ts tests/jobs.test.ts lib/pipeline/stages/__tests__/shot-generate.test.ts`，4 文件 / 35 tests 通过；补画幅与视频旧回调测试后，受影响 2 文件 / 26 tests 通过。
+- F：`npx vitest run remotion/shots/video.test.ts remotion/animation/focus-text.test.ts`，2 文件 / 9 tests 通过；真实 Remotion composition 的两个数秒本地样片成功。
+- 统筹：`npx vitest run lib/server/gc.test.ts`，6 tests 通过；修正可选预览画幅参数后 `npx vitest run tests/storyboard.test.ts`，12 tests 通过；最终 typecheck/lint 均 exit 0。
+- E：相关 TSX 定向 ESLint 通过；统筹浏览器验证双管线设置、自动连续提示、参考确认/失效、3 镜大卡、视频候选、独立画幅、入队/本地停止/原尝试恢复、图片预览与 changelog。测试页无未捕获错误或 Next 错误覆盖层。
+
+短片及图像证据保留在本机临时目录：`/tmp/do-vedio-f-composition/EVIDENCE.md`、`hold-24-to-30.mp4`、`trim-24-to-30.mp4`；页面截图为 `/tmp/do-vedio-ai-video-changelog.png`、`do-vedio-ai-video-studio.png`、`do-vedio-ai-video-per-output.png`、`do-vedio-ai-video-legacy-image.png`。这些夹具不纳入用户项目或仓库。没有跑全仓 npm test、生产 build、长片或多模型评测。
+
+### 13.3 改动文件
+
+| 范围 | 文件 |
+| --- | --- |
+| 领域与时间线 | `lib/core/{types,shots,timeline,keys,shot-asset,production,preset,video,video-prompt-compiler}.ts`、`lib/pipeline/artifacts.ts` |
+| 导演与执行 | `lib/prompts.ts`、`lib/pipeline/{plan,runtime,media-gen,video-generation}.ts`、`lib/pipeline/stages/{index,storyboard,shot-reference,shot-generate,render}.ts` |
+| AutoDL 与持久化 | `lib/providers/{types,catalog,runs}.ts`、`lib/providers/media/autodl.ts`、`lib/server/{jobs,ffmpeg,gc}.ts` |
+| API | `app/api/jobs/[id]/route.ts`、`app/api/projects/[id]/shots/{generate,status}/route.ts`、`app/api/projects/[id]/shots/[shotId]/{generate,reference}/route.ts` |
+| 制作与合成 | `components/video-studio.tsx`、`components/studio/{settings-panel,storyboard-panel,video-storyboard-panel}.tsx`、`remotion/shots/video.tsx`、`remotion/animation/focus-text.tsx` |
+| 测试与记录 | `lib/core/{video,video-prompt-compiler}.test.ts`、`lib/providers/media/autodl.test.ts`、`lib/server/gc.test.ts`、`remotion/shots/video.test.ts`、`tests/{storyboard,video-pipeline}.test.ts`、`lib/changelog.ts`、`docs/ARCHITECTURE.md`、本文 |
+
+没有新增依赖、数据库表、迁移、后端进程、mixed/VLM/原生声音/自动剪辑功能。未 reset/stash/提交；保留未提交实现供审阅。
+
+### 13.4 运行配置与远端未验证项
+
+1. 服务端 `AUTODL_API_TOKEN` 使用 AutoDL ComfyUI 分组 token 原文；模型中心启用 `autodl::minimax_h3_zm_u08`。默认 768p，可选 480p。
+2. 配置并启用现有文本模型、真实 TTS 与图片模型；项目选 `settings.video.referenceImageModelId`。Replicate 图片入口需要 `REPLICATE_API_TOKEN`、`REPLICATE_IMAGE_MODEL` 并在模型中心启用，也可用现有自定义图片服务。TTS 沿用当前 CosyVoice/Gemini 配置。
+3. 本地需 ffmpeg/ffprobe 可用，必要时设 `FFMPEG_PATH`、`FFPROBE_PATH`；沿用 Remotion 浏览器与字体资源。web 和 worker 使用同一 DATA_DIR，加载本次共享代码后重启对应进程；开发可用 `npm run dev:all`。
+4. 默认 autoContinue=false；在开工确认中说明参考图与视频收费未知。没有正数已配置单价时 costStatus=unknown；配置单价后仅按现有 ledger 记录估算，以实际账单为准。
+5. 未验证真实 AutoDL 生成质量/人物场景一致性、真实状态字符串与耗时、输出 URL TTL/刷新行为、实际计费秒数及失败/取消扣费、服务商并发额度。停止只取消本地等待，远端任务可能继续执行。公开 schema 与 mock 协议验证不提供远端质量保证。
+
+第 10 节本地停止条件已达到。归档记录本次验收；远端质量与计费留待具体付费授权后的小样验证。

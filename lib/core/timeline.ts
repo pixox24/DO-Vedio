@@ -16,6 +16,7 @@ import { inferCardTemplate, isActiveLegacyTemplate, isCodeCardShot } from "./leg
 import { compactKeywords, compactText } from "./text";
 import { focusVisualWidth, normalizeFocusText, resolveFocusCaption, resolveFocusText } from "./focus";
 import { scoreTimelineSfx, type SfxCue, type SfxSources } from "./sfx";
+import { videoPlayback, type VideoArtifact } from "./video";
 
 /**
  * 时间轴 —— 纯函数。输入 = 项目文档 + 机器产物（配音缓存、曲库），输出 = Remotion 的 inputProps。
@@ -31,7 +32,7 @@ export const FOCUS_NEXT_MIN_MS = 1000;
 
 export type MusicTrack = { id: string; title: string; assetId: string; durationMs: number; moods: string[]; loopable: boolean; gainDb?: number };
 
-export type TimelineVoice = { lineId: string; src: string; startMs: number; durationMs: number; trimStartMs: number };
+export type TimelineVoice = { lineId: string; assetId?: string; src: string; startMs: number; durationMs: number; trimStartMs: number };
 export type TimelineShot = {
   shotId: string;
   kind: ShotKind;
@@ -43,6 +44,12 @@ export type TimelineShot = {
   imageSrc?: string;
   /** AI 视频镜头的本地媒体地址；与图片地址分开，避免视频回退成占位卡。 */
   videoSrc?: string;
+  videoTrimStartMs?: number;
+  videoPlayableDurationMs?: number;
+  videoHoldLastFrameMs?: number;
+  videoSourceDurationMs?: number;
+  videoSourceFps?: number;
+  videoDurationReady?: boolean;
   focus?: { x: number; y: number };
   /** 章节标题卡：章节序号和标题 */
   chapter?: { index: number; title: string };
@@ -110,6 +117,8 @@ export type Artifacts = {
   /** 实测语速（字/分钟）；没有时用 250 */
   charsPerMinute?: number;
   media: (hash: string) => string;
+  /** Selected video assets, probed and loaded by the server; no I/O in core. */
+  videos?: Map<string, VideoArtifact>;
 };
 
 function showsFocusText(shot: TimelineShot) {
@@ -362,13 +371,14 @@ export function buildTimeline(doc: ProjectDoc, art: Artifacts, aspectOrSpec: Asp
     if (!tts) return [];
     const lead = sameBlock(laid[k - 1]?.tts, tts) ? tts.speechStartMs : 0;
     const tail = sameBlock(tts, laid[k + 1]?.tts) ? tts.durationMs - tts.speechEndMs : 0;
-    return [{ lineId: l.id, src: art.media(tts.assetId), startMs: l.startMs - lead, durationMs: l.endMs - l.startMs + lead + tail, trimStartMs: tts.speechStartMs - lead }];
+    return [{ lineId: l.id, assetId: tts.assetId, src: art.media(tts.assetId), startMs: l.startMs - lead, durationMs: l.endMs - l.startMs + lead + tail, trimStartMs: tts.speechStartMs - lead }];
   });
 
   // 镜头
   const profile = themeOf(doc.visualStyle).motion;
-  const normalized = normalizeAnimation(doc.shots, doc.lines, times, profile);
-  const sorted = sortShots(choreograph(normalized, doc.lines, times, profile), doc.lines);
+  const videoPipeline = doc.settings.visualPipeline === "video";
+  const normalized = videoPipeline ? doc.shots : normalizeAnimation(doc.shots, doc.lines, times, profile);
+  const sorted = sortShots(videoPipeline ? normalized : choreograph(normalized, doc.lines, times, profile), doc.lines);
   const transitionMs = themeOf(doc.visualStyle).motion.punchy ? 520 : 400;
   const recentFocusPresets: import("./types").FocusPresetId[] = [];
   const shots: TimelineShot[] = sorted.map((s, k) => {
@@ -391,12 +401,12 @@ export function buildTimeline(doc: ProjectDoc, art: Artifacts, aspectOrSpec: Asp
     const seed = s.seed ?? parseInt(quickHash(s.id).slice(0, 6), 16);
     const assetId = playbackAssetId(s, aspect);
     if (s.assetId && !s.assetVariants?.[aspect]) issues.push({ level: s.importance >= 3 ? "warn" : "info", message: `镜头 ${s.id} 在${aspect}输出中使用共享素材，建议生成该画幅专用素材` });
-    const transitionIn = s.transitionIn;
+    const transitionIn = videoPipeline ? "cut" : s.transitionIn;
     const overlapInFrames = k > 0 && transitionIn && transitionIn !== "cut" ? Math.max(1, Math.round((transitionMs / 1000) * fps)) : 0;
-    const overlapOutFrames = k + 1 < sorted.length && sorted[k + 1].transitionIn && sorted[k + 1].transitionIn !== "cut" ? Math.max(1, Math.round((transitionMs / 1000) * fps)) : 0;
+    const overlapOutFrames = !videoPipeline && k + 1 < sorted.length && sorted[k + 1].transitionIn && sorted[k + 1].transitionIn !== "cut" ? Math.max(1, Math.round((transitionMs / 1000) * fps)) : 0;
     const parsedAnimation = s.animation ? animationSpecSchema.parse(s.animation) : undefined;
     const card = sanitizeCard(s.card, caption) ?? fallbackCard(caption, keywords);
-    const focusText = (s.mode === "motion" || s.kind === "title" || s.kind === "quote")
+    const focusText = (s.mode === "motion" || s.kind === "title" || s.kind === "quote" || (s.kind === "video" && !!s.focusText))
       ? resolveFocusText(s, covered.flatMap((line) => line.keywords).filter((word) => !!normalizeFocusText(word)), caption, { seed, recentPresetIds: recentFocusPresets, palette: doc.motionPalette, startMs })
       : undefined;
     if (focusText?.presetId) {
@@ -424,20 +434,21 @@ export function buildTimeline(doc: ProjectDoc, art: Artifacts, aspectOrSpec: Asp
       kind: s.kind,
       startMs,
       endMs,
-      motion: s.motion,
+      motion: videoPipeline && s.kind === "video" ? "none" : s.motion,
       description: s.description,
       onScreenText: s.kind === "placeholder" && s.mode === "motion" ? compactText(focusText?.text ?? s.onScreenText) : s.onScreenText,
       imageSrc: assetId && s.kind !== "video" ? art.media(assetId) : undefined,
       videoSrc: assetId && s.kind === "video" ? art.media(assetId) : undefined,
+      ...(s.kind === "video" ? videoPlayback(endMs - startMs, assetId ? art.videos?.get(assetId) : undefined) : {}),
       focus: s.focus,
       chapter: s.kind === "title" ? { index: seg + 1, title: doc.segments[seg]?.title || "" } : undefined,
       caption,
       keywords,
       seed,
-      mode: s.mode,
+      mode: videoPipeline && s.kind === "video" ? "generate" : s.mode,
       focusText,
       card,
-      animation,
+      animation: videoPipeline && s.kind === "video" ? undefined : animation,
       overlapInFrames,
       overlapOutFrames,
       transitionIn,
@@ -450,7 +461,7 @@ export function buildTimeline(doc: ProjectDoc, art: Artifacts, aspectOrSpec: Asp
   shots.forEach((s) => {
     if (s.kind === "upload" && !s.imageSrc) issues.push({ level: "warn", message: `有镜头选择了「${shotKindLabels.upload}」但还没上传图片` });
   });
-  const timedShots = withFocusCaptions(holdFocusTextShots(shots), doc, width);
+  const timedShots = withFocusCaptions(videoPipeline ? shots : holdFocusTextShots(shots), doc, width);
 
   // 字幕：cues 负责断句与 SRT，subtitleBlocks 负责烤录排版（双语按句显示）
   const subtitle = doc.settings.subtitle;

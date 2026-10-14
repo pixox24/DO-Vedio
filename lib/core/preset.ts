@@ -12,11 +12,12 @@ import { settingsSchema, visualStyleSchema, type ProjectDoc, type Settings } fro
  * - 可用性降级：音色/模型/字体在当前环境不可用时保留项目原值并给出警告。
  */
 
-export const presetGroupIds = ["output", "voice", "subtitle", "music", "style", "publish"] as const;
+export const presetGroupIds = ["output", "video", "voice", "subtitle", "music", "style", "publish"] as const;
 export type PresetGroup = (typeof presetGroupIds)[number];
 
 export const presetGroupMeta: Record<PresetGroup, { label: string; hint: string }> = {
   output: { label: "输出与素材", hint: "画幅、预览画幅、素材策略" },
+  video: { label: "画面管线", hint: "图片/视频驱动、视频模型、参考图模型、生成分辨率与自动连续" },
   voice: { label: "配音", hint: "服务商、音色、语速、合成粒度、表达指令" },
   subtitle: { label: "字幕", hint: "字幕样式、字体、动效、双语" },
   music: { label: "配乐与音效", hint: "配乐开关、音量、自动压低、动画音效" },
@@ -62,6 +63,8 @@ export type PresetApplyContext = {
   availableVoiceIds?: Set<string>;
   /** 当前可用的文本模型 id */
   availableModelIds?: Set<string>;
+  availableVideoModelIds?: Set<string>;
+  availableImageModelIds?: Set<string>;
   /** 当前可用的字幕字体 id（含系统字体） */
   availableFontIds?: Set<string>;
 };
@@ -103,6 +106,19 @@ export function applyPresetToDoc(
     } else {
       settings = { ...settings, voice };
     }
+  }
+
+  if (groups.has("video")) {
+    const video = { ...payload.settings.video };
+    if (context?.availableVideoModelIds && !context.availableVideoModelIds.has(video.modelId)) {
+      warnings.push(`预设视频模型「${video.modelId}」当前不可用，已保留项目原视频模型`);
+      video.modelId = settings.video.modelId;
+    }
+    if (video.referenceImageModelId && context?.availableImageModelIds && !context.availableImageModelIds.has(video.referenceImageModelId)) {
+      warnings.push(`预设参考图模型「${video.referenceImageModelId}」当前不可用，已保留项目原参考图模型`);
+      video.referenceImageModelId = settings.video.referenceImageModelId;
+    }
+    settings = { ...settings, visualPipeline: payload.settings.visualPipeline, video };
   }
 
   if (groups.has("subtitle")) {
@@ -161,6 +177,17 @@ export function describePresetChanges(
 ): PresetChange[] {
   const groups = new Set(selection.groups);
   const out: PresetChange[] = [];
+
+  if (groups.has("video")) {
+    const next = applyPresetToDoc(doc, payload, { groups: ["video"] }, context).doc.settings;
+    const changes: string[] = [];
+    if (doc.settings.visualPipeline !== next.visualPipeline) changes.push(`画面管线 ${doc.settings.visualPipeline === "video" ? "视频" : "图片"} → ${next.visualPipeline === "video" ? "视频" : "图片"}`);
+    if (doc.settings.video.modelId !== next.video.modelId) changes.push(`视频模型 ${doc.settings.video.modelId} → ${next.video.modelId}`);
+    if (doc.settings.video.referenceImageModelId !== next.video.referenceImageModelId) changes.push(`参考图模型 ${doc.settings.video.referenceImageModelId || "自动选择"} → ${next.video.referenceImageModelId || "自动选择"}`);
+    if (doc.settings.video.resolution !== next.video.resolution) changes.push(`生成分辨率 ${doc.settings.video.resolution} → ${next.video.resolution}`);
+    if (doc.settings.video.autoContinue !== next.video.autoContinue) changes.push(`自动连续 ${onOff(doc.settings.video.autoContinue)} → ${onOff(next.video.autoContinue)}`);
+    if (changes.length) out.push({ group: "video", label: presetGroupMeta.video.label, changes });
+  }
 
   if (groups.has("output")) {
     const changes: string[] = [];

@@ -11,7 +11,7 @@ function variantFor(shot: Shot, aspect: Aspect, assetId: string, source: ShotAss
   const spec = outputSpecs[outputSpecIdForAspect(aspect)];
   const next: ShotAssetVariant = {
     assetId,
-    promptHash: promptHash ?? (existing?.assetId === assetId ? existing.promptHash : ""),
+    promptHash: promptHash ?? (existing?.assetId === assetId ? existing.promptHash : "unknown"),
     aspect,
     width: existing?.width ?? spec.width,
     height: existing?.height ?? spec.height,

@@ -93,9 +93,10 @@ export function JobStrip({ steps, jobs, extra, hints, currentKeys, confirm }: { 
     <div className="grid gap-px overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.07] sm:grid-cols-3 lg:grid-cols-[repeat(var(--steps),minmax(0,1fr))]" style={{ "--steps": steps.length } as React.CSSProperties}>
       {steps.map((s) => {
         const list = jobs.filter((j) => (s.stages ?? [s.stage]).includes(j.stage));
-        const sum = summarize(list);
         const actionable = currentKeys ? list.filter((job) => currentKeys.has(job.key)) : list;
         const actionableSummary = summarize(actionable);
+        // 主状态只反映当前输入；历史失败保留在下方旧任务行。
+        const sum = actionableSummary;
         const active = actionableSummary.running > 0 || actionableSummary.queued > 0;
         const oldActive = currentKeys ? list.filter((job) => !currentKeys.has(job.key) && (job.status === "queued" || job.status === "running")) : [];
         const oldFailed = currentKeys ? list.filter((job) => !currentKeys.has(job.key) && job.status === "failed") : [];
@@ -107,7 +108,7 @@ export function JobStrip({ steps, jobs, extra, hints, currentKeys, confirm }: { 
         const flowing = tone === "active" && s.indeterminate === true;
         const width = tone === "done" || tone === "hold" ? 100 : tone === "active" ? Math.max(12, Math.round(sum.progress * 100)) : 0;
         const fill = tone === "failed" ? "bg-red-400/70" : tone === "done" ? "bg-accent" : tone === "hold" ? "bg-hold" : tone === "active" ? "bg-accent/70" : "bg-transparent";
-        const renderJob = s.stage === "render" ? list.find((job) => job.status === "running") ?? list.find((job) => job.status === "queued") : undefined;
+        const renderJob = s.stage === "render" ? actionable.find((job) => job.status === "running") ?? actionable.find((job) => job.status === "queued") : undefined;
         const jobMessage = s.stage === "render" && active && renderJob
           ? `${renderEtaLabel(renderJob)}${sum.message ? ` · ${sum.message}` : ""}`
           : sum.message || (active ? "排队中" : "");

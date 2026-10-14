@@ -47,6 +47,27 @@ it("回收无引用素材，保留被项目和版本引用的素材，并失效�
   expect(cacheGet("tts:orphan")).toBeUndefined();
 });
 
+it("保留未采用的 AutoDL 结果供原尝试恢复，项目彻底删除后才可回收", async () => {
+  const { createProject, deleteProject } = await import("./projects");
+  const { putBuffer, getAsset } = await import("./media");
+  const { startGenerationRun, finishGenerationRun } = await import("../providers/runs");
+  const { reachableHashes, gcOrphanAssets, purgeProjects } = await import("./gc");
+  const { run } = await import("./db");
+  const project = createProject();
+  const output = await putBuffer(Buffer.from("unadopted-paid-result"), { ext: "mp4", mime: "video/mp4", probe: false });
+  const id = startGenerationRun({ projectId: project.id, providerId: "autodl", modelId: "minimax_h3_zm_u08", kind: "video", inputHash: "original-request" });
+  finishGenerationRun(id, { status: "succeeded", outputAssets: [output.hash] });
+  run("UPDATE assets SET created_at = 0 WHERE hash = ?", output.hash);
+  expect(reachableHashes().has(output.hash)).toBe(true);
+  await gcOrphanAssets({ graceMs: 0 });
+  expect(getAsset(output.hash)).toBeTruthy();
+  deleteProject(project.id);
+  expect(reachableHashes().has(output.hash)).toBe(true);
+  purgeProjects([project.id]);
+  await gcOrphanAssets({ graceMs: 0 });
+  expect(getAsset(output.hash)).toBeUndefined();
+});
+
 it("宽限期内不回收刚生成的素材", async () => {
   const { getAsset, putBuffer } = await import("./media");
   const { gcOrphanAssets } = await import("./gc");
