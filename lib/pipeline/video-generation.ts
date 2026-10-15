@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { outputSpecForRequest, outputSpecsFor, type GenerationFrame } from "../core/output-spec";
 import { playbackAssetId, selectShotCandidate } from "../core/shot-asset";
 import type { Aspect, ProjectDoc, Shot } from "../core/types";
-import { sourceImageConfirmed, sourceImageSnapshot, sourceImageStale, videoGenerationSnapshot, videoShotTiming, videoPlayback } from "../core/video";
+import { missingVideoStandards, sourceImageConfirmed, sourceImageSnapshot, sourceImageStale, videoGenerationSnapshot, videoShotTiming, videoPlayback } from "../core/video";
 import type { Timeline } from "../core/timeline";
 import { findMediaRecoveryRun, findOriginalMediaAttempt } from "../providers/runs";
 import { listProviderProfiles } from "../providers/registry";
@@ -26,17 +26,11 @@ export function videoModelAvailable(modelId: string) {
 export function referenceJobKey(doc: ProjectDoc, shot: Shot, frame: GenerationFrame) {
   return `shot-reference:${shot.id}:${sourceImageSnapshot(doc, shot, frame).promptHash}`;
 }
-export function standardReferencesPending(projectId: string, shot: Shot): boolean {
-  return all<{ stage: string; input: string }>("SELECT stage, input FROM jobs WHERE project_id = ? AND stage IN ('character-sheet','scene-reference') AND status IN ('queued','running')", projectId)
-    .some((row) => {
-      const input = parseJson<{ characterId?: string; sceneId?: string; kind?: string }>(row.input, {});
-      return row.stage === "scene-reference" ? input.sceneId === shot.sceneId : input.kind === "portrait" && !!input.characterId && shot.characterIds.includes(input.characterId);
-    });
-}
 export function videoPrerequisite(doc: ProjectDoc, shot: Shot, timeline: Timeline): string | undefined {
   if (doc.settings.visualPipeline !== "video") return "请先切换到 AI 视频驱动";
   if (shot.kind !== "video" || !shot.videoPlan) return shot.locked ? "锁定镜头还不是视频分镜，请解锁并重新导演" : "请先重新导演生成视频分镜";
   if (videoPlanNeedsSync(shot)) return "等待中文镜头要求同步到执行计划";
+  if (missingVideoStandards(doc, shot).length) return "请先在角色和场景中补齐并采用有效标准图";
   const timing = videoShotTiming(doc, shot, timeline);
   if (!timing.ready) return timing.reason === "duration-out-of-range" ? "镜头超过 15 秒或时长无效，请重新导演" : "等待真实配音完成";
   if (!shot.sourceImageAssetId || sourceImageStale(doc, shot, videoFrame(doc))) return "等待镜头参考图";
@@ -109,7 +103,6 @@ export function enqueueVideoShot(input: { projectId: string; doc: ProjectDoc; sh
   const timeline = timelineFor(doc, projectId, frame.aspect);
   const error = videoPrerequisite(doc, shot, timeline);
   if (error) throw new PermanentError(error);
-  if (standardReferencesPending(projectId, shot)) throw new PermanentError("等待关联角色和场景标准图完成");
   if (!videoModelAvailable(doc.settings.video.modelId)) throw new PermanentError("视频模型不可用，请在模型中心检查配置");
   const snapshot = videoGenerationSnapshot(doc, shot, timeline, frame);
   const key = snapshot.key;
@@ -127,6 +120,7 @@ export function enqueueVideoShot(input: { projectId: string; doc: ProjectDoc; sh
 export function enqueueShotReference(projectId: string, doc: ProjectDoc, shot: Shot, frame: GenerationFrame, requestedModelId?: string) {
   if (doc.settings.visualPipeline !== "video" || shot.kind !== "video" || !shot.videoPlan) throw new PermanentError("请先重新导演生成视频分镜");
   if (shot.locked) throw new PermanentError("镜头已锁定，请先解锁");
+  if (missingVideoStandards(doc, shot).length) throw new PermanentError("请先在角色和场景中补齐并采用有效标准图");
   const modelId = resolveImageModel(requestedModelId || doc.settings.video.referenceImageModelId || undefined);
   if (videoPlanNeedsSync(shot)) throw new PermanentError("等待中文镜头要求同步到执行计划");
   if (!modelId) throw new PermanentError("没有可用的参考图模型，请在模型中心配置并启用");

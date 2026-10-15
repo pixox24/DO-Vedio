@@ -43,7 +43,7 @@ type ShotCommon = {
   onSelect: () => void; onUpload: (file: File) => void; onGenerate: () => void; onCandidate: (id: string) => void; onSplit: () => void; onMerge: () => void;
 };
 
-export function StoryboardPanel(props: Parameters<typeof ImageStoryboardPanel>[0] & { onContinue?: () => Promise<void>; productionConfirmed?: boolean }) {
+export function StoryboardPanel(props: Parameters<typeof ImageStoryboardPanel>[0] & { onContinue?: () => Promise<void>; onSettings?: () => void; onStandards?: () => void; productionConfirmed?: boolean }) {
   return props.store.doc?.settings.visualPipeline === "video" ? <VideoStoryboardPanel {...props} /> : <ImageStoryboardPanel {...props} />;
 }
 

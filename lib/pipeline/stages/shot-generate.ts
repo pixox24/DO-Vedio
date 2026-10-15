@@ -14,7 +14,7 @@ import { sceneSourceHash } from "../../core/scenes";
 import { compileVideoPrompt } from "../../core/video-prompt-compiler";
 import { videoGenerationSnapshot } from "../../core/video";
 import { timelineFor } from "../artifacts";
-import { videoFrame, videoPrerequisite, standardReferencesPending, videoAssetFraming } from "../video-generation";
+import { videoFrame, videoPrerequisite, videoAssetFraming } from "../video-generation";
 
 export type ShotGenerateInput = {
   projectId: string;
@@ -217,7 +217,6 @@ async function runVideoShot(input: ShotGenerateInput, ctx: import("../stage").St
   const timeline = timelineFor(project.doc, input.projectId, frame.aspect);
   const prerequisite = videoPrerequisite(project.doc, shot, timeline);
   if (prerequisite) throw new PermanentError(prerequisite);
-  if (standardReferencesPending(input.projectId, shot)) throw new PermanentError("等待关联标准图完成后再生成视频");
   const snapshot = videoGenerationSnapshot(project.doc, shot, timeline, frame);
   if (!input.attemptId || input.requestHash !== snapshot.hash || input.modelId !== snapshot.modelId) throw new PermanentError("视频输入已变化，请重新确认并生成");
   const compiled = compileVideoPrompt({ doc: project.doc, shot, referenceAssetIds: snapshot.referenceAssetIds, requestDurationSeconds: snapshot.timing.requestDurationSeconds, targetDurationMs: snapshot.timing.targetDurationMs });

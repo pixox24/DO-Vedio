@@ -1,5 +1,5 @@
 import { compileVideoReferencePrompt } from "../../core/video-prompt-compiler";
-import { sourceImageSnapshot } from "../../core/video";
+import { missingVideoStandards, sourceImageSnapshot } from "../../core/video";
 import { videoPlanNeedsSync } from "../../core/video-plan";
 import type { GenerationFrame } from "../../core/output-spec";
 import { getProject, mutateProject } from "../../server/projects";
@@ -19,6 +19,7 @@ export const shotReferenceStage = defineStage<ShotReferenceInput, { shotId: stri
     if (resolveImageModel(project.doc.settings.video.referenceImageModelId || undefined) !== input.modelId) throw new PermanentError("参考图模型已变化，请重新生成");
     if (shot.locked) throw new PermanentError("镜头已锁定");
     if (videoPlanNeedsSync(shot)) throw new PermanentError("等待中文镜头要求同步到执行计划");
+    if (missingVideoStandards(project.doc, shot).length) throw new PermanentError("请先在角色和场景中补齐并采用有效标准图");
     const frame = videoFrame(project.doc, input.frame);
     const snapshot = sourceImageSnapshot(project.doc, shot, frame);
     const compiled = compileVideoReferencePrompt(project.doc, shot);
@@ -31,7 +32,7 @@ export const shotReferenceStage = defineStage<ShotReferenceInput, { shotId: stri
       finishGenerationRun(generation.id, { status: "succeeded", latencyMs: Date.now() - generation.startedAt, outputAssets: assets });
       mutateProject(input.projectId, (doc) => {
         const current = doc.shots.find((item) => item.id === shot.id);
-        if (!ctx.current() || doc.settings.visualPipeline !== "video" || !current || current.locked || sourceImageSnapshot(doc, current, frame).hash !== snapshot.hash) return null;
+        if (!ctx.current() || doc.settings.visualPipeline !== "video" || !current || current.locked || missingVideoStandards(doc, current).length || sourceImageSnapshot(doc, current, frame).hash !== snapshot.hash) return null;
         return { ...doc, shots: doc.shots.map((item) => item.id === shot.id ? { ...item, sourceImageAssetId: assetId, sourceImageDescription: undefined, sourceImagePromptHash: snapshot.promptHash, sourceImageConfirmedHash: undefined } : item) };
       });
       return { shotId: shot.id, assetId };

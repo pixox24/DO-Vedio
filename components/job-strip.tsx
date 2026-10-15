@@ -33,7 +33,7 @@ export function summarize(jobs: Job[]): Summary {
 }
 
 /** 步骤条：每个步骤的进度、失败原因、重试和取消 */
-export function JobStrip({ steps, jobs, extra, hints, currentKeys, confirm }: { steps: StepDef[]; jobs: Job[]; extra?: Record<string, string>; hints?: Record<string, StepHint | null>; currentKeys?: ReadonlySet<string>; confirm?: (options: { title: string; message?: string; confirmLabel?: string; bullets?: string[]; tone?: "default" | "danger" }) => Promise<boolean> }) {
+export function JobStrip({ steps, jobs, extra, hints, currentKeys, stageViews, onOpenStage, confirm }: { steps: StepDef[]; jobs: Job[]; extra?: Record<string, string>; hints?: Record<string, StepHint | null>; currentKeys?: ReadonlySet<string>; stageViews?: Record<string, { done: number; total: number; message: string; tone: StepTone }>; onOpenStage?: (stage: string) => void; confirm?: (options: { title: string; message?: string; confirmLabel?: string; bullets?: string[]; tone?: "default" | "danger" }) => Promise<boolean> }) {
   const [retryingStage, setRetryingStage] = useState<string | null>(null);
   const [cancelingStage, setCancelingStage] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<Record<string, string>>({});
@@ -103,16 +103,18 @@ export function JobStrip({ steps, jobs, extra, hints, currentKeys, confirm }: { 
         /* planned 而非 total：被取消的任务不该挡住「这一步已完成」的判定 */
         const fromJobs: StepTone = sum.failed.length ? "failed" : active ? "active" : sum.planned > 0 && sum.done === sum.planned ? "done" : "idle";
         const hint = hints?.[s.stage];
+        const view = stageViews?.[s.stage];
+        const managed = !!onOpenStage && ["shot-reference", "shot-generate"].includes(s.stage);
         // 任务正在跑或失败时，以任务为准。停下来之后才采用口吻、缺图这类补充状态。
-        const tone: StepTone = fromJobs === "failed" || fromJobs === "active" ? fromJobs : hint?.tone ?? fromJobs;
+        const tone: StepTone = view?.tone ?? (fromJobs === "failed" || fromJobs === "active" ? fromJobs : hint?.tone ?? fromJobs);
         const flowing = tone === "active" && s.indeterminate === true;
-        const width = tone === "done" || tone === "hold" ? 100 : tone === "active" ? Math.max(12, Math.round(sum.progress * 100)) : 0;
+        const width = view ? (view.total ? Math.round(view.done / view.total * 100) : 0) : tone === "done" || tone === "hold" ? 100 : tone === "active" ? Math.max(12, Math.round(sum.progress * 100)) : 0;
         const fill = tone === "failed" ? "bg-red-400/70" : tone === "done" ? "bg-accent" : tone === "hold" ? "bg-hold" : tone === "active" ? "bg-accent/70" : "bg-transparent";
         const renderJob = s.stage === "render" ? actionable.find((job) => job.status === "running") ?? actionable.find((job) => job.status === "queued") : undefined;
         const jobMessage = s.stage === "render" && active && renderJob
           ? `${renderEtaLabel(renderJob)}${sum.message ? ` · ${sum.message}` : ""}`
           : sum.message || (active ? "排队中" : "");
-        const statusMessage = sum.failed.length ? sum.failed[0].error : actionMessage[s.stage] || (tone === "active" ? jobMessage : hint?.message || jobMessage);
+        const statusMessage = view?.message ?? (managed ? sum.failed.length ? "需处理 · 查看分镜" : active ? "生成中" : hint?.message ?? "" : sum.failed.length ? sum.failed[0].error : actionMessage[s.stage] || (tone === "active" ? jobMessage : hint?.message || jobMessage));
         return (
           <div key={s.stage} className="relative bg-ink/95 px-4 pb-3.5 pt-3.5">
             {/* 顶部细条：空着时只留轨道。进行中按任务填充；一次模型调用则在轨道里流动。 */}
@@ -130,24 +132,24 @@ export function JobStrip({ steps, jobs, extra, hints, currentKeys, confirm }: { 
                 ) : (
                   <span className={`size-1.5 shrink-0 rounded-full ${tone === "active" ? "animate-live-dot bg-accent" : tone === "failed" ? "bg-red-400" : tone === "hold" ? "bg-hold" : "bg-white/20"}`} />
                 )}
-                {s.label}
+                {managed ? <button type="button" className="underline-offset-4 hover:underline" onClick={() => onOpenStage?.(s.stage)} aria-label={`查看${s.label}进度与待处理镜头`}>{s.label}</button> : s.label}
               </span>
               <span className="flex items-center gap-1.5 text-2xs tabular-nums text-white/35">
                 {active && <Spinner className="size-3" />}
-                {sum.total > 0 ? `${sum.done}/${sum.planned}` : (extra?.[s.stage] ?? "")}
+                {view ? `${view.done}/${view.total}` : sum.total > 0 ? `${sum.done}/${sum.planned}` : (extra?.[s.stage] ?? "")}
               </span>
             </div>
-            <p role={sum.failed.length ? "alert" : undefined} className={`relative mt-1 h-4 truncate text-2xs ${sum.failed.length ? "text-red-300/90" : tone === "hold" ? "text-hold" : tone === "active" ? "text-white/50" : "text-white/35"}`}>{statusMessage}</p>
-            {sum.canceled > 0 && <p className="relative mt-1 text-3xs text-white/30">已取消 {sum.canceled} 个任务</p>}
+            <p role={!managed && sum.failed.length ? "alert" : undefined} className={`relative mt-1 min-h-4 text-2xs ${tone === "failed" ? "text-red-300/90" : tone === "hold" ? "text-hold" : tone === "active" ? "text-white/50" : "text-white/35"}`}>{statusMessage}</p>
+            {!managed && sum.canceled > 0 && <p className="relative mt-1 text-3xs text-white/30">已取消 {sum.canceled} 个任务</p>}
             {oldActive.length > 0 && <p className="relative mt-1 text-3xs text-amber-200/65">含 {oldActive.length} 个旧版本任务</p>}
-            {actionableSummary.failed.length > 0 && (
+            {!managed && actionableSummary.failed.length > 0 && (
               <div className="relative mt-1.5 flex gap-1.5">
                 <button className="chip h-6 px-2.5 text-2xs" disabled={retryingStage !== null || cancelingStage !== null} onClick={() => void retryAll(actionableSummary.failed, s.stage)}>
                   {retryingStage === s.stage ? <Spinner className="size-3" /> : null}重试 · {costSuffix({ units: actionableSummary.failed.length, unit: "个任务", costYuan: actionableSummary.failed.reduce((total, job) => total + (Number.isFinite(job.costEstimate) ? job.costEstimate : 0), 0) || null })}
                 </button>
               </div>
             )}
-            {oldFailed.length > 0 && (
+            {!managed && oldFailed.length > 0 && (
               <div className="relative mt-1.5 flex items-center gap-2">
                 <span className="text-3xs text-amber-200/65">旧任务失败 {oldFailed.length} 个</span>
                 <button className="chip h-6 px-2.5 text-2xs" disabled={retryingStage !== null || cancelingStage !== null} onClick={() => void retryAll(oldFailed, `${s.stage}:old`)}>
@@ -155,7 +157,7 @@ export function JobStrip({ steps, jobs, extra, hints, currentKeys, confirm }: { 
                 </button>
               </div>
             )}
-            {active && (
+            {!managed && active && (
               <button
                 className="relative mt-1 text-2xs text-white/30 transition hover:text-white"
                 disabled={retryingStage !== null || cancelingStage !== null}

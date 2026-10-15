@@ -1,10 +1,12 @@
 import { z } from "zod";
 import { fail, handle, parseBody } from "@/lib/api";
-import { projectDocSchema } from "@/lib/core/types";
+import { projectDocSchema, type Project, type ProjectDoc } from "@/lib/core/types";
+import { missingVideoStandards } from "@/lib/core/video";
 import { deleteProject, getProject, RevisionConflict, saveProject } from "@/lib/server/projects";
 import { purgeProjects } from "@/lib/server/gc";
 import { enqueueAutoScenes } from "@/lib/pipeline/auto-portrait";
 import { enqueueVideoPlanSyncs } from "@/lib/pipeline/video-plan-sync";
+import { wakeCurrentGoal } from "@/lib/pipeline/plan";
 
 export async function GET(_req: Request, ctx: RouteContext<"/api/projects/[id]">) {
   return handle(async () => {
@@ -23,14 +25,29 @@ function mergePatch<T>(base: T, patch: unknown): T {
   return out as T;
 }
 
+function afterSave(id: string, previous: ProjectDoc | undefined, project: Project): Project {
+  enqueueAutoScenes(id, true);
+  enqueueVideoPlanSyncs(id);
+  // 手动采用或上传标准图也能释放已有目标；没有目标时不会额外开工。
+  if (previous && project.doc.shots.some((shot) => {
+    const before = previous.shots.find((item) => item.id === shot.id);
+    return before && missingVideoStandards(previous, before).length && !missingVideoStandards(project.doc, shot).length;
+  })) {
+    wakeCurrentGoal(id);
+    return getProject(id) ?? project;
+  }
+  return project;
+}
+
 /** 保存文档；revision 与服务端不一致时返回 409 和最新文档，revision 传 null 表示强制覆盖 */
 export async function PUT(req: Request, ctx: RouteContext<"/api/projects/[id]">) {
   return handle(async () => {
     const { id } = await ctx.params;
     const { doc, revision } = await parseBody(req, body);
     try {
-      const p = saveProject(id, doc, revision);
-      if (p) { enqueueAutoScenes(id, true); enqueueVideoPlanSyncs(id); }
+      const previous = getProject(id);
+      let p = saveProject(id, doc, revision);
+      if (p) p = afterSave(id, previous?.doc, p);
       return p ? Response.json({ revision: p.revision, updatedAt: p.updatedAt }) : fail("项目不存在", 404);
     } catch (e) {
       if (e instanceof RevisionConflict) return Response.json({ error: e.message, current: e.current }, { status: 409 });
@@ -47,8 +64,8 @@ export async function PATCH(req: Request, ctx: RouteContext<"/api/projects/[id]"
     const current = getProject(id);
     if (!current) return fail("项目不存在", 404);
     try {
-      const p = saveProject(id, mergePatch(current.doc, patch), revision);
-      if (p) { enqueueAutoScenes(id, true); enqueueVideoPlanSyncs(id); }
+      let p = saveProject(id, mergePatch(current.doc, patch), revision);
+      if (p) p = afterSave(id, current.doc, p);
       return p ? Response.json({ revision: p.revision, updatedAt: p.updatedAt, doc: p.doc }) : fail("项目不存在", 404);
     } catch (e) {
       if (e instanceof RevisionConflict) return Response.json({ error: e.message, current: e.current }, { status: 409 });

@@ -62,6 +62,29 @@ async function request(projectId: string, method: "POST" | "PATCH", body: unknow
   return route[method](new Request("http://test", { method, body: JSON.stringify(body) }), { params: Promise.resolve({ id: projectId }) });
 }
 
+it("incomplete standards block reference and video confirmation while mixed batches keep independent shots usable", async () => {
+  const project = await fixture();
+  const { sceneCardSchema } = await import("@/lib/core/types");
+  const { mutateProject, getProject } = await import("@/lib/server/projects");
+  const { projectJobs } = await import("@/lib/server/jobs");
+  const single = await import("@/app/api/projects/[id]/shots/[shotId]/reference/route");
+  const video = await import("@/app/api/projects/[id]/shots/[shotId]/generate/route");
+  mutateProject(project.id, (doc) => ({ ...doc, scenes: [sceneCardSchema.parse({ id: "scene0" })], shots: doc.shots.map((shot) => shot.id === "s0" ? { ...shot, sceneId: "scene0" } : shot) }));
+  const params = { params: Promise.resolve({ id: project.id, shotId: "s0" }) };
+  const payload = await confirmation(project.id, ["s0"]);
+  expect((await single.POST(new Request("http://test", { method: "POST", body: "{}" }), params)).status).toBe(409);
+  expect((await single.PATCH(new Request("http://test", { method: "PATCH", body: JSON.stringify({ confirmHash: payload.references[0].confirmHash }) }), params)).status).toBe(409);
+  expect((await request(project.id, "PATCH", payload)).status).toBe(409);
+  expect((await video.POST(new Request("http://test", { method: "POST", body: JSON.stringify({ kind: "video", confirmHash: payload.references[0].confirmHash }) }), params)).status).toBe(409);
+  expect(getProject(project.id)!.doc.shots[0].sourceImageConfirmedHash).toBeUndefined();
+  expect(projectJobs(project.id)).toHaveLength(0);
+  const mixed = await request(project.id, "POST", { shotIds: ["s0", "s1"] });
+  expect(mixed.status).toBe(200);
+  expect(await mixed.json()).toMatchObject({ count: 1, skipped: 1, jobs: [{ input: { shotId: "s1" } }] });
+  expect((await request(project.id, "PATCH", await confirmation(project.id, ["s2"]))).status).toBe(200);
+  expect(getProject(project.id)!.doc.shots[2].sourceImageConfirmedHash).toBeTruthy();
+});
+
 it("batch confirmation wakes the current goal once and queues only the reviewed videos", async () => {
   const project = await fixture();
   const { setGoal, wakeCurrentGoal } = await import("@/lib/pipeline/plan");
@@ -210,8 +233,8 @@ it("batch redo submits only requested references using the project model and reu
   const result = await response.json();
   expect(result.count).toBe(2);
   expect(result.jobs[0].id).toBe(active.id);
-  expect(enqueueAutoPortraits).toHaveBeenCalledExactlyOnceWith(project.id);
-  expect(enqueueAutoScenes).toHaveBeenCalledExactlyOnceWith(project.id);
+  expect(enqueueAutoPortraits).not.toHaveBeenCalled();
+  expect(enqueueAutoScenes).not.toHaveBeenCalled();
   expect(projectJobs(project.id)).toHaveLength(2);
   expect(projectJobs(project.id)).toEqual(expect.arrayContaining(["s0", "s2"].map((shotId) => expect.objectContaining({ stage: "shot-reference", input: expect.objectContaining({ shotId, modelId: "test-image" }) }))));
   expect(getProject(project.id)).toEqual(before);
@@ -236,4 +259,32 @@ it.each(["locked", "pending-plan", "nonvideo", "missing-shot", "missing-model", 
   expect(getProject(project.id)).toEqual(before);
   expect(enqueueAutoPortraits).not.toHaveBeenCalled();
   expect(enqueueAutoScenes).not.toHaveBeenCalled();
+});
+
+it("reference retry uses the current project model and skips results that became ready", async () => {
+  const project = await fixture();
+  const { mutateProject } = await import("@/lib/server/projects");
+  const { enqueue, projectJobs } = await import("@/lib/server/jobs");
+  const { run } = await import("@/lib/server/db");
+  const old = enqueue({ projectId: project.id, stage: "shot-reference", key: "old-model-request", input: { shotId: "s1", modelId: "old-image" } });
+  run("UPDATE jobs SET status = 'failed', error = 'Model not found' WHERE id = ?", old.id);
+  mutateProject(project.id, (doc) => ({ ...doc, shots: doc.shots.map((shot) => shot.id === "s1" ? { ...shot, sourceImageAssetId: undefined } : shot) }));
+  const response = await request(project.id, "POST", { shotIds: ["s0", "s1"], operation: "retry" });
+  expect(response.status).toBe(200);
+  const result = await response.json();
+  expect(result).toMatchObject({ count: 1, skipped: 1 });
+  expect(result.jobs[0].input).toMatchObject({ shotId: "s1", modelId: "test-image" });
+  expect(projectJobs(project.id).filter((job) => job.status === "queued")).toHaveLength(1);
+  expect(projectJobs(project.id).find((job) => job.id === old.id)?.status).toBe("failed");
+});
+
+it("shot status clears historical video errors when a current reference is ready", async () => {
+  const project = await fixture();
+  const { GET } = await import("@/app/api/projects/[id]/shots/status/route");
+  const { enqueue } = await import("@/lib/server/jobs");
+  const { run } = await import("@/lib/server/db");
+  const old = enqueue({ projectId: project.id, stage: "shot-generate", key: "old-video", input: { shotId: "s0", requestHash: "old-input", frame: { aspect: "16:9" } } });
+  run("UPDATE jobs SET status = 'failed', error = 'old video error' WHERE id = ?", old.id);
+  const response = await GET(new Request("http://test"), { params: Promise.resolve({ id: project.id }) });
+  expect((await response.json()).s0).toMatchObject({ state: "waiting-confirmation", error: null });
 });

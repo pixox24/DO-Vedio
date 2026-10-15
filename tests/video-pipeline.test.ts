@@ -50,6 +50,48 @@ async function reference(projectId: string, confirm = false) {
 }
 function context(job: import("@/lib/core/types").Job) { return { job, signal: new AbortController().signal, current: () => true, progress: vi.fn(), spend: () => 0, log: vi.fn() }; }
 
+it.each(["character", "scene"] as const)("failed %s standard blocks submission and worker execution, then adoption resumes the same goal", async (kind) => {
+  const project = await fixture();
+  const { characterCardSchema, sceneCardSchema } = await import("@/lib/core/types");
+  const { getProject, mutateProject } = await import("@/lib/server/projects");
+  const { enqueue, projectJobs } = await import("@/lib/server/jobs");
+  const { run } = await import("@/lib/server/db");
+  const { drive, getGoal, planPipeline } = await import("@/lib/pipeline/plan");
+  const { enqueueShotReference, videoFrame } = await import("@/lib/pipeline/video-generation");
+  const { shotReferenceStage } = await import("@/lib/pipeline/stages/shot-reference");
+  const { PATCH } = await import("@/app/api/projects/[id]/route");
+  const current = mutateProject(project.id, (doc) => ({ ...doc,
+    settings: { ...doc.settings, autoPortrait: true },
+    characters: kind === "character" ? [characterCardSchema.parse({ id: "c0", name: "角色" })] : [],
+    scenes: kind === "scene" ? [sceneCardSchema.parse({ id: "scene0", name: "房间", description: "明亮的房间" })] : [],
+    shots: doc.shots.map((shot) => ({ ...shot, ...(kind === "character" ? { characterIds: ["c0"] } : { sceneId: "scene0" }) })),
+  }))!;
+  const plan = planPipeline(project.id, current.doc, goal);
+  expect(plan.steps.some((step) => step.stage === "shot-reference")).toBe(false);
+  const standard = plan.steps.find((step) => step.stage === (kind === "character" ? "character-sheet" : "scene-reference"))!;
+  const failed = enqueue({ projectId: project.id, ...standard });
+  run("UPDATE jobs SET status = 'failed', error = 'Model not found' WHERE id = ?", failed.id);
+  expect(() => enqueueShotReference(project.id, current.doc, current.doc.shots[0], videoFrame(current.doc))).toThrow("有效标准图");
+  // 旧页面已经排入的任务在实际调用服务商前也会被截住。
+  const old = { ...failed, stage: "shot-reference", input: { projectId: project.id, shotId: "s0", modelId: "test-image" } };
+  await expect(shotReferenceStage.run(old.input, context(old))).rejects.toThrow("有效标准图");
+  expect(mocks.generate).not.toHaveBeenCalled();
+  drive(project.id, goal);
+  const goalId = getGoal(project.id)?.goal.goalId;
+  expect(goalId).toBeTruthy();
+  expect(getGoal(project.id)?.blocked).toContain("有效标准图");
+  expect(projectJobs(project.id).some((job) => job.stage === "shot-reference")).toBe(false);
+  const beforeAdopt = getProject(project.id)!;
+  const patch = kind === "character"
+    ? { characters: beforeAdopt.doc.characters.map((card) => ({ ...card, referenceAssetIds: ["adopted-standard"] })) }
+    : { scenes: beforeAdopt.doc.scenes.map((scene) => ({ ...scene, referenceAssetIds: ["adopted-standard"] })) };
+  const adopted = await PATCH(new Request("http://test", { method: "PATCH", body: JSON.stringify({ revision: beforeAdopt.revision, patch }) }), { params: Promise.resolve({ id: project.id }) });
+  expect(adopted.status).toBe(200);
+  expect(getGoal(project.id)?.goal.goalId).toBe(goalId);
+  expect(projectJobs(project.id).filter((job) => job.stage === "shot-reference")).toHaveLength(1);
+  expect(mocks.generate).not.toHaveBeenCalled();
+});
+
 it("production adopts only fully fingerprinted, probed current candidates and leaves them stable on resume", async () => {
   const project = await fixture();
   const chosen = await reference(project.id, true);
@@ -388,7 +430,7 @@ it("an existing reference job survives standard-reference changes without a dupl
   const { sceneCardSchema } = await import("@/lib/core/types");
   const { enqueueShotReference, videoFrame } = await import("@/lib/pipeline/video-generation");
   const { planPipeline } = await import("@/lib/pipeline/plan");
-  const before = mutateProject(project.id, (doc) => ({ ...doc, scenes: [sceneCardSchema.parse({ id: "scene", name: "Window room", description: "A bright room" })], shots: doc.shots.map((shot) => ({ ...shot, sceneId: "scene" })) }))!;
+  const before = mutateProject(project.id, (doc) => ({ ...doc, scenes: [sceneCardSchema.parse({ id: "scene", name: "Window room", description: "A bright room", referenceAssetIds: ["old-standard"] })], shots: doc.shots.map((shot) => ({ ...shot, sceneId: "scene" })) }))!;
   const job = enqueueShotReference(project.id, before.doc, before.doc.shots[0], videoFrame(before.doc));
   const updated = mutateProject(project.id, (doc) => ({ ...doc, scenes: doc.scenes.map((scene) => ({ ...scene, referenceAssetIds: ["standard-image"] })) }))!;
   const plan = planPipeline(project.id, updated.doc, goal);

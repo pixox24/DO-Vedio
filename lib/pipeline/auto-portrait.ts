@@ -11,7 +11,7 @@ import { resolveImageModel } from "./image-models";
  * 排一个定妆任务（立绘 1 张），生成后直接作为这个角色的标准形象。
  *
  * - 由项目设置 `settings.autoPortrait` 控制，默认关闭；关闭时不排任何生图任务。
- * - 与配音、分镜、渲染并行，不挡任何步骤；失败也不阻塞自动推进（失败语义见 `isAutoPortraitInput`）。
+ * - 与配音、分镜并行；图片驱动允许缺图继续，AI 视频须等关联的有效标准图被采用。
  * - 是否需要重生成沿用定妆指纹 `sheetSourceHash`：画面风格或角色外貌字段变了才算过期，
  *   过期会重新生成并覆盖标准形象，旧图仍留在候选里。
  */
@@ -28,7 +28,7 @@ export type AutoPortraitStep = {
 
 export type AutoPortraitTarget = { card: CharacterCard; key: string; step: AutoPortraitStep; busy: boolean };
 
-/** 自动立绘的任务标记：失败不阻塞自动推进，也不自动重提 */
+/** 自动立绘的任务标记：失败不自动重提；AI 视频的依赖门禁由当前标准图决定。 */
 export function isAutoPortraitInput(input: unknown): boolean {
   return !!input && typeof input === "object" && (input as { auto?: unknown }).auto === true;
 }

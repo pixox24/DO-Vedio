@@ -1,18 +1,17 @@
 import { z } from "zod";
 import { fail, handle, parseBody } from "@/lib/api";
-import { sourceImageSnapshot, sourceImageStale } from "@/lib/core/video";
+import { missingVideoStandards, sourceImageSnapshot, sourceImageStale } from "@/lib/core/video";
 import { videoPlanNeedsSync } from "@/lib/core/video-plan";
 import { getProject, mutateProject } from "@/lib/server/projects";
 import { projectJobs } from "@/lib/server/jobs";
 import { enqueueShotReference, videoFrame } from "@/lib/pipeline/video-generation";
-import { enqueueAutoPortraits, enqueueAutoScenes } from "@/lib/pipeline/auto-portrait";
 import { resolveImageModel } from "@/lib/pipeline/image-models";
 import { getGoal, wakeCurrentGoal } from "@/lib/pipeline/plan";
 import { PermanentError } from "@/lib/pipeline/stage";
 
 type Context = { params: Promise<{ id: string }> };
 const shotIdsSchema = z.array(z.string().min(1)).min(1).max(500).refine((ids) => new Set(ids).size === ids.length, "镜头不能重复");
-const generateBody = z.object({ shotIds: shotIdsSchema }).strict();
+const generateBody = z.object({ shotIds: shotIdsSchema, operation: z.enum(["generate", "retry"]).default("generate") }).strict();
 const confirmBody = z.object({ references: z.array(z.object({ shotId: z.string().min(1), confirmHash: z.string().min(1) }).strict()).min(1).max(500)
   .refine((items) => new Set(items.map((item) => item.shotId)).size === items.length, "镜头不能重复") }).strict();
 
@@ -20,7 +19,7 @@ const confirmBody = z.object({ references: z.array(z.object({ shotId: z.string()
 export async function POST(req: Request, ctx: Context) {
   return handle(async () => {
     const { id } = await ctx.params;
-    const { shotIds } = await parseBody(req, generateBody);
+    const { shotIds, operation } = await parseBody(req, generateBody);
     const project = getProject(id);
     if (!project) return fail("项目不存在", 404);
     const doc = project.doc;
@@ -31,12 +30,14 @@ export async function POST(req: Request, ctx: Context) {
     if (shots.some((shot) => !shot || shot.kind !== "video" || !shot.videoPlan || shot.locked || videoPlanNeedsSync(shot))) {
       return fail("部分镜头不存在、已锁定或执行计划尚未同步，请刷新后重试", 409);
     }
-    enqueueAutoPortraits(id);
-    enqueueAutoScenes(id);
     try {
       const frame = videoFrame(doc);
-      const jobs = shots.map((shot) => enqueueShotReference(id, doc, shot!, frame, modelId));
-      return Response.json({ count: jobs.length, jobs });
+      const eligible = shots.filter((shot) => !missingVideoStandards(doc, shot!).length);
+      if (!eligible.length) return fail("请先在角色和场景中补齐并采用有效标准图", 409);
+      // A result may have arrived while the user was confirming the retry.
+      const targets = operation === "retry" ? eligible.filter((shot) => !shot!.sourceImageAssetId || sourceImageStale(doc, shot!, frame)) : eligible;
+      const jobs = targets.map((shot) => enqueueShotReference(id, doc, shot!, frame, modelId));
+      return Response.json({ count: jobs.length, skipped: shots.length - targets.length, jobs });
     } catch (error) { if (error instanceof PermanentError) return fail(error.message, 409); throw error; }
   });
 }
@@ -55,7 +56,7 @@ export async function PATCH(req: Request, ctx: Context) {
       for (const { shotId, confirmHash } of references) {
         const shot = doc.shots.find((item) => item.id === shotId);
         if (!shot || shot.kind !== "video" || !shot.videoPlan || shot.locked || videoPlanNeedsSync(shot) || !shot.sourceImageAssetId
-          || active.has(shotId) || sourceImageStale(doc, shot, frame) || sourceImageSnapshot(doc, shot, frame).hash !== confirmHash) return null;
+          || missingVideoStandards(doc, shot).length || active.has(shotId) || sourceImageStale(doc, shot, frame) || sourceImageSnapshot(doc, shot, frame).hash !== confirmHash) return null;
       }
       const hashes = new Map(references.map(({ shotId, confirmHash }) => [shotId, confirmHash]));
       matched = true;

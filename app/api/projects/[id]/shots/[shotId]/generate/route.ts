@@ -13,7 +13,7 @@ import { outputSpecForRequest, outputSpecsFor, previewSpecFor, type GenerationFr
 import { selectShotCandidate } from "@/lib/core/shot-asset";
 import type { Aspect, OutputSpecId } from "@/lib/core/types";
 import { enqueueAutoPortraits, enqueueAutoScenes } from "@/lib/pipeline/auto-portrait";
-import { sourceImageSnapshot, sourceImageStale } from "@/lib/core/video";
+import { missingVideoStandards, sourceImageSnapshot, sourceImageStale } from "@/lib/core/video";
 import { videoPlanNeedsSync } from "@/lib/core/video-plan";
 
 const body = z.object({ kind: z.enum(["image", "video"]).optional(), operation: z.enum(["generate", "resume", "regenerate"]).default("generate"), resumeAttemptId: z.string().min(1).optional(), confirmHash: z.string().min(1).optional(), modelId: z.string().optional(), candidateCount: z.number().int().min(1).max(4).optional(), outputSpecId: z.enum(["landscape-1080p", "portrait-1080p"]).optional(), aspect: z.enum(["16:9", "9:16"]).optional(), assetFraming: z.enum(["smart-dual", "per-output", "shared"]).optional() });
@@ -39,7 +39,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; sh
             const current = doc.shots.find((item) => item.id === shotId);
             const frame = videoFrame(doc);
             const activeReference = projectJobs(id).some((job) => job.stage === "shot-reference" && ["queued", "running"].includes(job.status) && (job.input as { shotId?: string } | null)?.shotId === shotId);
-            if (doc.settings.visualPipeline !== "video" || !current || current.kind !== "video" || !current.videoPlan || current.locked || videoPlanNeedsSync(current) || !current.sourceImageAssetId || activeReference || sourceImageStale(doc, current, frame) || sourceImageSnapshot(doc, current, frame).hash !== input.confirmHash) return null;
+            if (doc.settings.visualPipeline !== "video" || !current || current.kind !== "video" || !current.videoPlan || current.locked || videoPlanNeedsSync(current) || missingVideoStandards(doc, current).length || !current.sourceImageAssetId || activeReference || sourceImageStale(doc, current, frame) || sourceImageSnapshot(doc, current, frame).hash !== input.confirmHash) return null;
             matched = true;
             return current.sourceImageConfirmedHash === input.confirmHash ? null : { ...doc, shots: doc.shots.map((item) => item.id === shotId ? { ...item, sourceImageConfirmedHash: input.confirmHash } : item) };
           });

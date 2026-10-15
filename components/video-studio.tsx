@@ -26,6 +26,7 @@ import { outputReadiness, renderBadge, visibleRenders, type ExportFile } from "@
 import { storyboardImageHint, voiceDirectionHint, type StepHint } from "@/lib/core/step-status";
 import { mediaUrl, type Aspect, type ProjectDoc, type VoiceSettings } from "@/lib/core/types";
 import { sourceImageConfirmed, videoAssetStale } from "@/lib/core/video";
+import { shotReferenceStatus } from "@/lib/core/reference-status";
 import { outputSpecsFor } from "@/lib/core/output-spec";
 import { subtitlePresetMeta } from "@/lib/core/subtitle/presets";
 import { quickHash } from "@/lib/core/hash";
@@ -237,6 +238,8 @@ export function VideoStudio({ id }: { id: string }) {
   const [setupConfirmed, setSetupConfirmed] = useState(false);
   const [refreshError, setRefreshError] = useState("");
   const [panel, setPanel] = useState<Panel>("sentences");
+  const panelFocus = useRef<string | null>(null);
+  const [panelNavigation, setPanelNavigation] = useState(0);
   const [castTab, setCastTab] = useState<"characters" | "scenes">("characters");
   /** 分镜板的临时全宽：右栏窄是卡片拥挤的结构性原因，密集编辑时给一条出路。刷新即复位。 */
   const [wide, setWide] = useState(false);
@@ -253,6 +256,23 @@ export function VideoStudio({ id }: { id: string }) {
       window.history.replaceState({}, "", url);
     }
   }, []);
+  const openReferencePanel = (next: Panel, target: string) => {
+    panelFocus.current = target;
+    changePanel(next);
+    setPanelNavigation((current) => current + 1);
+  };
+  useEffect(() => {
+    const requested = panelFocus.current;
+    if (!requested) return;
+    const target = document.getElementById(requested) ?? document.getElementById(`panel-${panel}`);
+    if (!target) return;
+    let ancestor = target.parentElement;
+    while (ancestor) { if (ancestor instanceof HTMLDetailsElement) ancestor.open = true; ancestor = ancestor.parentElement; }
+    if (requested === "reference-feedback") target.querySelector<HTMLDetailsElement>("details")?.setAttribute("open", "");
+    target.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    target.querySelector<HTMLElement>("button, select, summary")?.focus({ preventScroll: true });
+    panelFocus.current = null;
+  }, [panel, panelNavigation]);
   useProjectShortcuts({
     save: () => { void store.flush(); }, undo: store.undo,
     togglePlay: () => previewRef.current?.togglePlayPause(),
@@ -531,6 +551,13 @@ export function VideoStudio({ id }: { id: string }) {
   const catchUpActive = jobList.some((job) => isCatchUpInput(job.input) && (job.status === "queued" || job.status === "running"));
   const running = currentJobs.some((j) => !isCatchUpInput(j.input) && currentKeys.has(j.key) && (j.status === "queued" || j.status === "running") && (!currentGoalId || jobBelongsToGoal(j, currentGoalId) || ["shot-reference", "shot-generate"].includes(j.stage) || j.key.startsWith("video-plan:")));
   const blocked = plan?.goal?.blocked;
+  const blockedMessage = doc.settings.visualPipeline !== "video" ? blocked : blocked?.startsWith("有任务失败") ? "请处理对应模块中的问题后继续制作。" : blocked?.startsWith("镜头 ") ? "部分镜头尚未完成，请在分镜模块查看处理。" : blocked;
+  const referenceShots = doc.shots.filter((shot) => shot.kind === "video" && !!shot.videoPlan);
+  const references = referenceShots.map((shot) => shotReferenceStatus(doc, shot, outputSpecs[0], studioJobs));
+  const referenceDone = references.filter((reference) => reference.usable).length;
+  const referenceFailed = references.some((reference) => reference.kind === "failed");
+  const referenceActive = references.some((reference) => ["queued", "running", "standard"].includes(reference.kind));
+  const pendingConfirmation = referenceShots.filter((shot, index) => references[index].usable && !shot.locked && !sourceImageConfirmed(doc, shot, outputSpecs[0])).length;
   const outputAspects = outputSpecs.map((spec) => spec.aspect);
   const listedRenders = visibleRenders(renders, timelineHashes);
   const readiness = outputReadiness(outputAspects, listedRenders, timelineHashes);
@@ -664,10 +691,11 @@ export function VideoStudio({ id }: { id: string }) {
             hints={stepHints(doc, studioJobs, plan?.plan.steps.some((step) => step.stage === "storyboard" && !step.key.startsWith("video-plan:")) ?? false, timeline)}
             currentKeys={currentKeys}
             confirm={confirm}
+            stageViews={doc.settings.visualPipeline === "video" && referenceShots.length ? { "shot-reference": { done: referenceDone, total: referenceShots.length, tone: referenceFailed ? "failed" : referenceActive ? "active" : referenceDone < referenceShots.length || pendingConfirmation > 0 ? "hold" : "done", message: referenceFailed ? "需处理 · 查看分镜" : referenceActive ? "生成中" : pendingConfirmation && !doc.settings.video.autoContinue ? `待确认 ${pendingConfirmation} 镜` : referenceDone < referenceShots.length ? "待生成 · 查看分镜" : "参考图已齐" } } : undefined}
+            onOpenStage={doc.settings.visualPipeline === "video" ? () => openReferencePanel("storyboard", "reference-feedback") : undefined}
           />
-          {blocked && <div className="flex flex-wrap items-center gap-3 text-sm text-amber-200/80"><p>已暂停：{blocked}</p>{doc.settings.visualPipeline === "video" && <button className="chip" onClick={() => changePanel("storyboard")}>查看待处理镜头</button>}</div>}
-          {doc.settings.visualPipeline === "video" && currentJobs.some((job) => currentKeys.has(job.key) && ["failed", "canceled"].includes(job.status)) && <p className="text-xs text-text-faint">点击「继续制作」集中处理未完成镜头，已有视频任务优先恢复查询和下载；提交结果未决时不会自动重新付费提交。</p>}
-          {!running && !blocked && plan && plan.plan.waiting.length > 0 && <p className="text-xs text-white/50">{plan.plan.waiting.join(" · ")}</p>}
+          {blocked && <div className="flex flex-wrap items-center gap-3 text-xs text-text-secondary"><p>已暂停：{blockedMessage}</p>{doc.settings.visualPipeline === "video" && panel !== "storyboard" && <button className="btn btn-text btn-sm" onClick={() => openReferencePanel("storyboard", "reference-feedback")}>查看待处理镜头</button>}</div>}
+          {!running && !blocked && plan && <p className="text-xs text-text-muted">{[...new Set(plan.plan.waiting.filter((message) => doc.settings.visualPipeline !== "video" || !message.startsWith("镜头 ")))].slice(0, 2).join(" · ")}</p>}
 
           {/*
             分镜全宽：预览缩到 300px 并吸顶，右栏拿走其余全部宽度。
@@ -720,7 +748,7 @@ export function VideoStudio({ id }: { id: string }) {
                   <SegmentedControl value={castTab} options={[{ value: "characters", label: "角色" }, { value: "scenes", label: "场景" }]} onChange={setCastTab} label="角色和场景" />
                   {castTab === "characters" ? <CastPanel id={id} store={store} jobs={jobs} /> : <ScenePanel id={id} store={store} jobs={jobs} />}
                 </div>}
-                {panel === "storyboard" && <StoryboardPanel id={id} store={store} timeline={timeline} jobs={jobs} onSeek={(ms) => previewRef.current?.seekToMs(ms)} wide={wide} onToggleWide={() => setWide((current) => !current)} productionConfirmed={setupConfirmed} onContinue={() => start()} />}
+                {panel === "storyboard" && <StoryboardPanel id={id} store={store} timeline={timeline} jobs={jobs} onSeek={(ms) => previewRef.current?.seekToMs(ms)} wide={wide} onToggleWide={() => setWide((current) => !current)} productionConfirmed={setupConfirmed} onContinue={() => start()} onSettings={() => openReferencePanel("settings", "reference-image-model-settings")} onStandards={() => changePanel("cast")} />}
                 {panel === "subtitle" && <SubtitlePanel doc={doc} setDoc={store.setDoc} />}
                 {panel === "music" && <MusicPanel id={id} store={store} />}
                 {panel === "settings" && <SettingsPanel store={store} />}

@@ -1,6 +1,6 @@
-import { sourceImageSnapshot, sourceImageStale, sourceImageConfirmed, videoGenerationSnapshot, videoShotTiming } from "@/lib/core/video";
+import { sourceImageSnapshot, sourceImageConfirmed, videoGenerationSnapshot, videoShotTiming } from "@/lib/core/video";
 import { timelineFor } from "@/lib/pipeline/artifacts";
-import { videoFrame, videoRenderProblems, standardReferencesPending } from "@/lib/pipeline/video-generation";
+import { videoFrame, videoRenderProblems } from "@/lib/pipeline/video-generation";
 import { findOriginalMediaAttempt } from "@/lib/providers/runs";
 import { projectJobs } from "@/lib/server/jobs";
 import { fail, handle } from "@/lib/api";
@@ -9,6 +9,7 @@ import type { JobStatus } from "@/lib/core/types";
 import { all } from "@/lib/server/db";
 import { getProject } from "@/lib/server/projects";
 import { videoPlanNeedsSync } from "@/lib/core/video-plan";
+import { shotReferenceStatus } from "@/lib/core/reference-status";
 
 type ShotStatus = { state?: string; snapshotHash?: string; attemptId?: string; providerTaskId?: string; sourceImageAssetId?: string; costStatus?: string; targetDurationMs?: number; requestDurationSeconds?: number; status: JobStatus; progress: number; message: string; error: string | null; total: number; done: number; failed: number; running: number };
 
@@ -92,15 +93,16 @@ export async function GET(req: Request, ctx: RouteContext<"/api/projects/[id]/sh
         const timing = videoShotTiming(doc, shot, timeline);
         const snapshot = videoGenerationSnapshot(doc, shot, timeline, frame);
         const original = findOriginalMediaAttempt({ projectId: id, shotId: shot.id, requestHash: snapshot.hash });
-        const latest = jobs.filter((job) => ["shot-reference", "shot-generate"].includes(job.stage) && typeof job.input === "object" && job.input !== null && (job.input as { shotId?: string }).shotId === shot.id && (job.stage === "shot-reference" || !perOutputVideo || (job.input as { frame?: { aspect?: string } }).frame?.aspect === frame.aspect)).sort((a, b) => b.createdAt - a.createdAt)[0];
+        const reference = shotReferenceStatus(doc, shot, sourceFrame, jobs);
+        const related = jobs.filter((job) => ["shot-reference", "shot-generate"].includes(job.stage) && typeof job.input === "object" && job.input !== null && (job.input as { shotId?: string }).shotId === shot.id && (job.stage === "shot-reference" || !perOutputVideo || (job.input as { frame?: { aspect?: string } }).frame?.aspect === frame.aspect)).sort((a, b) => b.createdAt - a.createdAt);
+        const latest = reference.usable ? related.find((job) => job.stage === "shot-generate" && (job.input as { requestHash?: string }).requestHash === snapshot.hash) : related.find((job) => job.stage === "shot-reference");
         const input = latest?.input as { attemptId?: string; requestHash?: string } | undefined;
         const entry = out[shot.id] ?? { status: latest?.status ?? "queued", progress: latest?.progress ?? 0, message: latest?.message ?? "", error: latest?.error ?? null, total: latest ? 1 : 0, done: 0, failed: 0, running: 0 };
-        const activeReference = latest?.stage === "shot-reference" && ["queued", "running"].includes(latest.status);
         const activeVideo = latest?.stage === "shot-generate" && input?.requestHash === snapshot.hash && ["queued", "running"].includes(latest.status);
         let state: string;
         if (videoPlanNeedsSync(shot)) state = "waiting-plan";
         else if (!timing.ready) state = "waiting-tts";
-        else if (activeReference || standardReferencesPending(id, shot) || !shot.sourceImageAssetId || sourceImageStale(doc, shot, sourceFrame)) state = latest?.stage === "shot-reference" && ["failed", "canceled"].includes(latest.status) ? latest.status : "waiting-reference";
+        else if (!reference.usable) state = reference.kind === "failed" || reference.kind === "canceled" ? reference.kind : "waiting-reference";
         else if (!doc.settings.video.autoContinue && !sourceImageConfirmed(doc, shot, sourceFrame)) state = "waiting-confirmation";
         else if (original?.params.phase === "submission-unknown") state = "submission-unknown";
         else if (latest?.status === "failed" && input?.requestHash === snapshot.hash) state = "failed";
@@ -111,7 +113,7 @@ export async function GET(req: Request, ctx: RouteContext<"/api/projects/[id]/sh
         else if (original?.params.phase === "canceled") state = "canceled";
         else if (original) state = "failed";
         else state = shot.assetId ? "stale" : "ready-to-generate";
-        out[shot.id] = { ...entry, state, snapshotHash: sourceImageSnapshot(doc, shot, sourceFrame).hash,
+        out[shot.id] = { ...entry, state, error: state === "failed" ? reference.error ?? latest?.error ?? null : null, snapshotHash: sourceImageSnapshot(doc, shot, sourceFrame).hash,
           attemptId: original?.params.attemptId ?? (input?.requestHash === snapshot.hash ? input.attemptId : undefined),
           providerTaskId: original?.params.taskId, sourceImageAssetId: shot.sourceImageAssetId,
           costStatus: original?.params.costStatus ?? "unknown", targetDurationMs: timing.targetDurationMs, requestDurationSeconds: timing.requestDurationSeconds,

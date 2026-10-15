@@ -1,12 +1,11 @@
 import { z } from "zod";
 import { fail, handle, parseBody } from "@/lib/api";
-import { sourceImageSnapshot, sourceImageStale } from "@/lib/core/video";
+import { missingVideoStandards, sourceImageSnapshot, sourceImageStale } from "@/lib/core/video";
 import { getProject, mutateProject } from "@/lib/server/projects";
 import { enqueueShotReference, videoFrame } from "@/lib/pipeline/video-generation";
 import { wakeCurrentGoal } from "@/lib/pipeline/plan";
 import { resolveImageModel } from "@/lib/pipeline/image-models";
 import { listProviderProfiles } from "@/lib/providers/registry";
-import { enqueueAutoPortraits, enqueueAutoScenes } from "@/lib/pipeline/auto-portrait";
 import { PermanentError } from "@/lib/pipeline/stage";
 import { videoPlanNeedsSync } from "@/lib/core/video-plan";
 
@@ -21,14 +20,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; sh
     if (project.doc.settings.visualPipeline !== "video" || shot.kind !== "video" || !shot.videoPlan) return fail("请先重新导演生成视频分镜", 409);
     if (shot.locked) return fail("镜头已锁定，请先解锁", 409);
     if (videoPlanNeedsSync(shot)) return fail("等待中文镜头要求同步到执行计划", 409);
+    if (missingVideoStandards(project.doc, shot).length) return fail("请先在角色和场景中补齐并采用有效标准图", 409);
     const resolved = resolveImageModel(input.modelId || project.doc.settings.video.referenceImageModelId || undefined);
     if (!resolved) return fail("参考图模型不可用，请在模型中心检查配置", 409);
     const profile = listProviderProfiles().find((model) => model.kind === "image" && (resolved === model.modelId || resolved === `${model.providerId}::${model.modelId}`));
     const canonical = profile ? `${profile.providerId}::${profile.modelId}` : resolved;
     if (canonical !== project.doc.settings.video.referenceImageModelId) project = mutateProject(id, (doc) => ({ ...doc, settings: { ...doc.settings, video: { ...doc.settings.video, referenceImageModelId: canonical } } }))!;
     shot = project.doc.shots.find((item) => item.id === shotId)!;
-    enqueueAutoPortraits(id);
-    enqueueAutoScenes(id);
     try {
       const job = enqueueShotReference(id, project.doc, shot, videoFrame(project.doc), canonical);
       return Response.json({ job, shot, snapshotHash: sourceImageSnapshot(project.doc, shot, videoFrame(project.doc)).hash });
@@ -43,7 +41,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string; s
     let matched = false;
     const project = mutateProject(id, (doc) => {
       const shot = doc.shots.find((item) => item.id === shotId);
-      if (!shot || shot.locked || doc.settings.visualPipeline !== "video" || !shot.sourceImageAssetId || videoPlanNeedsSync(shot)) return null;
+      if (!shot || shot.locked || doc.settings.visualPipeline !== "video" || !shot.sourceImageAssetId || videoPlanNeedsSync(shot) || missingVideoStandards(doc, shot).length) return null;
       const snapshot = sourceImageSnapshot(doc, shot, videoFrame(doc));
       if (snapshot.hash !== confirmHash || sourceImageStale(doc, shot, videoFrame(doc))) return null;
       matched = true;

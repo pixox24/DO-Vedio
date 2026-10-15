@@ -3,6 +3,7 @@
 // 制作设置面板：画幅、预算与制作预设。配音在「语音」面板。
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Select, Switch } from "@/components/ui";
 import { type ProjectDoc } from "@/lib/core/types";
 import { outputSpecIdForAspect } from "@/lib/core/output-spec";
@@ -66,9 +67,11 @@ export function SettingsPanel({ store }: { store: ProjectStore }) {
               {!mediaModels.some((m) => m.id === doc.settings.video.modelId) && <option value={doc.settings.video.modelId}>MiniMax H3 · 未配置或未启用</option>}
               {mediaModels.filter((m) => m.kind === "video").map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
             </Select></label>
-            <label className="block space-y-1 text-xs"><span>参考图模型</span><Select aria-label="参考图模型" value={doc.settings.video.referenceImageModelId} onChange={(referenceImageModelId) => store.setDoc((current) => ({ ...current, settings: { ...current.settings, video: { ...current.settings.video, referenceImageModelId } } }))}>
+            <label id="reference-image-model-settings" className="block space-y-1 text-xs"><span>参考图模型</span><Select aria-label="参考图模型" value={doc.settings.video.referenceImageModelId} onChange={(referenceImageModelId) => store.setDoc((current) => ({ ...current, settings: { ...current.settings, video: { ...current.settings.video, referenceImageModelId } } }))}>
+              {doc.settings.video.referenceImageModelId && !mediaModels.some((model) => model.id === doc.settings.video.referenceImageModelId) && <option value={doc.settings.video.referenceImageModelId}>当前参考图模型未配置或未启用</option>}
               <option value="">自动选择可用图片模型</option>{mediaModels.filter((m) => m.kind === "image").map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
             </Select></label>
+            <Link href="/settings/providers" className="inline-block text-xs text-text-secondary underline underline-offset-4">在模型中心检查服务商与权限</Link>
             <label className="block space-y-1 text-xs"><span>视频生成分辨率</span><Select aria-label="视频生成分辨率" value={doc.settings.video.resolution} onChange={(resolution) => store.setDoc((current) => ({ ...current, settings: { ...current.settings, video: { ...current.settings.video, resolution: resolution as "480p" | "768p" } } }))}><option value="480p">480p</option><option value="768p">768p</option></Select></label>
             <p className="text-2xs leading-5 text-text-faint">以上参数由所有镜头继承，可保存到制作预设。生成源为 {doc.settings.video.resolution}，1080p 成片导出不会增加源视频细节。</p>
             </div></details>

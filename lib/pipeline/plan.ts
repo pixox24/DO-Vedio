@@ -22,10 +22,10 @@ import type { Quality } from "./render";
 import { staleRanges } from "./stages/storyboard";
 import { autoPortraitPlan, autoScenePlan, isAutoPortraitInput } from "./auto-portrait";
 import { castSourceHash } from "../core/cast";
-import { sourceImageStale, videoGenerationSnapshot } from "../core/video";
+import { missingVideoStandards, sourceImageStale, videoGenerationSnapshot } from "../core/video";
 import { videoPlanNeedsSync } from "../core/video-plan";
 import { videoPlanSyncStep } from "./video-plan-sync";
-import { referenceJobKey, standardReferencesPending, videoAttempt, videoFrame, videoPrerequisite, videoRenderProblems, videoModelAvailable, videoAssetFraming, adoptReadyVideoCandidates, usableVideoCandidate } from "./video-generation";
+import { referenceJobKey, videoAttempt, videoFrame, videoPrerequisite, videoRenderProblems, videoModelAvailable, videoAssetFraming, adoptReadyVideoCandidates, usableVideoCandidate } from "./video-generation";
 import { resolveImageModel } from "./image-models";
 import { voiceDirectionKey, type VoiceDirectionCache } from "./voice-direction";
 
@@ -235,12 +235,7 @@ export function planPipeline(projectId: string, doc: ProjectDoc, goal: Goal): Pl
           waiting.push(`镜头 ${shot.id} 等待镜头参考图`);
           continue;
         }
-        const pending = standardReferencesPending(projectId, shot) || portraits.some((item) => {
-          const related = item.step.stage === "scene-reference" ? item.card.id === shot.sceneId : shot.characterIds.includes(item.card.id);
-          const last = latestJobByKey(item.key, projectId);
-          return related && (!last || ["queued", "running"].includes(last.status));
-        });
-        if (pending) { waiting.push(`镜头 ${shot.id} 等待角色和场景标准图`); continue; }
+        if (missingVideoStandards(doc, shot).length) { waiting.push("请先在角色和场景中补齐并采用有效标准图"); continue; }
         if (!shot.sourceImageAssetId || sourceImageStale(doc, shot, referenceFrame)) {
           if (shot.locked) { waiting.push(`镜头 ${shot.id} 已锁定且缺少当前参考图`); continue; }
           if (!imageModel) { waiting.push("请选择并保存可用的镜头参考图模型"); continue; }
@@ -449,7 +444,7 @@ function settle(projectId: string, r: ProduceResult) {
   if (r.plan.steps.length === 0) return r.plan.waiting.length ? block(projectId, r.plan.waiting[0]) : setGoal(projectId, null);
   // 自动立绘失败过就不再自动重提。只剩这类任务时直接收掉目标：一张立绘不该把已经做完的流水线停在「无法继续」。
   const left = r.plan.steps.filter((s) => isAutoPortraitInput(s.input));
-  if (left.length === r.plan.steps.length && left.every((s) => ["failed", "canceled"].includes(latestJobByKey(s.key, projectId)?.status ?? ""))) return setGoal(projectId, null);
+  if (!r.plan.waiting.length && left.length === r.plan.steps.length && left.every((s) => ["failed", "canceled"].includes(latestJobByKey(s.key, projectId)?.status ?? ""))) return setGoal(projectId, null);
   // 还有步骤但都没法提交（之前失败过），等待用户重试
   const failed = goalId
     ? all<{ n: number }>(`SELECT COUNT(*) AS n FROM jobs WHERE project_id = ? AND status = 'failed' AND ${NOT_AUTO_PORTRAIT} AND json_extract(input, '$.goalId') = ?`, projectId, goalId)[0]?.n ?? 0
