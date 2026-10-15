@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { isTtsStage } from "../core/keys";
 import { emptyDoc, projectDocSchema, type Project, type ProjectDoc, type ProjectDocInput, type ProjectPipelineStatus, type ProjectSummary } from "../core/types";
 import { normalizeSettings } from "../core/output-spec";
+import { markVideoPlanDescriptionEdits } from "../core/video-plan";
 import { all, get, json, parseJson, run, tx } from "./db";
 import { cancelProjectJobs } from "./jobs";
 
@@ -87,7 +88,7 @@ export function saveProjectWithinTx(id: string, doc: ProjectDoc, baseRevision: n
   const current = getProject(id);
   if (!current) throw new Error("项目不存在");
   if (current.revision !== baseRevision) throw new RevisionConflict(current);
-  const clean = projectDocSchema.parse(doc);
+  const clean = markVideoPlanDescriptionEdits(current.doc, projectDocSchema.parse(doc));
   run("UPDATE projects SET doc = ?, title = ?, revision = revision + 1, updated_at = ? WHERE id = ? AND revision = ?", json(clean), titleOf(clean), Date.now(), id, baseRevision);
   return getProject(id)!;
 }
@@ -101,7 +102,7 @@ export function saveProject(id: string, doc: ProjectDoc, baseRevision: number | 
     const cur = getProject(id);
     if (!cur) return undefined;
     if (baseRevision !== null && cur.revision !== baseRevision) throw new RevisionConflict(cur);
-    const clean = projectDocSchema.parse(doc);
+    const clean = markVideoPlanDescriptionEdits(cur.doc, projectDocSchema.parse(doc));
     run("UPDATE projects SET doc = ?, title = ?, revision = revision + 1, updated_at = ? WHERE id = ?", json(clean), titleOf(clean), Date.now(), id);
     return getProject(id);
   });

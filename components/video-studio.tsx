@@ -81,7 +81,7 @@ function stepHints(doc: ProjectDoc, jobs: { stage: string; status: string }[], s
 
 type Render = { id: string; aspect: Aspect; quality: string; timelineHash: string; contentHash?: string; animationHash?: string; videoHash: string; srtHash: string | null; durationMs: number; loudness: number | null; createdAt: number; outputVersion?: number; origin?: "manual" | "catch-up" };
 type TimelineHashes = { contentHash: string; animationHash: string; timelineHash: string };
-type PlanInfo = { plan: { steps: { stage: string; key: string; target: string; cost: number }[]; currentKeys: string[]; waiting: string[]; costYuan: number; ready: { preview: boolean } }; goal: { goal: { goalId?: string }; blocked: string | null } | null; blocked?: string; spentYuan: number };
+type PlanInfo = { plan: { steps: { stage: string; key: string; target: string; cost: number }[]; currentKeys: string[]; waiting: string[]; costYuan: number; ready: { preview: boolean } }; goal: { goal: { goalId?: string }; blocked: string | null } | null; blocked?: string; spentYuan: number; setupFingerprint?: string };
 type Panel = "sentences" | "style" | "cast" | "storyboard" | "subtitle" | "music" | "settings" | "voice";
 
 const panelGroups: { label: string; items: Panel[] }[] = [
@@ -459,6 +459,13 @@ export function VideoStudio({ id }: { id: string }) {
       if ((await store.flush()) == null) throw new Error("项目设置保存失败，请重试");
       const until = options.until ?? "render";
       const r = await postJson<PlanInfo>(`/api/projects/${id}/produce`, { action: "start", confirmBudget: options.confirmBudget, goal: { until, aspects: outputSpecsFor(store.doc.settings).map((spec) => spec.aspect), quality: "final", ...(options.force && until === "render" ? { forceRender: true } : {}) } });
+      // Automatic reference-model selection is part of this submitted setup.
+      // Preserve its confirmation without approving unrelated concurrent edits.
+      try {
+        if (r.setupFingerprint && setupConfirmationMatches(sessionStorage.getItem(`do-vedio:setup-confirmed:${id}`), store.doc.settings)) {
+          sessionStorage.setItem(`do-vedio:setup-confirmed:${id}`, r.setupFingerprint);
+        }
+      } catch {}
       if (r.blocked) {
         const allowed = await confirm({ title: "预计会超出项目预算", message: r.blocked, confirmLabel: "仍要继续", tone: "danger", bullets: ["预计费用：本次计划可能超过项目预算。", "影响范围：会继续提交当前制作目标中的待处理任务。", "可恢复：排队中的任务仍可停止，已接单请求可能计费。"] });
         if (allowed) await start({ ...options, confirmBudget: true });
@@ -489,7 +496,7 @@ export function VideoStudio({ id }: { id: string }) {
     try {
       if (store.doc) sessionStorage.setItem(`do-vedio:setup-confirmed:${id}`, setupFingerprintForDoc(store.doc));
     } catch {}
-    void start({ until: "compose" });
+    void start({ until: store.doc?.settings.visualPipeline === "video" ? "render" : "compose" });
   }
 
   function selectPreview(value: Aspect) {
@@ -522,7 +529,7 @@ export function VideoStudio({ id }: { id: string }) {
     : studioJobs;
   const legacyActiveJobs = currentJobs.filter((job) => !currentKeys.has(job.key) && (job.status === "queued" || job.status === "running"));
   const catchUpActive = jobList.some((job) => isCatchUpInput(job.input) && (job.status === "queued" || job.status === "running"));
-  const running = currentJobs.some((j) => !isCatchUpInput(j.input) && currentKeys.has(j.key) && (j.status === "queued" || j.status === "running") && (!currentGoalId || jobBelongsToGoal(j, currentGoalId)));
+  const running = currentJobs.some((j) => !isCatchUpInput(j.input) && currentKeys.has(j.key) && (j.status === "queued" || j.status === "running") && (!currentGoalId || jobBelongsToGoal(j, currentGoalId) || ["shot-reference", "shot-generate"].includes(j.stage) || j.key.startsWith("video-plan:")));
   const blocked = plan?.goal?.blocked;
   const outputAspects = outputSpecs.map((spec) => spec.aspect);
   const listedRenders = visibleRenders(renders, timelineHashes);
@@ -531,7 +538,7 @@ export function VideoStudio({ id }: { id: string }) {
   const renderStale: Partial<Record<Aspect, boolean>> | undefined = readiness.phase === "fresh" || readiness.phase === "stale"
     ? Object.fromEntries(finalsByAspect.map((outputAspect) => [outputAspect, readiness.phase === "stale" && readiness.staleAspects.includes(outputAspect)]))
     : undefined;
-  const produceLabel = readiness.phase === "fresh" ? "再次生成" : readiness.phase === "stale" || renders.some((render) => render.quality === "final") ? "更新成片" : "生成成片";
+  const produceLabel = doc.settings.visualPipeline === "video" ? "继续制作" : readiness.phase === "fresh" ? "再次生成" : readiness.phase === "stale" || renders.some((render) => render.quality === "final") ? "更新成片" : "生成成片";
   const produceCost = (plan?.plan.costYuan ?? 0).toFixed(2);
   async function requestProduce() {
     if (readiness.phase === "fresh") {
@@ -606,7 +613,7 @@ export function VideoStudio({ id }: { id: string }) {
           {!setupConfirmed && <SetupConfirm doc={doc} costYuan={plan ? plan.plan.costYuan : null} onOpen={changePanel} onConfirm={confirmSetup} />}
 
           {setupConfirmed && (
-            <div className="panel relative">
+            <div id="production-actions" className="panel relative">
               {running && <span aria-hidden className="action-shimmer pointer-events-none absolute inset-0 overflow-hidden" />}
               <div className="relative flex flex-wrap items-center justify-between gap-3 px-4 pb-3 pt-4 sm:px-5">
                 <div className="flex flex-wrap items-center gap-2">
@@ -620,7 +627,7 @@ export function VideoStudio({ id }: { id: string }) {
                   ) : (
                     <>
                       <button className="btn btn-primary" disabled={busy || running} onClick={() => void requestProduce()}>
-                        {busy ? <Spinner className="size-3.5" /> : <Icon name="sparkle" className="size-4" />} {produceLabel} · 约 ¥{produceCost}
+                        {busy ? <Spinner className="size-3.5" /> : <Icon name="sparkle" className="size-4" />} {produceLabel}{doc.settings.visualPipeline !== "video" && ` · 约 ¥${produceCost}`}
                       </button>
                       <ExportControl files={readiness.files} disabled={busy || running || readiness.files.length === 0} title={readiness.files.length === 0 ? "先生成成片" : undefined} onExport={(files) => void exportChosen(files)} />
                     </>
@@ -654,11 +661,12 @@ export function VideoStudio({ id }: { id: string }) {
           <JobStrip
             steps={produceSteps(doc.settings.subtitle.bilingual, doc.settings.visualPipeline === "video")}
             jobs={currentJobs}
-            hints={stepHints(doc, studioJobs, plan?.plan.steps.some((step) => step.stage === "storyboard") ?? false, timeline)}
+            hints={stepHints(doc, studioJobs, plan?.plan.steps.some((step) => step.stage === "storyboard" && !step.key.startsWith("video-plan:")) ?? false, timeline)}
             currentKeys={currentKeys}
             confirm={confirm}
           />
-          {blocked && <p className="text-sm text-amber-200/80">已暂停：{blocked}</p>}
+          {blocked && <div className="flex flex-wrap items-center gap-3 text-sm text-amber-200/80"><p>已暂停：{blocked}</p>{doc.settings.visualPipeline === "video" && <button className="chip" onClick={() => changePanel("storyboard")}>查看待处理镜头</button>}</div>}
+          {doc.settings.visualPipeline === "video" && currentJobs.some((job) => currentKeys.has(job.key) && ["failed", "canceled"].includes(job.status)) && <p className="text-xs text-text-faint">点击「继续制作」集中处理未完成镜头，已有视频任务优先恢复查询和下载；提交结果未决时不会自动重新付费提交。</p>}
           {!running && !blocked && plan && plan.plan.waiting.length > 0 && <p className="text-xs text-white/50">{plan.plan.waiting.join(" · ")}</p>}
 
           {/*
@@ -712,7 +720,7 @@ export function VideoStudio({ id }: { id: string }) {
                   <SegmentedControl value={castTab} options={[{ value: "characters", label: "角色" }, { value: "scenes", label: "场景" }]} onChange={setCastTab} label="角色和场景" />
                   {castTab === "characters" ? <CastPanel id={id} store={store} jobs={jobs} /> : <ScenePanel id={id} store={store} jobs={jobs} />}
                 </div>}
-                {panel === "storyboard" && <StoryboardPanel id={id} store={store} timeline={timeline} jobs={jobs} onSeek={(ms) => previewRef.current?.seekToMs(ms)} wide={wide} onToggleWide={() => setWide((current) => !current)} />}
+                {panel === "storyboard" && <StoryboardPanel id={id} store={store} timeline={timeline} jobs={jobs} onSeek={(ms) => previewRef.current?.seekToMs(ms)} wide={wide} onToggleWide={() => setWide((current) => !current)} productionConfirmed={setupConfirmed} onContinue={() => start()} />}
                 {panel === "subtitle" && <SubtitlePanel doc={doc} setDoc={store.setDoc} />}
                 {panel === "music" && <MusicPanel id={id} store={store} />}
                 {panel === "settings" && <SettingsPanel store={store} />}
@@ -799,7 +807,7 @@ function setupFacts(doc: ProjectDoc, voiceName: string): SetupFact[] {
   ];
   if (doc.settings.visualPipeline === "video") facts.splice(3, 0,
     { label: "画面驱动", value: `AI 视频 · ${doc.settings.video.resolution}`, panel: "settings" },
-    { label: "镜头参考图", value: doc.settings.video.autoContinue ? "生成后自动继续视频" : "逐镜确认后生成视频", panel: "settings" },
+    { label: "制作方式", value: doc.settings.video.autoContinue ? "自动制作" : "整批审图后继续", panel: "settings" },
   );
   return facts;
 }
@@ -848,7 +856,7 @@ function SetupConfirm({ doc, costYuan, onOpen, onConfirm }: { doc: ProjectDoc; c
         <div className="min-w-0">
           <h2 id="setup-confirm-title" className="text-sm font-medium text-text">开工确认</h2>
           <p className="mt-1 text-2xs text-text-faint">
-            确认后开始断句、配音和分镜。成片需要再点生成。任一项设置变动都会让确认失效，需要重新确认。
+            {doc.settings.visualPipeline === "video" ? "确认一次后自动完成配音、分镜、参考图、视频和合成；整批审图模式会在参考图完成后等待一次确认。" : "确认后开始断句、配音和分镜。成片需要再点生成。"}任一项设置变动都会让确认失效，需要重新确认。
             {doc.settings.autoPortrait && " 已开启自动标准图：识别后会为每个需要立绘的角色、每个缺少标准图的场景各生成一张，图片费用以服务商账单为准，不计入上面的预估。"}
             {doc.settings.visualPipeline === "video" && " 预估仅包含已知费用；镜头参考图与视频另由服务商收费，当前价格未知。"}
             {doc.settings.visualPipeline === "video" && doc.settings.video.autoContinue && " 自动连续已开启：参考图成功后会继续提交视频请求，停止本地等待不能撤销云端接单。"}
@@ -858,7 +866,7 @@ function SetupConfirm({ doc, costYuan, onOpen, onConfirm }: { doc: ProjectDoc; c
           {sealed && <span aria-hidden className="pointer-events-none absolute inset-0 animate-seal-ring rounded-full border border-accent" />}
           <button className="btn btn-primary btn-sm" disabled={sealed} onClick={seal}>
             {sealed ? <Spinner className="size-3.5" /> : <Icon name="check" className="size-3.5" />}
-            {sealed ? "已确认" : costYuan == null ? "确认开工" : `确认开工 · 约 ¥${costYuan.toFixed(2)}`}
+            {sealed ? "已确认" : doc.settings.visualPipeline === "video" ? "开始制作" : costYuan == null ? "确认开工" : `确认开工 · 约 ¥${costYuan.toFixed(2)}`}
           </button>
         </div>
       </div>

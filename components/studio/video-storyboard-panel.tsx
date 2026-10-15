@@ -1,24 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { AutoTextarea, Select, Spinner, Switch } from "@/components/ui";
+import { AutoTextarea, Icon, Select, Spinner } from "@/components/ui";
 import { jobAction } from "@/lib/client";
 import { useFeedback } from "@/components/feedback";
 import { mediaUrl, type Job, type Shot, type VideoPlan } from "@/lib/core/types";
 import type { Timeline } from "@/lib/core/timeline";
-import { sourceImageConfirmed, sourceImageStale, videoShotTiming } from "@/lib/core/video";
+import { sourceImageConfirmed, sourceImageStale, videoGenerationSnapshot, videoShotTiming } from "@/lib/core/video";
 import { outputSpecsFor, previewSpecFor } from "@/lib/core/output-spec";
-import { MAX_SHOT_CHARACTERS } from "@/lib/core/prompt-compiler";
+import { videoDescriptionHash, videoPlanNeedsSync } from "@/lib/core/video-plan";
 import type { ProjectStore } from "./shared";
+import { columnCount, shotRows, shotTime } from "./shot-view";
+import { stopShotPreview, VideoShotPreview } from "./video-shot-preview";
+import { VideoShotCard, type ShotCardStatus } from "./video-shot-card";
+import styles from "./video-storyboard.module.css";
 
-type VideoState = "ready-to-generate" | "waiting-tts" | "waiting-reference" | "waiting-confirmation" | "queued" | "submitting" | "submission-unknown" | "polling" | "downloading" | "ready" | "stale" | "failed" | "canceled";
+type VideoState = "ready-to-generate" | "waiting-plan" | "waiting-tts" | "waiting-reference" | "waiting-confirmation" | "queued" | "submitting" | "submission-unknown" | "polling" | "downloading" | "ready" | "stale" | "failed" | "canceled";
 type VideoStatus = { state?: VideoState; status?: string; progress?: number; message?: string; error?: string | null; snapshotHash?: string; attemptId?: string; providerTaskId?: string; sourceImageAssetId?: string; costStatus?: "unknown" | "estimated" | "verified"; targetDurationMs?: number; requestDurationSeconds?: number };
-const labels: Record<VideoState, string> = { "ready-to-generate": "参考已确认 · 可以生成视频", "waiting-tts": "等待真实配音", "waiting-reference": "等待参考图", "waiting-confirmation": "待确认参考图", queued: "排队中", submitting: "提交中", "submission-unknown": "提交结果未决", polling: "云端生成中", downloading: "下载中", ready: "视频已就绪", stale: "视频已过期", failed: "生成失败", canceled: "本地等待已停止" };
+const labels: Record<VideoState, string> = { "ready-to-generate": "参考已确认 · 可以生成视频", "waiting-plan": "镜头要求待同步", "waiting-tts": "等待真实配音", "waiting-reference": "等待参考图", "waiting-confirmation": "待确认画面", queued: "视频等待生成", submitting: "正在提交视频", "submission-unknown": "提交结果未决 · 展开核实", polling: "视频生成中", downloading: "正在保存视频", ready: "视频已就绪", stale: "视频需要更新", failed: "生成失败 · 展开处理", canceled: "本地等待已停止" };
 const activeStates = new Set<VideoState>(["queued", "submitting", "polling", "downloading"]);
 const planFields: [keyof VideoPlan, string][] = [["startState", "起始画面（英文）"], ["action", "人物与环境动作（英文）"], ["camera", "镜头运动（英文）"], ["endState", "结束画面（英文）"]];
 
-export function VideoStoryboardPanel({ id, store, timeline, jobs, onSeek, wide, onToggleWide }: { id: string; store: ProjectStore; timeline: Timeline | null; jobs: Map<string, Job>; onSeek: (ms: number) => void; wide?: boolean; onToggleWide?: () => void }) {
+export function VideoStoryboardPanel({ id, store, timeline, jobs, onSeek, wide, onToggleWide, onContinue, productionConfirmed = false }: { id: string; store: ProjectStore; timeline: Timeline | null; jobs: Map<string, Job>; onSeek: (ms: number) => void; wide?: boolean; onToggleWide?: () => void; onContinue?: () => Promise<void>; productionConfirmed?: boolean }) {
   const { confirm, toast } = useFeedback();
   const [selectedSpecId, setSelectedSpecId] = useState("");
   const [loadedSpecId, setLoadedSpecId] = useState("");
@@ -26,6 +30,49 @@ export function VideoStoryboardPanel({ id, store, timeline, jobs, onSeek, wide, 
   const [busy, setBusy] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [revision, setRevision] = useState(0);
+  const [excluded, setExcluded] = useState<string[]>([]);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [closingDetail, setClosingDetail] = useState<string | null>(null);
+  const [hovered, setHovered] = useState<string | null>(null);
+  const [referenceView, setReferenceView] = useState(false);
+  const [columns, setColumns] = useState(1);
+  const playback = useRef<HTMLVideoElement | null>(null);
+  const gridObserver = useRef<ResizeObserver | null>(null);
+  const panelRef = useRef<HTMLElement>(null);
+  const gridRef = useCallback((node: HTMLDivElement | null) => {
+    gridObserver.current?.disconnect();
+    gridObserver.current = null;
+    if (!node) return;
+    const measure = () => setColumns(columnCount(node.clientWidth, !!wide));
+    measure();
+    gridObserver.current = new ResizeObserver(measure);
+    gridObserver.current.observe(node);
+  }, [wide]);
+  const closeDetail = useCallback(() => {
+    stopShotPreview(playback);
+    setClosingDetail(expanded);
+    setExpanded(null);
+    setHovered(null);
+    if (expanded) document.getElementById(`shot-card-${expanded}`)?.querySelector<HTMLButtonElement>("[data-shot-toggle]")?.focus({ preventScroll: true });
+  }, [expanded]);
+  useEffect(() => {
+    if (!closingDetail) return;
+    const timer = window.setTimeout(() => setClosingDetail(null), 240);
+    return () => window.clearTimeout(timer);
+  }, [closingDetail]);
+  useEffect(() => {
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !document.querySelector('[role="listbox"], [role="dialog"]')) closeDetail();
+    };
+    const visibility = () => {
+      if (panelRef.current) panelRef.current.dataset.pageActive = String(!document.hidden);
+      if (document.hidden) stopShotPreview(playback);
+    };
+    visibility();
+    document.addEventListener("keydown", escape);
+    document.addEventListener("visibilitychange", visibility);
+    return () => { document.removeEventListener("keydown", escape); document.removeEventListener("visibilitychange", visibility); stopShotPreview(playback); };
+  }, [closeDetail]);
   const doc = store.doc;
   const specs = doc ? outputSpecsFor(doc.settings) : [];
   const sourceFrame = specs[0];
@@ -34,7 +81,7 @@ export function VideoStoryboardPanel({ id, store, timeline, jobs, onSeek, wide, 
   const outputSpecId = outputFrame?.id ?? "";
   const statuses = loadedSpecId === outputSpecId ? receivedStatuses : {};
   const docSignature = JSON.stringify(doc && [doc.settings.video, doc.settings.assetFraming, doc.settings.outputSpecIds, doc.settings.aspects, doc.shots, doc.lines]);
-  const jobSignature = [...jobs.values()].filter((j) => ["shot-generate", "shot-reference", "tts", "tts-block"].includes(j.stage)).map((j) => `${j.id}:${j.status}:${j.progress}`).join("|");
+  const jobSignature = [...jobs.values()].filter((j) => ["shot-generate", "shot-reference", "storyboard", "tts", "tts-block"].includes(j.stage)).map((j) => `${j.id}:${j.status}:${j.progress}`).join("|");
   useEffect(() => {
     let alive = true;
     const refresh = async () => {
@@ -53,20 +100,34 @@ export function VideoStoryboardPanel({ id, store, timeline, jobs, onSeek, wide, 
   const ordered = [...doc.shots].sort((a, b) => doc.lines.findIndex((l) => l.id === a.at.lineId) - doc.lines.findIndex((l) => l.id === b.at.lineId) || a.at.char - b.at.char);
   const groups = new Map<string, Shot[]>();
   for (const shot of ordered) { const key = shot.groupId || shot.id; groups.set(key, [...(groups.get(key) ?? []), shot]); }
-  const batchEligible = (shot: Shot) => ["ready-to-generate", "stale"].includes(statuses[shot.id]?.state ?? "") && !shot.locked && !!timeline && videoShotTiming(doc, shot, timeline).ready && !!shot.sourceImageAssetId && !sourceImageStale(doc, shot, sourceFrame) && (doc.settings.video.autoContinue || sourceImageConfirmed(doc, shot, sourceFrame)) && !["ready", "queued", "submitting", "polling", "downloading", "submission-unknown", "failed", "canceled"].includes(statuses[shot.id]?.state ?? "");
-  const images = [...new Set([...doc.shots.flatMap((s) => [s.sourceImageAssetId, ...s.referenceAssetIds, ...s.candidates.filter((c) => c.kind === "image" || (!c.kind && s.kind !== "video")).map((c) => c.assetId), ...(s.kind !== "video" && s.assetId ? [s.assetId] : [])]), ...doc.scenes.flatMap((s) => s.referenceAssetIds), ...doc.characters.flatMap((c) => c.referenceAssetIds)].filter((hash): hash is string => !!hash))];
+  const pendingReview = ordered.filter((shot) => shot.kind === "video" && !shot.locked && !excluded.includes(shot.id) && !sourceImageConfirmed(doc, shot, sourceFrame));
+  const reviewShots = pendingReview.filter((shot) => !referenceBlocker(shot));
+  const blockedReview = pendingReview.filter((shot) => !!referenceBlocker(shot));
+  const marked = ordered.filter((shot) => excluded.includes(shot.id) && !shot.locked && !videoPlanNeedsSync(shot));
+  function referenceBlocker(shot: Shot) {
+    if (videoPlanNeedsSync(shot)) return "镜头要求尚未同步";
+    if ([...jobs.values()].some((job) => job.stage === "shot-reference" && matchesActiveJob(job, shot))) return "参考图正在生成";
+    if (!shot.sourceImageAssetId || sourceImageStale(doc!, shot, sourceFrame!)) {
+      return statuses[shot.id]?.error || (!shot.sourceImageAssetId ? "缺少参考图，请展开镜头生成或重试" : "参考图已过期，请重做");
+    }
+    if (statuses[shot.id]?.state === "waiting-reference") return "等待参考图或关联角色、场景标准图完成";
+    if (!statuses[shot.id]?.snapshotHash) return "正在读取参考图状态";
+  }
   function generationBlocker(shot: Shot, operation: "generate" | "resume" | "regenerate") {
     if (!doc || !sourceFrame) return "正在读取项目，请稍后重试。";
     if (shot.locked) return "请先解锁这个镜头。";
     if (shot.kind !== "video" || !shot.videoPlan) return "这个镜头仍是图片分镜，请先重新导演生成视频分镜。";
+    if (videoPlanNeedsSync(shot)) return "正在将中文镜头要求同步到执行计划，完成后继续制作。";
     if (!timeline) return "等待真实配音完成后才能生成视频。";
     const timing = videoShotTiming(doc, shot, timeline);
     if (!timing.ready) return timing.reason === "duration-out-of-range" ? "镜头时长超过 15 秒或无效，请先重新导演。" : "等待这个镜头的真实配音完成后才能生成视频。";
     if (!statuses[shot.id]?.state) return "正在读取镜头状态，请稍后重试。";
-    if (!shot.sourceImageAssetId) return "请先生成、上传或选择镜头参考图。";
-    if (sourceImageStale(doc, shot, sourceFrame)) return "参考图已过期，请先更新或重新选择参考图。";
+    if (!shot.sourceImageAssetId) return "请先生成镜头参考图。";
+    if (sourceImageStale(doc, shot, sourceFrame)) return "参考图已过期，请先重新生成镜头参考图。";
     if (statuses[shot.id]?.state === "waiting-reference") return "等待关联角色、场景标准图或镜头参考图完成。";
-    if (!doc.settings.video.autoContinue && !sourceImageConfirmed(doc, shot, sourceFrame)) return "请先点击「确认当前参考图」，再生成视频。";
+    if ([...jobs.values()].some((job) => job.stage === "shot-reference" && matchesActiveJob(job, shot))) return "参考图正在重做，请等待完成。";
+    if (excluded.includes(shot.id)) return "此镜头已标记重做，请先重做参考图，或取消重做标记。";
+    if (!doc.settings.video.autoContinue && !sourceImageConfirmed(doc, shot, sourceFrame) && !statuses[shot.id]?.snapshotHash) return "正在读取参考图状态，请稍后重试。";
     if (operation === "generate" && statuses[shot.id]?.attemptId && ["failed", "canceled", "submission-unknown"].includes(statuses[shot.id]?.state ?? "")) return "请点击「恢复原任务」；需要新尝试时选择「付费重新生成」。";
   }
   function update(shotId: string, patch: Partial<Shot>) { store.setDoc((current) => ({ ...current, shots: current.shots.map((s) => s.id === shotId ? { ...s, ...patch } : s) })); }
@@ -75,31 +136,35 @@ export function VideoStoryboardPanel({ id, store, timeline, jobs, onSeek, wide, 
     try {
       if ((await store.flush()) == null) throw new Error("设置保存失败，请重试");
       const response = await fetch(`/api/projects/${encodeURIComponent(id)}/shots/${path}`, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-      const data = await response.json() as { error?: string; count?: number; skipped?: number; job?: Job; reused?: boolean };
+      const data = await response.json() as { error?: string; count?: number; skipped?: number; job?: Job; reused?: boolean; continuing?: boolean };
       if (!response.ok) throw new Error(data.error || "镜头操作失败");
       if (method === "POST" && path.endsWith("/generate") && data.job) toast(data.reused ? "已找到原视频任务，正在更新状态。" : "视频生成任务已排队。", "success");
       await store.reload(); setRevision((r) => r + 1);
-    } catch (cause) { setErrors((old) => ({ ...old, [key]: cause instanceof Error ? cause.message : String(cause) })); }
+      return data;
+    } catch (cause) { setErrors((old) => ({ ...old, [key]: cause instanceof Error ? cause.message : String(cause) })); return false; }
     finally { setBusy((old) => ({ ...old, [key]: false })); }
   }
   async function generate(shot: Shot, operation: "generate" | "resume" | "regenerate") {
     const blocker = generationBlocker(shot, operation);
     if (blocker) { toast(blocker); return; }
     const state = statuses[shot.id];
+    const confirmReference = !doc!.settings.video.autoContinue && !sourceImageConfirmed(doc!, shot, sourceFrame!);
     if (operation === "resume" && !state?.attemptId) return;
-    if (operation !== "resume" && !(await confirm({ title: operation === "regenerate" ? "重新生成这个视频？" : "生成这个视频？", message: "将提交一个独立视频生成请求。费用暂未知，以服务商账单为准；已接单请求不能通过停止本地等待撤销。", confirmLabel: operation === "regenerate" ? "付费重新生成" : "提交生成", tone: "danger" }))) return;
-    await request(shot.id, `${encodeURIComponent(shot.id)}/generate`, { kind: "video", operation, modelId: doc!.settings.video.modelId, candidateCount: 1, outputSpecId: outputFrame!.id, ...(operation === "resume" ? { resumeAttemptId: state!.attemptId } : {}) });
+    if ((operation !== "resume" || confirmReference) && !(await confirm({ title: confirmReference ? "确认此图并生成这个镜头？" : operation === "regenerate" ? "重新生成这个视频？" : "生成这个视频？", message: `${confirmReference ? "将确认当前镜头参考图，仅提交这个镜头的视频请求。" : "将提交一个独立视频生成请求。"}费用暂未知，以服务商账单为准；已接单请求不能通过停止本地等待撤销。`, confirmLabel: operation === "resume" ? "确认并恢复原任务" : operation === "regenerate" ? "付费重新生成" : confirmReference ? "确认并生成" : "提交生成", tone: "danger" }))) return;
+    await request(shot.id, `${encodeURIComponent(shot.id)}/generate`, { kind: "video", operation, modelId: doc!.settings.video.modelId, candidateCount: 1, outputSpecId: outputFrame!.id, ...(confirmReference ? { confirmHash: state!.snapshotHash } : {}), ...(operation === "resume" ? { resumeAttemptId: state!.attemptId } : {}) });
   }
-  async function batch(key: string, shots: Shot[]) {
-    const wanted = shots.filter(batchEligible);
-    if (!wanted.length) return;
-    if (!(await confirm({ title: "生成本组缺失和过期的视频？", message: `将为 ${outputFrame!.aspect} 画幅的 ${wanted.length} 个镜头提交 ${wanted.length} 个独立视频请求。费用暂未知，以服务商账单为准。`, confirmLabel: "开始本组生成", tone: "danger" }))) return;
-    await request(key, "generate", { kind: "video", shotIds: wanted.map((s) => s.id), modelId: doc!.settings.video.modelId, candidateCount: 1, outputSpecId: outputFrame!.id });
+  async function approveBatch() {
+    if (!reviewShots.length || !(await confirm({ title: `确认已就绪的 ${reviewShots.length} 张参考图并继续？`, message: `将确认未标记重做且已就绪的参考图，继续视频生成与后续制作。${blockedReview.length ? `另有 ${blockedReview.length} 镜暂不能确认，保留待处理。` : ""}参考图与视频费用以服务商账单为准。`, confirmLabel: "确认并继续", tone: "danger" }))) return;
+    const ok = await request("review", "reference", { references: reviewShots.map((shot) => ({ shotId: shot.id, confirmHash: statuses[shot.id]?.snapshotHash })) }, "PATCH");
+    if (ok && !ok.continuing) await onContinue?.();
+  }
+  async function redoMarked() {
+    if (await request("review", "reference", { shotIds: marked.map((shot) => shot.id) })) setExcluded([]);
   }
   function matchesActiveJob(job: Job, shot: Shot) {
-    if (!["shot-generate", "shot-reference"].includes(job.stage) || !["queued", "running"].includes(job.status) || typeof job.input !== "object" || job.input === null) return false;
+    if (!["shot-generate", "shot-reference", "storyboard"].includes(job.stage) || !["queued", "running"].includes(job.status) || typeof job.input !== "object" || job.input === null) return false;
     const input = job.input as { shotId?: string; outputSpecId?: string; frame?: { aspect?: string } };
-    return input.shotId === shot.id && (job.stage === "shot-reference" || (input.outputSpecId ? input.outputSpecId === outputSpecId : input.frame?.aspect ? input.frame.aspect === outputFrame?.aspect : outputFrame?.id === sourceFrame?.id));
+    return input.shotId === shot.id && (job.stage !== "shot-generate" || (input.outputSpecId ? input.outputSpecId === outputSpecId : input.frame?.aspect ? input.frame.aspect === outputFrame?.aspect : outputFrame?.id === sourceFrame?.id));
   }
   async function stop(shot: Shot) {
     const active = [...jobs.values()].filter((job) => matchesActiveJob(job, shot));
@@ -110,71 +175,107 @@ export function VideoStoryboardPanel({ id, store, timeline, jobs, onSeek, wide, 
     } catch (cause) { setErrors((old) => ({ ...old, [shot.id]: cause instanceof Error ? cause.message : String(cause) })); }
     finally { setBusy((old) => ({ ...old, [shot.id]: false })); }
   }
-  async function upload(shot: Shot, file: File) {
-    setBusy((old) => ({ ...old, [shot.id]: true }));
-    try {
-      const response = await fetch("/api/media", { method: "POST", headers: { "content-type": file.type, "x-file-name": encodeURIComponent(file.name) }, body: file });
-      const asset = await response.json() as { hash?: string; kind?: string; error?: string };
-      if (!response.ok || !asset.hash || asset.kind !== "image") throw new Error(asset.error || "请选择图片素材");
-      await request(shot.id, `${encodeURIComponent(shot.id)}/reference`, { assetId: asset.hash, description: shot.sourceImageDescription });
-    } catch (cause) { setErrors((old) => ({ ...old, [shot.id]: cause instanceof Error ? cause.message : String(cause) })); }
-    finally { setBusy((old) => ({ ...old, [shot.id]: false })); }
+  function view(shot: Shot) {
+    const status = statuses[shot.id];
+    const pendingPlan = videoPlanNeedsSync(shot);
+    const state = pendingPlan ? "waiting-plan" : status?.state;
+    const timed = timeline?.shots.find((item) => item.shotId === shot.id);
+    const activeJob = [...jobs.values()].find((job) => matchesActiveJob(job, shot));
+    const running = (!!state && activeStates.has(state)) || !!activeJob;
+    const outputAssetId = shot.kind !== "video" ? undefined : perOutput ? shot.assetVariants[outputFrame!.aspect]?.assetId : shot.assetVariants[sourceFrame!.aspect]?.assetId ?? shot.assetId;
+    const outputHash = shot.assetVariants[outputFrame!.aspect]?.promptHash ?? shot.assetPromptHash;
+    const staleVideo = !!outputAssetId && (pendingPlan || (!!timeline && outputHash !== videoGenerationSnapshot(doc!, shot, timeline, outputFrame!).hash));
+    const refStale = sourceImageStale(doc!, shot, sourceFrame!);
+    const label = errors[shot.id] ? "操作失败 · 展开处理" : activeJob?.stage === "storyboard" ? activeJob.status === "queued" ? "镜头要求等待同步" : "正在同步镜头要求"
+      : activeJob?.stage === "shot-reference" ? activeJob.status === "queued" ? "参考图等待生成" : "参考图生成中" : pendingPlan ? labels["waiting-plan"]
+        : state === "ready" && running ? "正在保存视频" : state === "ready" && staleVideo ? "视频需要更新" : state ? labels[state] : "正在读取状态";
+    const needsReview = !doc!.settings.video.autoContinue && !!shot.sourceImageAssetId && !shot.locked && !pendingPlan && !refStale && !sourceImageConfirmed(doc!, shot, sourceFrame!);
+    const activity: ShotCardStatus["activity"] = activeJob?.status === "queued" || (!activeJob && state === "queued") ? undefined
+      : activeJob?.stage === "storyboard" ? "plan" : activeJob?.stage === "shot-reference" ? "image"
+        : running ? "video" : undefined;
+    return { status, state, timed, activeJob, running, outputAssetId, staleVideo, refStale, needsReview, label, activity };
   }
-  return <section className="panel space-y-4 p-5">
-    <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="label">分镜 · AI 视频</p><h2 className="mt-1 text-base font-medium">{groups.size} 组 · {ordered.length} 个独立镜头</h2></div>{onToggleWide && <button type="button" className="chip" aria-pressed={wide} onClick={onToggleWide}>{wide ? "退出全宽" : "全宽"}</button>}</div>
-    <p className="text-xs leading-5 text-text-faint">源视频 {doc.settings.video.resolution} · 成片导出 1080p · 服务商费用未知。{doc.settings.video.autoContinue ? "自动连续已开启，参考图完成后会自动提交视频。" : "参考图完成后先确认，再生成视频。"} 视频使用项目配音，原生音轨静音。</p>
-    {perOutput ? <div className="space-y-2">
-      <label className="block space-y-1 text-xs"><span>独立输出画幅</span><Select aria-label="视频独立输出画幅" value={outputFrame.id} onChange={setSelectedSpecId}>{specs.map((spec) => <option key={spec.id} value={spec.id}>{spec.aspect} · {spec.width}×{spec.height}</option>)}</Select></label>
-      <p className="text-xs leading-5 text-amber-100/80">分别生成：{ordered.filter((shot) => !shot.locked).length} 个未锁镜头 × {specs.length} 个画幅，整片首次生成最多 {ordered.filter((shot) => !shot.locked).length * specs.length} 次独立视频请求（比共享素材增加 {ordered.filter((shot) => !shot.locked).length * Math.max(0, specs.length - 1)} 次）。每个画幅分别完成、分别计费；本页按钮仅提交当前 {outputFrame.aspect}。参考图共用 {sourceFrame.aspect}。</p>
-    </div> : <p className="text-xs text-text-faint">共享视频源 {sourceFrame.aspect}；其他导出画幅复用该源，不另外生成视频。</p>}
-    {errors.status && <p role="alert" className="text-xs text-amber-200">{errors.status}，正在重试。</p>}
-    {!ordered.length && <p className="py-8 text-center text-sm text-text-faint">真实配音完成后生成视频分镜。</p>}
-    {[...groups].map(([groupId, shots], groupIndex) => {
-      const key = `group:${groupId}`;
-      const wanting = shots.filter(batchEligible);
-      const done = shots.filter((s) => statuses[s.id]?.state === "ready").length;
-      return <details key={groupId} open className="rounded-xl border border-hairline p-3">
-        <summary className="cursor-pointer text-sm font-medium">大卡 {groupIndex + 1} · {shots.length} 镜 · {done}/{shots.length} 已完成</summary>
-        <div className="my-3 flex flex-wrap items-center gap-3"><button type="button" className="btn btn-primary btn-sm" disabled={busy[key] || !wanting.length} onClick={() => void batch(key, shots)}>{busy[key] && <Spinner className="size-3" />}生成本组 · {wanting.length} 个独立视频</button><span className="text-xs text-text-faint">当前输出 {outputFrame.aspect}；先逐镜生成并确认参考图，再批量生成视频。</span></div>
-        {errors[key] && <p role="alert" className="mb-2 text-xs text-red-300">{errors[key]}</p>}
-        <div className="grid items-start gap-3 xl:grid-cols-3">{shots.map((shot) => {
-          const status = statuses[shot.id]; const state = status?.state;
-          const timed = timeline?.shots.find((s) => s.shotId === shot.id);
-          const activeJob = [...jobs.values()].find((job) => matchesActiveJob(job, shot));
-          const running = (!!state && activeStates.has(state)) || !!activeJob;
-          const disabled = busy[shot.id] || running || shot.locked;
-          const canResume = !!status?.attemptId && ["failed", "canceled", "submission-unknown"].includes(state ?? "");
-          const outputAssetId = perOutput ? shot.assetVariants?.[outputFrame.aspect]?.assetId : shot.assetVariants?.[sourceFrame.aspect]?.assetId ?? shot.assetId;
-          const generateOperation = canResume ? "generate" : outputAssetId ? "regenerate" : "generate";
-          const blocker = generationBlocker(shot, generateOperation);
-          const candidates = shot.candidates.filter((candidate) => !candidate.frame?.aspect || candidate.frame.aspect === outputFrame.aspect);
-          const endpoint = encodeURIComponent(shot.id);
-          return <article key={shot.id} className="min-w-0 space-y-3 rounded-lg border border-hairline bg-white/[0.02] p-3">
-            <div className="flex flex-wrap items-center justify-between gap-2"><button type="button" className="text-xs font-medium text-accent" disabled={!timed} onClick={() => timed && onSeek(timed.startMs)}>镜头 {ordered.indexOf(shot) + 1}{timed ? ` · ${(timed.startMs / 1000).toFixed(1)}s` : ""}</button><Switch label={`锁定镜头 ${ordered.indexOf(shot) + 1}`} checked={shot.locked} onChange={(locked) => update(shot.id, { locked })} /></div>
-            <p role="status" className="text-xs text-amber-100/85">{activeJob?.stage === "shot-reference" ? "参考图生成中" : state ? labels[state] : "正在读取状态"}{running && typeof status?.progress === "number" ? ` · ${Math.round(status.progress * 100)}%` : ""}</p>
-            {status?.targetDurationMs != null && <p className="text-2xs text-text-faint">目标 {(status.targetDurationMs / 1000).toFixed(2)} 秒 · 请求 {status.requestDurationSeconds ?? "—"} 秒 · {status.costStatus === "estimated" ? "费用为估算" : status.costStatus === "verified" ? "费用已核验，见用量记录" : "费用未知"}</p>}
-            {state === "submission-unknown" && <p className="text-xs leading-5 text-amber-200">提交可能已被服务商接收，费用未知。恢复只核对原尝试，不会重新提交；重新生成可能再次收费。</p>}
-            {state === "canceled" && <p className="text-xs text-text-faint">已停止本地等待，云端任务可能继续并计费。</p>}
-            <div className="space-y-1"><p className="label">输入参考图</p><div className="relative aspect-video overflow-hidden rounded-lg bg-stage">{shot.sourceImageAssetId ? <Image src={mediaUrl(shot.sourceImageAssetId)} alt={`镜头 ${ordered.indexOf(shot) + 1} 参考图`} fill unoptimized sizes="400px" className="object-contain" /> : <span className="absolute inset-0 grid place-items-center text-xs text-text-faint">尚无参考图</span>}</div></div>
-            <div className="flex flex-wrap gap-2"><button type="button" className="chip" disabled={disabled} onClick={() => void request(shot.id, `${endpoint}/reference`, { modelId: doc.settings.video.referenceImageModelId || undefined })}>生成参考图</button><label className={`chip cursor-pointer ${disabled ? "pointer-events-none opacity-40" : ""}`}>上传参考图<input type="file" className="sr-only" aria-label="上传镜头参考图" accept="image/*" disabled={disabled} onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(shot, file); event.target.value = ""; }} /></label></div>
-            <Select aria-label="选择已有参考图片" value="" disabled={disabled} onChange={(assetId) => { if (assetId) void request(shot.id, `${endpoint}/reference`, { assetId, description: shot.sourceImageDescription }); }}><option value="">选择已有图片…</option>{images.map((hash, index) => <option key={hash} value={hash}>图片 {index + 1} · {hash.slice(0, 8)}</option>)}</Select>
-            <label className="block space-y-1 text-xs"><span>手选参考图说明</span><AutoTextarea className="input min-h-16 text-xs" disabled={disabled} value={shot.sourceImageDescription ?? ""} onChange={(e) => update(shot.id, { sourceImageDescription: e.target.value })} placeholder="描述人物、场景与起始状态；文本模型不会自动看图" /></label>
-            {state === "waiting-confirmation" && <button type="button" className="btn btn-primary btn-sm" disabled={disabled || !status?.snapshotHash || store.save === "saving"} onClick={() => void request(shot.id, `${endpoint}/reference`, { confirmHash: status?.snapshotHash }, "PATCH")}>确认当前参考图</button>}
-            <div className="space-y-1"><p className="label">输出视频 · {outputFrame.aspect}</p><div className="aspect-video overflow-hidden rounded-lg bg-stage">{outputAssetId && shot.kind === "video" ? <video key={outputAssetId} src={mediaUrl(outputAssetId)} muted playsInline controls preload="metadata" className="h-full w-full object-contain" /> : <div className="grid h-full place-items-center text-xs text-text-faint">尚无输出视频</div>}</div></div>
-            <div className="flex flex-wrap gap-2">{running && <button type="button" className="chip" disabled={busy[shot.id]} onClick={() => void stop(shot)}>停止本地等待</button>}{canResume && <button type="button" className="btn btn-primary btn-sm" disabled={disabled} onClick={() => void generate(shot, "resume")}>恢复原任务</button>}<button type="button" className="chip" disabled={disabled} title={blocker} aria-describedby={blocker ? `video-blocker-${shot.id}` : undefined} onClick={() => void generate(shot, generateOperation)}>{busy[shot.id] && <Spinner className="size-3" />}{busy[shot.id] ? "正在处理…" : outputAssetId ? "重新生成视频" : "生成视频"}</button>{(canResume || state === "submission-unknown") && <button type="button" className="chip" disabled={disabled} onClick={() => void generate(shot, "regenerate")}>付费重新生成</button>}</div>
-            {!running && blocker && <p id={`video-blocker-${shot.id}`} className="text-xs leading-5 text-amber-200">{blocker}</p>}
-            {status?.message && <p className="text-2xs text-text-faint">{status.message}</p>}{(errors[shot.id] || status?.error) && <p role="alert" className="text-xs text-red-300">{errors[shot.id] || status?.error}</p>}
-            {candidates.length > 0 && <details><summary className="cursor-pointer text-xs">当前画幅候选 · {candidates.length}</summary><div className="mt-2 grid grid-cols-2 gap-2">{candidates.map((candidate) => <div key={candidate.id} className="space-y-1"><div className="relative aspect-video bg-stage">{(candidate.kind ?? shot.kind) === "video" ? <video src={mediaUrl(candidate.assetId)} muted playsInline controls preload="metadata" className="h-full w-full object-contain" /> : <Image src={mediaUrl(candidate.assetId)} alt="图片候选" fill unoptimized sizes="200px" className="object-contain" />}</div><p className="text-2xs text-text-faint">{candidate.frame?.aspect ?? "画幅未知"}{perOutput && !candidate.frame?.aspect ? " · 无法用于独立画幅" : ""}</p><button type="button" className="chip w-full" disabled={disabled || candidate.assetId === outputAssetId || (perOutput && !candidate.frame?.aspect)} onClick={() => void request(shot.id, `${endpoint}/generate`, { candidateId: candidate.id, aspect: outputFrame.aspect }, "PATCH")}>{candidate.assetId === outputAssetId ? "已采用" : "采用候选"}</button></div>)}</div></details>}
-            <details><summary className="cursor-pointer text-xs">编辑镜头与动作</summary><fieldset disabled={disabled} className="mt-3 space-y-3">
-              <label className="block space-y-1 text-xs"><span>画面描述</span><AutoTextarea className="input min-h-16 text-xs" value={shot.description} onChange={(e) => update(shot.id, { description: e.target.value })} /></label>
-              {planFields.map(([field, label]) => <label key={field} className="block space-y-1 text-xs"><span>{label}</span><AutoTextarea className="input min-h-16 text-xs" value={shot.videoPlan?.[field] ?? ""} onChange={(e) => update(shot.id, { videoPlan: { startState: "", action: "", camera: "", endState: "", ...shot.videoPlan, [field]: e.target.value } })} /></label>)}
-              <Select aria-label="镜头场景" value={shot.sceneId ?? ""} onChange={(sceneId) => update(shot.id, { sceneId: sceneId || undefined })}><option value="">不关联场景</option>{doc.scenes.map((scene) => <option key={scene.id} value={scene.id}>{scene.name}</option>)}</Select>
-              <div className="flex flex-wrap gap-1.5" role="group" aria-label="镜头角色">{doc.characters.filter((c) => !c.absent || shot.characterIds.includes(c.id)).map((c) => { const selected = shot.characterIds.includes(c.id); return <button key={c.id} type="button" className={`chip ${selected ? "chip-on" : ""}`} aria-pressed={selected} disabled={!selected && shot.characterIds.length >= MAX_SHOT_CHARACTERS} onClick={() => update(shot.id, { characterIds: selected ? shot.characterIds.filter((cid) => cid !== c.id) : [...shot.characterIds, c.id] })}>{c.name}</button>; })}</div>
-              <label className="block space-y-1 text-xs"><span>视频上叠加的重点文字</span><AutoTextarea className="input min-h-12 text-xs" value={shot.focusText?.text ?? ""} onChange={(e) => update(shot.id, { focusText: e.target.value ? { ...shot.focusText, text: e.target.value, layoutMode: shot.focusText?.layoutMode ?? "auto" } : undefined })} /></label>
-            </fieldset></details>
-          </article>;
-        })}</div>
-      </details>;
-    })}
+  function toggleDetail(shotId: string) {
+    if (expanded === shotId) { closeDetail(); return; }
+    stopShotPreview(playback);
+    setHovered(null);
+    setReferenceView(false);
+    setClosingDetail(null);
+    setExpanded(shotId);
+  }
+  function renderTile(shot: Shot) {
+    const { timed, state, activeJob, outputAssetId, staleVideo, refStale, needsReview, label, activity } = view(shot);
+    const index = ordered.indexOf(shot) + 1;
+    const isOpen = expanded === shot.id;
+    const failed = !!errors[shot.id] || state === "failed";
+    const warning = staleVideo || refStale || ["stale", "submission-unknown", "canceled", "waiting-plan"].includes(state ?? "");
+    const mediaLabel = outputAssetId ? staleVideo ? "上次视频" : "视频" : shot.sourceImageAssetId ? refStale ? "上次参考图" : "参考图" : undefined;
+    const ready = state === "ready" && !staleVideo && !!outputAssetId && !activeJob;
+    const cardStatus: ShotCardStatus = { label, activity, ready, tone: failed ? "danger" : activity ? "working" : warning ? "warning" : ready ? "success" : "neutral" };
+    return <VideoShotCard key={`${outputSpecId}:${shot.id}`} shot={shot} index={index} frame={outputFrame!} timeline={timeline} timed={timed} caption={timed?.caption || doc!.lines.find((line) => line.id === shot.at.lineId)?.text || "暂无覆盖句子"} assetId={outputAssetId} mediaLabel={mediaLabel} status={cardStatus} isOpen={isOpen} hovered={hovered === shot.id} ownerRef={playback}
+      onToggle={() => toggleDetail(shot.id)} onHover={(value) => setHovered((current) => value ? shot.id : current === shot.id ? null : current)} redo={excluded.includes(shot.id)}
+      onRedo={needsReview && !activeJob ? (value) => setExcluded((old) => value ? [...old.filter((entry) => entry !== shot.id), shot.id] : old.filter((entry) => entry !== shot.id)) : undefined} />;
+  }
+  function renderDetail(shot: Shot) {
+    const { timed, status, state, activeJob, running, outputAssetId, label } = view(shot);
+    const index = ordered.indexOf(shot) + 1;
+    const disabled = !!busy[shot.id] || running || shot.locked;
+    const canResume = !!status?.attemptId && ["failed", "canceled", "submission-unknown"].includes(state ?? "");
+    const operation = outputAssetId ? "regenerate" : "generate";
+    const blocker = generationBlocker(shot, canResume ? "resume" : operation);
+    const endpoint = encodeURIComponent(shot.id);
+    const candidates = shot.candidates.filter((candidate) => !candidate.frame?.aspect || candidate.frame.aspect === outputFrame!.aspect);
+    const isOpen = expanded === shot.id;
+    return <div id={`video-detail-${shot.id}`} data-open={isOpen} className={`col-span-full ${styles.detail}`} role="region" aria-label={`镜头 ${index}编辑区`} inert={!isOpen} aria-hidden={!isOpen}><div className={styles.detailInner}><div className={`${styles.detailSurface} p-4`}>
+      <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-text-secondary">镜头 {index} · {timed ? `${shotTime(timed.startMs)}–${shotTime(timed.endMs)}` : "计算中"}</p><button type="button" className="chip" onClick={closeDetail}><Icon name="chevron" className="size-3 rotate-180" />收起</button></div>
+      <div className="mt-4 grid items-start gap-4 md:grid-cols-2">
+        <div className="min-w-0 space-y-2">
+          <div className="relative overflow-hidden rounded-control bg-stage" style={{ aspectRatio: `${outputFrame!.width} / ${outputFrame!.height}` }}>
+            <VideoShotPreview key={`${outputSpecId}:${referenceView ? "reference" : outputAssetId ?? "image"}`} assetId={referenceView ? undefined : outputAssetId} referenceAssetId={shot.sourceImageAssetId} timed={timed} timeline={timeline} ownerRef={playback} label={`镜头 ${index}输出视频`} />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">{outputAssetId && shot.sourceImageAssetId && <button type="button" className="chip" aria-pressed={referenceView} onClick={() => { stopShotPreview(playback); setReferenceView((current) => !current); }}>{referenceView ? "查看视频" : "查看参考图"}</button>}<button type="button" className="btn btn-text btn-sm" disabled={!timed} onClick={() => timed && onSeek(timed.startMs)}>定位到时间轴</button></div>
+        </div>
+        <div className="min-w-0 space-y-3">
+          <p className="text-xs text-text-secondary">{label}</p>
+          <label className="block space-y-1.5 text-xs"><span>镜头要求（中文）</span><AutoTextarea className="input min-h-24 text-xs" disabled={shot.locked || busy[shot.id] || (running && activeJob?.stage !== "storyboard")} value={shot.description} onChange={(event) => update(shot.id, { description: event.target.value, videoPlanDescriptionHash: shot.videoPlanDescriptionHash ?? videoDescriptionHash(shot.description), sourceImageConfirmedHash: undefined })} onBlur={() => void store.flush()} placeholder="描述希望看到的构图和动作" /></label>
+          <p className="text-2xs text-text-muted">{videoPlanNeedsSync(shot) ? "镜头要求已修改，等待执行计划同步后更新画面。" : "修改后自动保存并同步执行计划。"}</p>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="chip" disabled={disabled || videoPlanNeedsSync(shot)} onClick={() => void request(shot.id, `${endpoint}/reference`, {})}>重做参考图</button>
+            {canResume ? <><button type="button" className="chip" disabled={disabled || !!blocker} onClick={() => void generate(shot, "resume")}>恢复原任务</button><button type="button" className="chip" disabled={disabled || !!blocker} onClick={() => void generate(shot, "regenerate")}>付费重新生成</button></> : <button type="button" className="chip" disabled={disabled || !!blocker} onClick={() => void generate(shot, operation)}>{busy[shot.id] && <Spinner className="size-3" />}{!doc!.settings.video.autoContinue && !sourceImageConfirmed(doc!, shot, sourceFrame!) ? "确认此图并生成视频" : outputAssetId ? "重新生成视频" : "生成视频"}</button>}
+            {running && <button type="button" className="chip" disabled={busy[shot.id]} onClick={() => void stop(shot)}>停止本地等待</button>}
+            <button type="button" className={`chip ${shot.locked ? "chip-on" : ""}`} disabled={busy[shot.id]} onClick={() => update(shot.id, { locked: !shot.locked })}>{shot.locked ? "已锁定 · 解锁" : "锁定镜头"}</button>
+          </div>
+          {!running && blocker && <p className="text-xs leading-5 text-warn">{blocker}</p>}
+          {state === "submission-unknown" && <p className="text-xs leading-5 text-warn">提交可能已被服务商接收。恢复只核对原尝试，不会重新提交；重新生成可能再次收费。</p>}
+          {state === "canceled" && <p className="text-xs text-text-muted">已停止本地等待，云端任务可能继续并计费。</p>}
+          {(errors[shot.id] || status?.error) && <p role="alert" className="break-words text-xs text-danger">{errors[shot.id] || status?.error}</p>}
+        </div>
+      </div>
+      <details className="mt-4 border-t border-line pt-3 text-xs"><summary className="cursor-pointer text-text-muted">历史与执行详情{candidates.length ? ` · ${candidates.length} 个候选` : ""}</summary><div className="mt-3 space-y-4">
+        {candidates.length > 0 && <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">{candidates.map((candidate) => <div key={candidate.id} className="min-w-0 space-y-1.5"><div className="relative aspect-video overflow-hidden rounded-control bg-stage">{(candidate.kind ?? shot.kind) === "video" ? <VideoShotPreview assetId={candidate.assetId} timeline={null} ownerRef={playback} label={`镜头 ${index}历史视频`} /> : <Image src={mediaUrl(candidate.assetId)} alt="图片候选" fill unoptimized sizes="200px" className="object-contain" />}</div><p className="text-2xs text-text-muted">{candidate.frame?.aspect ?? "画幅未知"}{perOutput && !candidate.frame?.aspect ? " · 无法用于独立画幅" : ""}</p><button type="button" className="chip" disabled={disabled || candidate.assetId === outputAssetId || (perOutput && !candidate.frame?.aspect)} onClick={() => void request(shot.id, `${endpoint}/generate`, { candidateId: candidate.id, aspect: outputFrame!.aspect }, "PATCH")}>{candidate.assetId === outputAssetId ? "已采用" : "采用候选"}</button></div>)}</div>}
+        <p className="text-text-muted">场景：{doc!.scenes.find((scene) => scene.id === shot.sceneId)?.name ?? "自动安排"} · 角色：{doc!.characters.filter((card) => shot.characterIds.includes(card.id)).map((card) => card.name).join("、") || "无"}</p>
+        {planFields.map(([field, name]) => <div key={field} className="space-y-1"><p className="text-text-muted">{name}</p><p className="whitespace-pre-wrap break-words">{shot.videoPlan?.[field] ?? "待生成"}</p></div>)}
+        <label className="block space-y-1"><span>后期重点文字</span><AutoTextarea className="input min-h-12 text-xs" disabled={disabled} value={shot.focusText?.text ?? ""} onChange={(event) => update(shot.id, { focusText: event.target.value ? { ...shot.focusText, text: event.target.value, layoutMode: shot.focusText?.layoutMode ?? "auto" } : undefined })} /></label>
+        <p className="text-text-muted">{status?.targetDurationMs != null && `目标 ${(status.targetDurationMs / 1000).toFixed(2)} 秒 · 请求 ${status.requestDurationSeconds ?? "—"} 秒 · `}{status?.costStatus === "estimated" ? "费用为估算" : status?.costStatus === "verified" ? "费用已核验，见用量记录" : "费用未知，以服务商账单为准"}</p>
+        {status?.message && <p className="break-words text-text-muted">{status.message}</p>}
+      </div></details>
+    </div></div></div>;
+  }
+  return <section ref={panelRef} className={`panel space-y-4 p-5 ${styles.panel}`}>
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="label">分镜 · AI 视频</p><h2 className="mt-1 text-base font-medium">{groups.size} 组 · {ordered.length} 个镜头</h2></div>{onToggleWide && <button type="button" className="chip" aria-pressed={wide} onClick={onToggleWide}>{wide ? "退出全宽" : "全宽"}</button>}</div>
+    <p className="text-xs text-text-muted">点击卡片编辑，悬停静音预览视频。{doc.settings.video.autoContinue ? "参考图完成后自动继续制作。" : "只标记不满意的参考图，其余一次确认。"}</p>
+    {!doc.settings.video.autoContinue && ordered.length > 0 && <div className="space-y-2 border-y border-line py-3">
+      <div className="flex flex-wrap items-center gap-2"><button type="button" className="btn btn-primary btn-sm" disabled={busy.review || !reviewShots.length} onClick={() => void approveBatch()}>确认已就绪参考图并继续 · {reviewShots.length} 镜</button>{marked.length > 0 && <button type="button" className="chip" disabled={busy.review} onClick={() => void redoMarked()}>重做标记的参考图 · {marked.length} 镜</button>}</div>
+      <p className="text-2xs text-text-muted">{reviewShots.length ? `可先确认 ${reviewShots.length} 镜，无需开启自动制作。${!productionConfirmed ? "点击后确认当前设置并继续制作。" : ""}` : pendingReview.length ? "当前没有可确认的参考图，请处理下方原因。" : marked.length ? "已标记的镜头需重做，或取消标记后确认。" : "当前没有待确认参考图；已确认镜头可单独生成或从顶部继续制作。"}</p>
+      {blockedReview.length > 0 && <details className="text-2xs text-warn"><summary className="cursor-pointer">暂不能确认 · {blockedReview.length} 镜（查看原因）</summary><ul className="mt-2 space-y-2">{blockedReview.map((shot) => <li key={shot.id} className="flex items-start gap-2"><button type="button" className="shrink-0 underline" onClick={() => { toggleDetail(shot.id); window.requestAnimationFrame(() => document.getElementById(`video-detail-${shot.id}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" })); }}>镜头 {ordered.indexOf(shot) + 1}</button><span className="min-w-0 break-words">{referenceBlocker(shot)}</span></li>)}</ul></details>}
+      {errors.review && <p role="alert" className="text-xs text-danger">{errors.review}</p>}
+    </div>}
+    {perOutput ? <div className="space-y-2"><label className="block space-y-1 text-xs"><span>独立输出画幅 · 各画幅分别生成和计费</span><Select aria-label="视频独立输出画幅" value={outputFrame.id} onChange={(value) => { closeDetail(); setSelectedSpecId(value); }}>{specs.map((spec) => <option key={spec.id} value={spec.id}>{spec.aspect} · {spec.width}×{spec.height}</option>)}</Select></label><details className="text-2xs text-text-muted"><summary className="cursor-pointer">查看生成范围与费用说明</summary><p className="mt-2">{ordered.filter((shot) => !shot.locked).length} 个未锁镜头 × {specs.length} 个画幅，首次最多 {ordered.filter((shot) => !shot.locked).length * specs.length} 次独立视频请求。本页仅操作当前 {outputFrame.aspect}，参考图共用 {sourceFrame.aspect}。</p></details></div> : <p className="text-2xs text-text-muted">共享 {sourceFrame.aspect} 视频源，其他导出画幅复用。</p>}
+    {errors.status && <p role="alert" className="text-xs text-warn">{errors.status}，正在重试。</p>}
+    {!ordered.length && <p className="py-8 text-center text-sm text-text-muted">真实配音完成后生成视频分镜。</p>}
+    <div ref={gridRef} className="space-y-5">{[...groups].map(([groupId, shots], groupIndex) => <section key={groupId} aria-label={`镜头组 ${groupIndex + 1}`}>
+      <div className="mb-2 flex items-center gap-2 text-2xs text-text-muted"><span>镜头组 {groupIndex + 1}</span><span>· {shots.length} 镜</span><span className="ml-auto">{shots.filter((shot) => view(shot).state === "ready" && !view(shot).staleVideo).length}/{shots.length} 完成</span></div>
+      <div className="grid items-stretch gap-3" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>{shotRows(shots, columns, expanded ?? closingDetail).map(({ row, expandedInRow }) => <Fragment key={row[0].id}>{row.map(renderTile)}{expandedInRow && renderDetail(expandedInRow)}</Fragment>)}</div>
+    </section>)}</div>
   </section>;
 }

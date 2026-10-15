@@ -8,6 +8,7 @@ import { outputSpecForRequest } from "@/lib/core/output-spec";
 import type { JobStatus } from "@/lib/core/types";
 import { all } from "@/lib/server/db";
 import { getProject } from "@/lib/server/projects";
+import { videoPlanNeedsSync } from "@/lib/core/video-plan";
 
 type ShotStatus = { state?: string; snapshotHash?: string; attemptId?: string; providerTaskId?: string; sourceImageAssetId?: string; costStatus?: string; targetDurationMs?: number; requestDurationSeconds?: number; status: JobStatus; progress: number; message: string; error: string | null; total: number; done: number; failed: number; running: number };
 
@@ -97,7 +98,8 @@ export async function GET(req: Request, ctx: RouteContext<"/api/projects/[id]/sh
         const activeReference = latest?.stage === "shot-reference" && ["queued", "running"].includes(latest.status);
         const activeVideo = latest?.stage === "shot-generate" && input?.requestHash === snapshot.hash && ["queued", "running"].includes(latest.status);
         let state: string;
-        if (!timing.ready) state = "waiting-tts";
+        if (videoPlanNeedsSync(shot)) state = "waiting-plan";
+        else if (!timing.ready) state = "waiting-tts";
         else if (activeReference || standardReferencesPending(id, shot) || !shot.sourceImageAssetId || sourceImageStale(doc, shot, sourceFrame)) state = latest?.stage === "shot-reference" && ["failed", "canceled"].includes(latest.status) ? latest.status : "waiting-reference";
         else if (!doc.settings.video.autoContinue && !sourceImageConfirmed(doc, shot, sourceFrame)) state = "waiting-confirmation";
         else if (original?.params.phase === "submission-unknown") state = "submission-unknown";

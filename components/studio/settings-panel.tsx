@@ -59,6 +59,9 @@ export function SettingsPanel({ store }: { store: ProjectStore }) {
             <option value="image">图片驱动</option><option value="video">AI 视频驱动</option>
           </Select>
           {doc.settings.visualPipeline === "video" && <div className="mt-3 space-y-3">
+            <label className="block space-y-1 text-xs"><span>制作方式</span><Select aria-label="视频制作方式" value={doc.settings.video.autoContinue ? "auto" : "review"} onChange={(mode) => store.setDoc((current) => ({ ...current, settings: { ...current.settings, video: { ...current.settings.video, autoContinue: mode === "auto" } } }))}><option value="review">整批审图后继续（推荐）</option><option value="auto">自动制作</option></Select></label>
+            <p className="text-2xs leading-5 text-text-faint">整批审图只需标记不满意的画面，其余一次确认。自动制作会在参考图完成后继续视频和合成；参考图与视频费用以服务商账单为准。</p>
+            <details><summary className="cursor-pointer text-xs">模型与清晰度 · 项目统一设置</summary><div className="mt-3 space-y-3">
             <label className="block space-y-1 text-xs"><span>视频模型</span><Select aria-label="视频模型" value={doc.settings.video.modelId} onChange={(modelId) => store.setDoc((current) => ({ ...current, settings: { ...current.settings, video: { ...current.settings.video, modelId } } }))}>
               {!mediaModels.some((m) => m.id === doc.settings.video.modelId) && <option value={doc.settings.video.modelId}>MiniMax H3 · 未配置或未启用</option>}
               {mediaModels.filter((m) => m.kind === "video").map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
@@ -67,8 +70,8 @@ export function SettingsPanel({ store }: { store: ProjectStore }) {
               <option value="">自动选择可用图片模型</option>{mediaModels.filter((m) => m.kind === "image").map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
             </Select></label>
             <label className="block space-y-1 text-xs"><span>视频生成分辨率</span><Select aria-label="视频生成分辨率" value={doc.settings.video.resolution} onChange={(resolution) => store.setDoc((current) => ({ ...current, settings: { ...current.settings, video: { ...current.settings.video, resolution: resolution as "480p" | "768p" } } }))}><option value="480p">480p</option><option value="768p">768p</option></Select></label>
-            <SettingRow label="参考图完成后自动连续生成视频"><Switch label="参考图完成后自动连续生成视频" checked={doc.settings.video.autoContinue} onChange={(autoContinue) => store.setDoc((current) => ({ ...current, settings: { ...current.settings, video: { ...current.settings.video, autoContinue } } }))} /></SettingRow>
-            <p className="text-2xs leading-5 text-text-faint">默认先确认每镜参考图。开启自动连续后，参考图成功即继续提交视频请求；服务商可能收费，费用暂未知。生成源为 {doc.settings.video.resolution}，1080p 成片导出不会增加源视频细节。</p>
+            <p className="text-2xs leading-5 text-text-faint">以上参数由所有镜头继承，可保存到制作预设。生成源为 {doc.settings.video.resolution}，1080p 成片导出不会增加源视频细节。</p>
+            </div></details>
           </div>}
         </SettingGroup>
 

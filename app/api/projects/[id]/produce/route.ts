@@ -2,6 +2,7 @@ import { z } from "zod";
 import { fail, handle, parseBody } from "@/lib/api";
 import { outputSpecsFor } from "@/lib/core/output-spec";
 import { aspects } from "@/lib/core/types";
+import { setupFingerprintForDoc } from "@/lib/core/production";
 import { cancelProjectJobs, cancelProjectJobsByGoal, projectJobs } from "@/lib/server/jobs";
 import { getProject } from "@/lib/server/projects";
 import { drive, getGoal, produce, setGoal } from "@/lib/pipeline/plan";
@@ -57,6 +58,6 @@ export async function POST(req: Request, ctx: RouteContext<"/api/projects/[id]/p
     }
     if (!goal) return fail("缺少目标");
     const r = action === "start" ? drive(id, goal, confirmBudget) : produce(id, goal, { confirmBudget });
-    return Response.json({ ...r, goal: getGoal(id) ?? null });
+    return Response.json({ ...r, goal: getGoal(id) ?? null, setupFingerprint: setupFingerprintForDoc(getProject(id)!.doc) });
   });
 }

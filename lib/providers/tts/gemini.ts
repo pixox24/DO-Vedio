@@ -1,8 +1,5 @@
-import { promises as fs } from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import { ProxyAgent, fetch as undiciFetch } from "undici";
-import { ffmpeg } from "../../server/ffmpeg";
+import { hasKnownContainer, transcodeToWav } from "./audio";
 import { pcmToWav, type SynthRequest, type SynthResult, type TtsErrorCode, type TtsModel, type TtsProvider, type TtsUsage, type Voice } from "./types";
 
 export const GEMINI_TTS_FLASH_MODEL = "gemini-3.8-flash-tts";
@@ -220,31 +217,12 @@ export function normalizeAudio(audio: Buffer, mime = "audio/L16", options: { sam
   return { audio: wav, mime: "audio/wav", sampleRate, channels, bitsPerSample, durationMs: Math.round((audio.length / (sampleRate * frameBytes)) * 1000) };
 }
 
-function hasKnownContainer(audio: Buffer, mime: string) {
-  return /audio\/(?:mpeg|mp3|ogg|opus|flac|mp4|aac)/i.test(mime) || audio.toString("ascii", 0, 3) === "ID3" || audio.toString("ascii", 0, 4) === "OggS" || audio.toString("ascii", 0, 4) === "fLaC";
-}
-
-async function convertToWav(audio: Buffer, mime: string, signal?: AbortSignal): Promise<Buffer> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "gemini-tts-"));
-  const input = path.join(dir, "input.audio");
-  const output = path.join(dir, "output.wav");
-  try {
-    await fs.writeFile(input, audio);
-    await ffmpeg(["-i", input, "-vn", "-ac", "1", "-c:a", "pcm_s16le", "-f", "wav", output], signal);
-    return await fs.readFile(output);
-  } catch (error) {
-    throw invalidAudio(`无法把 ${mime || "音频"} 转换为 WAV`, error);
-  } finally {
-    await fs.rm(dir, { recursive: true, force: true });
-  }
-}
-
 export async function normalizeGeminiAudio(audio: Buffer, mime = "audio/L16", options: { sampleRateHertz?: number; channels?: number; bitsPerSample?: number; signal?: AbortSignal } = {}) {
   try {
     return normalizeAudio(audio, mime, options);
   } catch (error) {
     if (!(error instanceof GeminiTtsError) || error.code !== "invalid-audio" || !hasKnownContainer(audio, mime)) throw error;
-    const wav = await convertToWav(audio, mime, options.signal);
+    const wav = await transcodeToWav(audio, mime, { signal: options.signal, describe: (message, cause) => invalidAudio(message, cause) });
     return normalizeAudio(wav, "audio/wav", options);
   }
 }

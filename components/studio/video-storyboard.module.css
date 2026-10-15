@@ -1,0 +1,349 @@
+.panel {
+  background: color-mix(in srgb, var(--color-ink) 70%, var(--color-ink-raised));
+}
+
+.card {
+  position: relative;
+  isolation: isolate;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-surface);
+  background: color-mix(in srgb, var(--color-ink-overlay) 94%, var(--color-hold));
+  transition: border-color 170ms ease, background-color 170ms ease, transform 170ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .card:hover {
+    transform: translateY(-2px);
+    border-color: var(--color-line-strong);
+    background: color-mix(in srgb, var(--color-ink-overlay) 88%, var(--color-hold));
+  }
+}
+
+.card[data-open="true"] {
+  border-color: color-mix(in srgb, var(--color-accent) 45%, transparent);
+  background: color-mix(in srgb, var(--color-ink-overlay) 94%, var(--color-accent));
+}
+
+.card[data-open="true"]::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 24px;
+  right: 24px;
+  height: 2px;
+  background: var(--color-accent);
+  pointer-events: none;
+}
+
+.card button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -3px;
+}
+
+.media {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  margin: 5px 5px 0;
+  border-radius: calc(var(--radius-surface) - 3px);
+  background: var(--color-stage);
+}
+
+.mediaToggle {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  border-radius: inherit;
+}
+
+.mediaLabel {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  pointer-events: none;
+  border: 1px solid var(--color-hairline);
+  border-radius: 6px;
+  padding: 2px 6px;
+  background: color-mix(in srgb, var(--color-ink) 90%, transparent);
+  color: var(--color-text);
+  font-size: var(--text-2xs);
+  line-height: var(--text-2xs--line-height);
+}
+
+.summary {
+  display: block;
+  width: 100%;
+  padding: 12px 12px 8px;
+  text-align: left;
+  border-radius: var(--radius-control);
+}
+
+.chevron {
+  color: var(--color-text-muted);
+  transition: transform 180ms ease, color 180ms ease;
+}
+
+.card[data-open="true"] .chevron {
+  transform: rotate(180deg);
+  color: var(--color-accent);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 39px;
+  margin: 0 12px;
+  padding: 8px 0 11px;
+  border-top: 1px solid var(--color-hairline);
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.status[data-tone="working"] { color: var(--color-info); }
+.status[data-tone="success"] { color: color-mix(in srgb, var(--color-accent) 65%, var(--color-text-secondary)); }
+.status[data-tone="warning"] { color: var(--color-warn); }
+.status[data-tone="danger"] { color: var(--color-danger); }
+
+.dot {
+  width: 5px;
+  height: 5px;
+  flex: none;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.65;
+}
+
+.liveDot { animation: var(--animate-live-dot); animation-duration: 2.4s; }
+
+.videoActivity {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+
+.videoActivity > span {
+  width: 2px;
+  height: 9px;
+  border-radius: 2px;
+  background: currentColor;
+  animation: video-wave 1.6s ease-in-out infinite;
+}
+
+.videoActivity > span:nth-child(2) { animation-delay: -0.5s; }
+.videoActivity > span:nth-child(3) { animation-delay: -1s; }
+
+/* Clip a full-size rounded layer, not a 2px rectangle with an inherited 16px radius. */
+.activityClip {
+  position: absolute;
+  inset: 1px;
+  overflow: hidden;
+  border-radius: calc(var(--radius-surface) - 1px);
+  clip-path: inset(0 round calc(var(--radius-surface) - 1px));
+  contain: paint;
+  pointer-events: none;
+}
+
+.activityTrack {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--color-info) 5%, transparent);
+}
+
+.activityTrack::after {
+  content: "";
+  display: block;
+  width: 28%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, var(--color-info), transparent);
+  opacity: 0.65;
+  animation: activity-sweep 3s ease-in-out infinite;
+}
+
+.imageShimmer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.imageShimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 20%, color-mix(in srgb, var(--color-text) 8%, transparent), transparent 80%);
+  animation: var(--animate-shimmer);
+  animation-duration: 3.6s;
+  animation-timing-function: ease-in-out;
+}
+
+.completed { animation: result-settle 600ms ease-out; }
+.completed .status > svg { animation: var(--animate-check-in); }
+
+.previewVideo {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  object-fit: contain;
+  opacity: 0;
+}
+
+.previewVideo[data-ready="true"] {
+  opacity: 1;
+  animation: preview-reveal 300ms ease-out;
+}
+
+.previewImage {
+  object-fit: contain;
+  animation: preview-reveal 300ms ease-out;
+}
+
+.placeholder {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--color-stage);
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.playCenter {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.playCenter > span {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-ink) 80%, transparent);
+  color: var(--color-text);
+}
+
+.playButton {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-ink) 85%, transparent);
+  color: var(--color-text);
+  transition: background-color 160ms ease;
+}
+
+.playButton:hover { background: var(--color-ink-overlay); }
+
+.previewError {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--color-ink) 75%, transparent);
+  color: var(--color-danger);
+  font-size: 12px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.detail {
+  display: grid;
+  grid-template-rows: 1fr;
+  min-width: 0;
+  opacity: 1;
+  transition: grid-template-rows 220ms ease, opacity 180ms ease;
+}
+
+.detail[data-open="false"] {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  pointer-events: none;
+}
+
+@starting-style {
+  .detail { grid-template-rows: 0fr; opacity: 0; }
+}
+
+.detailInner { min-height: 0; overflow: hidden; }
+
+.detailSurface {
+  border: 1px solid var(--color-success-border);
+  border-radius: var(--radius-surface);
+  background: color-mix(in srgb, var(--color-ink-raised) 97%, var(--color-accent));
+}
+
+.card[data-motion-active="false"] *,
+.card[data-motion-active="false"] *::after,
+.card[data-motion-active="false"],
+.panel[data-page-active="false"] *,
+.panel[data-page-active="false"] *::after {
+  animation-play-state: paused !important;
+}
+
+@keyframes result-settle {
+  from { box-shadow: inset 0 0 0 1px var(--color-success-border); }
+  to { box-shadow: inset 0 0 0 1px transparent; }
+}
+
+@keyframes activity-sweep {
+  from { transform: translateX(-120%); }
+  to { transform: translateX(380%); }
+}
+
+@keyframes video-wave {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+
+@keyframes preview-reveal {
+  from { opacity: 0.4; }
+  to { opacity: 1; }
+}
+
+@media (pointer: coarse) {
+  .playButton { width: 44px; height: 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card, .card *, .card *::after, .detail, .detail *, .previewImage, .previewVideo[data-ready="true"] {
+    animation: none !important;
+    transition: none !important;
+  }
+  .card:hover { transform: none; }
+  .activityTrack::after { transform: translateX(130%); }
+  .videoActivity > span { transform: scaleY(0.6); }
+}

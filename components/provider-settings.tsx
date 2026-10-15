@@ -44,6 +44,9 @@ export function ProviderSettings() {
     finally { setBusy(null); }
   }
 
+  /** 能按需真实请求的服务商；Edge 无需 Key 所以永远可测 */
+  const testable = (model: ProviderProfile) => model.providerId === "google-gemini" || model.providerId === "edge";
+
   async function testConnection(model: ProviderProfile) {
     const key = `${model.providerId}/${model.modelId}`;
     setConnectionChecks((current) => ({ ...current, [key]: { state: "testing" } }));
@@ -51,7 +54,7 @@ export function ProviderSettings() {
       const response = await fetch("/api/providers/test", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ providerId: model.providerId, modelId: model.modelId, voiceId: "Kore" }),
+        body: JSON.stringify({ providerId: model.providerId, modelId: model.modelId, ...(model.providerId === "google-gemini" ? { voiceId: "Kore" } : {}) }),
       });
       const result = await response.json().catch(() => ({})) as { ok?: boolean; message?: string; latencyMs?: number };
       if (!response.ok || !result.ok) throw new Error(result.message || "连接测试失败");
@@ -115,7 +118,7 @@ export function ProviderSettings() {
                 <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="truncate text-sm font-medium">{model.modelLabel}</h3><span className="rounded border border-white/10 px-1.5 py-0.5 text-[10px] text-white/45">{labels[model.kind]}</span><span className={`text-xs ${available ? "text-accent" : "text-white/35"}`}>{available ? "可用" : !model.configured ? "待配置" : model.enabled ? "暂不可用" : "已停用"}</span></div><p className="mt-1 truncate font-mono text-[11px] text-white/35">{model.modelId}</p></div>
                 <div className="flex items-center gap-4 sm:justify-end">
                   {model.custom && model.interfaceType === "openai-compatible" && <Select aria-label={`${model.modelLabel} 用途`} className="w-28 text-xs" value={model.kind} disabled={busy === key} onChange={(value) => patch(model, { kind: value as "text" | "image" })}><option value="text">文本模型</option><option value="image">生图模型</option></Select>}
-                  {model.providerId === "google-gemini" && <div className="flex min-w-0 items-center gap-2">
+                  {testable(model) && <div className="flex min-w-0 items-center gap-2">
                     <button type="button" className="btn btn-ghost btn-sm whitespace-nowrap" disabled={check?.state === "testing"} onClick={() => testConnection(model)}>
                       {check?.state === "testing" ? <Spinner className="size-3.5" /> : check?.state === "success" ? <Icon name="check" className="size-3.5 text-accent" /> : <Icon name="play" className="size-3.5" />}
                       {check?.state === "testing" ? "测试中" : "测试连接"}

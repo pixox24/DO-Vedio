@@ -19,10 +19,10 @@ export const blockLimitsFor = (provider: string) => BLOCK_LIMITS[provider] ?? BL
 
 /**
  * 段落模式已开放的服务商 → 句子之间的连接方式。
- * CosyVoice / Qwen 有字级时间戳，句末标点本身就会停顿；Gemini 没有时间戳，按停顿切分。
+ * CosyVoice / Qwen / Edge 有字级时间戳，句末标点本身就会停顿；Gemini 没有时间戳，按停顿切分。
  * 探针结论：Gemini 用换行连接会把句间停顿拉长到约 1 秒、切分置信度更低，所以也直接拼接。
  */
-export const PARAGRAPH_JOINERS: Partial<Record<VoiceSettings["provider"], string>> = { dashscope: "", "google-gemini": "" };
+export const PARAGRAPH_JOINERS: Partial<Record<VoiceSettings["provider"], string>> = { dashscope: "", "google-gemini": "", edge: "" };
 
 export const paragraphSupported = (voice: Pick<VoiceSettings, "provider">) => PARAGRAPH_JOINERS[voice.provider] !== undefined;
 

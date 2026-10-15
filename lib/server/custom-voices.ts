@@ -53,7 +53,8 @@ export function listCustomVoices(): CustomVoice[] {
 }
 
 export function addCustomVoice(input: { provider: string; model: string; voiceId: string; name?: string }): CustomVoice {
-  if (input.provider !== "dashscope") throw new VoiceBookError("只能为阿里云百炼的语音模型添加音色");
+  // 只有百炼能按参数名手工登记音色：Edge 的 322 个音色用 EDGE_TTS_VOICES 环境变量配置
+  if (input.provider !== "dashscope") throw new VoiceBookError("音色册只支持阿里云百炼的语音模型；Edge 音色请用 EDGE_TTS_VOICES 环境变量配置");
   const voiceId = input.voiceId.trim();
   const name = (input.name ?? "").trim();
   const paramError = voiceParamError(voiceId);

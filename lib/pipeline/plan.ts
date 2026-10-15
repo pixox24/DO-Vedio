@@ -14,7 +14,7 @@ import { getProject, mutateProject } from "../server/projects";
 import { lineTtsKeys, loadArtifacts, timelineFor } from "./artifacts";
 import { pickTextModelId } from "../core/text-model";
 import { subtitleTranslateKey, subtitleTranslateUnits } from "../core/subtitle/translate-plan";
-import { listTextModels } from "../providers/registry";
+import { listProviderProfiles, listTextModels } from "../providers/registry";
 import { estimateLlmCost } from "./pricing";
 import { estimateSubtitleTranslateCost } from "./subtitle-translate";
 import { ttsJobKeyOf, ttsSteps } from "./tts-jobs";
@@ -23,7 +23,9 @@ import { staleRanges } from "./stages/storyboard";
 import { autoPortraitPlan, autoScenePlan, isAutoPortraitInput } from "./auto-portrait";
 import { castSourceHash } from "../core/cast";
 import { sourceImageStale, videoGenerationSnapshot } from "../core/video";
-import { referenceJobKey, standardReferencesPending, videoAttempt, videoFrame, videoPrerequisite, videoRenderProblems, videoModelAvailable, videoAssetFraming } from "./video-generation";
+import { videoPlanNeedsSync } from "../core/video-plan";
+import { videoPlanSyncStep } from "./video-plan-sync";
+import { referenceJobKey, standardReferencesPending, videoAttempt, videoFrame, videoPrerequisite, videoRenderProblems, videoModelAvailable, videoAssetFraming, adoptReadyVideoCandidates, usableVideoCandidate } from "./video-generation";
 import { resolveImageModel } from "./image-models";
 import { voiceDirectionKey, type VoiceDirectionCache } from "./voice-direction";
 
@@ -214,6 +216,17 @@ export function planPipeline(projectId: string, doc: ProjectDoc, goal: Goal): Pl
       const imageModel = doc.settings.video.referenceImageModelId && resolveImageModel(doc.settings.video.referenceImageModelId);
       const activeReferences = all<{ shotId: string; key: string }>("SELECT json_extract(input, '$.shotId') AS shotId, key FROM jobs WHERE project_id = ? AND stage = 'shot-reference' AND status IN ('queued','running')", projectId);
       for (const shot of doc.shots) {
+        if (videoPlanNeedsSync(shot)) {
+          if (shot.locked) waiting.push(`镜头 ${shot.id} 已锁定，请解锁后同步镜头要求`);
+          else if (!modelId) waiting.push("没有可用文本模型，无法同步中文镜头要求");
+          else {
+            const sync = videoPlanSyncStep(projectId, doc, shot, modelId);
+            steps.push(sync);
+            mediaKeys.push(sync.key);
+            waiting.push(`镜头 ${shot.id} 等待中文镜头要求同步`);
+          }
+          continue;
+        }
         const activeReference = activeReferences.find((job) => job.shotId === shot.id);
         const refKey = referenceJobKey(doc, shot, referenceFrame);
         mediaKeys.push(refKey);
@@ -243,7 +256,7 @@ export function planPipeline(projectId: string, doc: ProjectDoc, goal: Goal): Pl
           const prerequisite = videoPrerequisite(doc, shot, timeline);
           if (prerequisite) { waiting.push(`镜头 ${shot.id} ${prerequisite}`); continue; }
           if (!videoRenderProblems({ ...doc, shots: [shot] }, timeline, frame).length) continue;
-          if (shot.candidates.some((candidate) => candidate.kind === "video" && candidate.promptHash === snapshot.hash)) { waiting.push(`镜头 ${shot.id} 已有新视频候选，请选择后继续`); continue; }
+          if (usableVideoCandidate(doc, shot, timeline, frame)) { waiting.push(`镜头 ${shot.id} 已有可用视频，继续制作会自动采用`); continue; }
           if (shot.locked) { waiting.push(`镜头 ${shot.id} 已锁定且视频缺失或过期`); continue; }
           if (!videoModelAvailable(doc.settings.video.modelId)) { waiting.push("视频模型不可用，请在模型中心检查配置"); continue; }
           const attempt = videoAttempt(projectId, shot.id, snapshot.hash);
@@ -331,8 +344,8 @@ function planForGoal(plan: Plan, goalId?: string): Plan {
   if (!goalId) return plan;
   return {
     ...plan,
-    steps: plan.steps.map((step) => ({ ...step, key: isAutoPortraitInput(step.input) || ["shot-reference", "shot-generate"].includes(step.stage) ? step.key : goalJobKey(step.key, goalId) })),
-    currentKeys: plan.currentKeys.map((key) => key.startsWith("auto-portrait:") || key.startsWith("auto-scene:") || key.startsWith("shot-reference:") || key.startsWith("shot:") ? key : goalJobKey(key, goalId)),
+    steps: plan.steps.map((step) => ({ ...step, key: isAutoPortraitInput(step.input) || ["shot-reference", "shot-generate"].includes(step.stage) || step.key.startsWith("video-plan:") ? step.key : goalJobKey(step.key, goalId) })),
+    currentKeys: plan.currentKeys.map((key) => key.startsWith("auto-portrait:") || key.startsWith("auto-scene:") || key.startsWith("shot-reference:") || key.startsWith("shot:") || key.startsWith("video-plan:") ? key : goalJobKey(key, goalId)),
   };
 }
 
@@ -346,7 +359,21 @@ export function produce(projectId: string, goal: Goal, opts: { dryRun?: boolean;
   // 文案和句子保持同步
   const synced = syncLines(p.doc);
   if (synced !== p.doc && !opts.dryRun) p = mutateProject(projectId, (d) => syncLines(d))!;
-  const doc = opts.dryRun ? synced : p.doc;
+  let doc = opts.dryRun ? synced : p.doc;
+  if (doc.settings.visualPipeline === "video" && !doc.settings.video.referenceImageModelId) {
+    const model = listProviderProfiles().find((profile) => profile.kind === "image" && profile.adapterStatus === "ready" && profile.configured && profile.enabled);
+    if (model) {
+      const referenceImageModelId = `${model.providerId}::${model.modelId}`;
+      const withModel = (current: ProjectDoc) => ({ ...current, settings: { ...current.settings, video: { ...current.settings.video, referenceImageModelId } } });
+      doc = opts.dryRun ? withModel(doc) : mutateProject(projectId, (current) => current.settings.video.referenceImageModelId ? null : withModel(current))!.doc;
+    }
+  }
+  if (!opts.dryRun && doc.settings.visualPipeline === "video") {
+    doc = mutateProject(projectId, (current) => {
+      const adopted = adoptReadyVideoCandidates(projectId, current, goal.aspects);
+      return adopted === current ? null : adopted;
+    })!.doc;
+  }
   const plan = planForGoal(planPipeline(projectId, doc, goal), opts.goalId);
   const spent = projectSpend(projectId).costYuan;
   if (opts.dryRun) return { plan, enqueued: [], spentYuan: spent };
@@ -362,7 +389,7 @@ export function produce(projectId: string, goal: Goal, opts: { dryRun?: boolean;
     const input = opts.goalId && typeof s.input === "object" && s.input !== null
       ? { ...(s.input as Record<string, unknown>), goalId: opts.goalId }
       : s.input;
-    enqueued.push(enqueue({ projectId, stage: s.stage, maxAttempts: ["shot-reference", "shot-generate"].includes(s.stage) ? 1 : undefined, key: s.key, target: s.target, input, priority: s.priority, costEstimate: s.cost }));
+    enqueued.push(enqueue({ projectId, stage: s.stage, maxAttempts: ["shot-reference", "shot-generate"].includes(s.stage) || s.key.startsWith("video-plan:") ? 1 : undefined, key: s.key, target: s.target, input, priority: s.priority, costEstimate: s.cost }));
   }
   return { plan, enqueued, spentYuan: spent };
 }
@@ -400,7 +427,7 @@ export function drive(projectId: string, goal: Goal, confirmBudget = false) {
   const { forceRender, ...stored } = goal;
   // 开工已经在跑时，生成成片只把目标改成渲染，沿用原来的目标编号，避免整条流水线再提交一遍。
   const existing = getGoal(projectId);
-  const carried = existing?.goal.goalId && existing.goal.until === "compose" && stored.until === "render" ? existing.goal.goalId : undefined;
+  const carried = existing?.goal.goalId && (existing.goal.until === stored.until || (existing.goal.until === "compose" && stored.until === "render")) ? existing.goal.goalId : undefined;
   const persisted = setGoal(projectId, carried ? { ...stored, goalId: carried } : stored, confirmBudget)!;
   const r = produce(projectId, forceRender ? { ...persisted, forceRender: true } : persisted, { confirmBudget, retryFailed: true, goalId: persisted.goalId });
   settle(projectId, r);
@@ -417,7 +444,7 @@ function settle(projectId: string, r: ProduceResult) {
   const active = goalId
     ? get<{ n: number }>("SELECT COUNT(*) AS n FROM jobs WHERE project_id = ? AND status IN ('queued', 'running') AND json_extract(input, '$.goalId') = ?", projectId, goalId)?.n ?? 0
     : get<{ n: number }>("SELECT COUNT(*) AS n FROM jobs WHERE project_id = ? AND status IN ('queued', 'running')", projectId)?.n ?? 0;
-  const activeMedia = all<{ key: string }>("SELECT key FROM jobs WHERE project_id = ? AND stage IN ('shot-reference','shot-generate') AND status IN ('queued','running')", projectId).some((job) => r.plan.currentKeys.includes(job.key));
+  const activeMedia = all<{ key: string }>("SELECT key FROM jobs WHERE project_id = ? AND stage IN ('shot-reference','shot-generate','storyboard') AND status IN ('queued','running')", projectId).some((job) => r.plan.currentKeys.includes(job.key));
   if (active > 0 || activeMedia) return;
   if (r.plan.steps.length === 0) return r.plan.waiting.length ? block(projectId, r.plan.waiting[0]) : setGoal(projectId, null);
   // 自动立绘失败过就不再自动重提。只剩这类任务时直接收掉目标：一张立绘不该把已经做完的流水线停在「无法继续」。

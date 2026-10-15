@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { outputSpecForRequest, outputSpecsFor, type GenerationFrame } from "../core/output-spec";
-import { playbackAssetId } from "../core/shot-asset";
-import type { ProjectDoc, Shot } from "../core/types";
+import { playbackAssetId, selectShotCandidate } from "../core/shot-asset";
+import type { Aspect, ProjectDoc, Shot } from "../core/types";
 import { sourceImageConfirmed, sourceImageSnapshot, sourceImageStale, videoGenerationSnapshot, videoShotTiming, videoPlayback } from "../core/video";
 import type { Timeline } from "../core/timeline";
 import { findMediaRecoveryRun, findOriginalMediaAttempt } from "../providers/runs";
@@ -12,6 +12,7 @@ import { getAsset } from "../server/media";
 import { timelineFor } from "./artifacts";
 import { resolveImageModel } from "./image-models";
 import { PermanentError } from "./stage";
+import { videoPlanNeedsSync } from "../core/video-plan";
 
 export function videoFrame(doc: ProjectDoc, frame?: GenerationFrame): GenerationFrame {
   return frame ?? outputSpecsFor(doc.settings)[0];
@@ -35,6 +36,7 @@ export function standardReferencesPending(projectId: string, shot: Shot): boolea
 export function videoPrerequisite(doc: ProjectDoc, shot: Shot, timeline: Timeline): string | undefined {
   if (doc.settings.visualPipeline !== "video") return "请先切换到 AI 视频驱动";
   if (shot.kind !== "video" || !shot.videoPlan) return shot.locked ? "锁定镜头还不是视频分镜，请解锁并重新导演" : "请先重新导演生成视频分镜";
+  if (videoPlanNeedsSync(shot)) return "等待中文镜头要求同步到执行计划";
   const timing = videoShotTiming(doc, shot, timeline);
   if (!timing.ready) return timing.reason === "duration-out-of-range" ? "镜头超过 15 秒或时长无效，请重新导演" : "等待真实配音完成";
   if (!shot.sourceImageAssetId || sourceImageStale(doc, shot, videoFrame(doc))) return "等待镜头参考图";
@@ -47,6 +49,7 @@ export function videoRenderProblems(doc: ProjectDoc, timeline: Timeline, frame: 
   if (!doc.shots.length) return ["等待视频分镜"];
   return doc.shots.flatMap((shot) => {
     if (shot.kind !== "video" || !shot.videoPlan) return [`镜头 ${shot.id} 需要重新导演为视频`];
+    if (videoPlanNeedsSync(shot)) return [`镜头 ${shot.id} 等待中文镜头要求同步`];
     const variant = shot.assetVariants[frame.aspect];
     const origin = variant?.source === "shared" && variant.sourceAspect ? videoFrame(doc, outputSpecForRequest(doc.settings, undefined, variant.sourceAspect)) : frame;
     const snapshot = videoGenerationSnapshot(doc, shot, timeline, origin);
@@ -57,6 +60,37 @@ export function videoRenderProblems(doc: ProjectDoc, timeline: Timeline, frame: 
     if (!snapshot.timing.ready || !asset || asset.kind !== "video" || !videoPlayback(snapshot.timing.targetDurationMs, { durationMs: asset.durationMs ?? 0 }).videoDurationReady) return [`镜头 ${shot.id} 视频时长不足或尚未探测`];
     return [];
   });
+}
+
+export function usableVideoCandidate(doc: ProjectDoc, shot: Shot, timeline: Timeline, frame: GenerationFrame) {
+  const snapshot = videoGenerationSnapshot(doc, shot, timeline, frame);
+  return shot.candidates.find((candidate) => {
+    if (candidate.kind !== "video" || candidate.promptHash !== snapshot.hash || candidate.generationPromptHash !== snapshot.hash || (videoAssetFraming(doc) === "per-output" && candidate.frame?.aspect !== frame.aspect)) return false;
+    const asset = getAsset(candidate.assetId);
+    return asset?.kind === "video" && videoPlayback(snapshot.timing.targetDurationMs, { durationMs: asset.durationMs ?? 0 }).videoDurationReady;
+  });
+}
+
+/** Resume can adopt an already downloaded current result without another provider request. */
+export function adoptReadyVideoCandidates(projectId: string, doc: ProjectDoc, aspects: readonly Aspect[]): ProjectDoc {
+  if (doc.settings.visualPipeline !== "video") return doc;
+  const framing = videoAssetFraming(doc);
+  const frames = framing === "shared" ? [videoFrame(doc)] : aspects.map((aspect) => outputSpecForRequest(doc.settings, undefined, aspect));
+  let changed = false;
+  const shots = doc.shots.map((shot) => {
+    if (shot.locked) return shot;
+    let current = shot;
+    for (const frame of frames) {
+      const timeline = timelineFor(doc, projectId, frame.aspect);
+      if (videoPrerequisite(doc, current, timeline) || !videoRenderProblems({ ...doc, shots: [current] }, timeline, frame).length) continue;
+      const candidate = usableVideoCandidate(doc, current, timeline, frame);
+      if (!candidate) continue;
+      const next = selectShotCandidate(current, candidate.id, { aspect: frame.aspect, framing, aspects: outputSpecsFor(doc.settings).map((spec) => spec.aspect) });
+      if (next) { current = next; changed = true; }
+    }
+    return current;
+  });
+  return changed ? { ...doc, shots } : doc;
 }
 
 type AttemptInput = { attemptId?: string; requestHash?: string; candidateCount?: number };
@@ -94,6 +128,7 @@ export function enqueueShotReference(projectId: string, doc: ProjectDoc, shot: S
   if (doc.settings.visualPipeline !== "video" || shot.kind !== "video" || !shot.videoPlan) throw new PermanentError("请先重新导演生成视频分镜");
   if (shot.locked) throw new PermanentError("镜头已锁定，请先解锁");
   const modelId = resolveImageModel(requestedModelId || doc.settings.video.referenceImageModelId || undefined);
+  if (videoPlanNeedsSync(shot)) throw new PermanentError("等待中文镜头要求同步到执行计划");
   if (!modelId) throw new PermanentError("没有可用的参考图模型，请在模型中心配置并启用");
   const active = projectJobs(projectId).find((job) => job.stage === "shot-reference" && ["queued", "running"].includes(job.status) && (job.input as { shotId?: string } | null)?.shotId === shot.id);
   if (active) return active;

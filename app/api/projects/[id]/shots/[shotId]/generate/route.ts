@@ -6,23 +6,25 @@ import { z } from "zod";
 import { fail, handle, parseBody } from "@/lib/api";
 import { shotGenerationKey } from "@/lib/core/keys";
 import { getProject, mutateProject } from "@/lib/server/projects";
-import { enqueue, latestJobByKey } from "@/lib/server/jobs";
+import { enqueue, latestJobByKey, projectJobs } from "@/lib/server/jobs";
 import { listProviderProfiles } from "@/lib/providers/registry";
 import { ensureProjectVisualStyle } from "@/lib/visual-styles/store";
 import { outputSpecForRequest, outputSpecsFor, previewSpecFor, type GenerationFrame } from "@/lib/core/output-spec";
 import { selectShotCandidate } from "@/lib/core/shot-asset";
 import type { Aspect, OutputSpecId } from "@/lib/core/types";
 import { enqueueAutoPortraits, enqueueAutoScenes } from "@/lib/pipeline/auto-portrait";
+import { sourceImageSnapshot, sourceImageStale } from "@/lib/core/video";
+import { videoPlanNeedsSync } from "@/lib/core/video-plan";
 
-const body = z.object({ kind: z.enum(["image", "video"]).optional(), operation: z.enum(["generate", "resume", "regenerate"]).default("generate"), resumeAttemptId: z.string().min(1).optional(), modelId: z.string().optional(), candidateCount: z.number().int().min(1).max(4).optional(), outputSpecId: z.enum(["landscape-1080p", "portrait-1080p"]).optional(), aspect: z.enum(["16:9", "9:16"]).optional(), assetFraming: z.enum(["smart-dual", "per-output", "shared"]).optional() });
+const body = z.object({ kind: z.enum(["image", "video"]).optional(), operation: z.enum(["generate", "resume", "regenerate"]).default("generate"), resumeAttemptId: z.string().min(1).optional(), confirmHash: z.string().min(1).optional(), modelId: z.string().optional(), candidateCount: z.number().int().min(1).max(4).optional(), outputSpecId: z.enum(["landscape-1080p", "portrait-1080p"]).optional(), aspect: z.enum(["16:9", "9:16"]).optional(), assetFraming: z.enum(["smart-dual", "per-output", "shared"]).optional() });
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string; shotId: string }> }) {
   return handle(async () => {
     const { id, shotId } = await ctx.params;
     // 确认点：没选风格时先写入推荐风格，缓存键和生成都以它为准
-    const project = (await ensureProjectVisualStyle(id)) ?? getProject(id);
+    let project = (await ensureProjectVisualStyle(id)) ?? getProject(id);
     if (!project) return fail("项目不存在", 404);
-    const shot = project.doc.shots.find((s) => s.id === shotId);
+    let shot = project.doc.shots.find((s) => s.id === shotId);
     if (!shot) return fail("镜头不存在", 404);
     if (shot.locked) return fail("镜头已锁定，请先解锁", 409);
     const input = await parseBody(req, body);
@@ -30,6 +32,21 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; sh
     if (kind === "video") {
       try {
         if (input.modelId && input.modelId !== project.doc.settings.video.modelId) return fail("请先保存视频模型设置再生成", 409);
+        // Confirm only the reviewed frame; do not wake the whole production goal.
+        if (input.confirmHash) {
+          let matched = false;
+          const confirmed = mutateProject(id, (doc) => {
+            const current = doc.shots.find((item) => item.id === shotId);
+            const frame = videoFrame(doc);
+            const activeReference = projectJobs(id).some((job) => job.stage === "shot-reference" && ["queued", "running"].includes(job.status) && (job.input as { shotId?: string } | null)?.shotId === shotId);
+            if (doc.settings.visualPipeline !== "video" || !current || current.kind !== "video" || !current.videoPlan || current.locked || videoPlanNeedsSync(current) || !current.sourceImageAssetId || activeReference || sourceImageStale(doc, current, frame) || sourceImageSnapshot(doc, current, frame).hash !== input.confirmHash) return null;
+            matched = true;
+            return current.sourceImageConfirmedHash === input.confirmHash ? null : { ...doc, shots: doc.shots.map((item) => item.id === shotId ? { ...item, sourceImageConfirmedHash: input.confirmHash } : item) };
+          });
+          if (!confirmed || !matched) return fail("参考图已变化、正在重做或镜头尚不可确认，请刷新后重试", 409);
+          project = confirmed;
+          shot = confirmed.doc.shots.find((item) => item.id === shotId)!;
+        }
         const frame = input.outputSpecId || input.aspect ? outputSpecForRequest(project.doc.settings, input.outputSpecId, input.aspect) : videoFrame(project.doc);
         return Response.json(enqueueVideoShot({ projectId: id, doc: project.doc, shot, frame, candidateCount: input.candidateCount, operation: input.operation, resumeAttemptId: input.resumeAttemptId }));
       } catch (error) { if (error instanceof PermanentError) return fail(error.message, 409); throw error; }

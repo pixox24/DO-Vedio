@@ -246,7 +246,11 @@ async function runVideoShot(input: ShotGenerateInput, ctx: import("../stage").St
       const currentAssetId = current.kind === "video" ? current.assetVariants[frame.aspect]?.assetId ?? (frame.aspect === videoFrame(doc).aspect ? current.assetId : undefined) : undefined;
       const history = current.candidates.map((candidate) => candidate.assetId === current.assetId && !candidate.promptHash ? { ...candidate, kind: current.kind === "video" ? "video" as const : "image" as const, promptHash: current.assetPromptHash } : candidate);
       const candidates = mergeCandidateHistory(history, fresh, currentAssetId).map((candidate) => ({ ...candidate, selected: !!candidate.selected }));
-      const selected = candidates.find((candidate) => candidate.selected);
+      const currentOutputHash = current.assetVariants[frame.aspect]?.promptHash ?? (frame.aspect === videoFrame(doc).aspect ? current.assetPromptHash : undefined);
+      // 更新过期输出时直接采用新视频；相同输入下的有效选择继续保留，旧结果仍可从历史找回。
+      const selected = !currentAssetId || currentOutputHash !== snapshot.hash
+        ? candidates.find((candidate) => candidate.id === fresh[0]?.id)
+        : candidates.find((candidate) => candidate.selected);
       let next: Shot = { ...current, candidates, candidateGroupId };
       if (selected && fresh.some((candidate) => candidate.id === selected.id)) {
         next = selectShotCandidate(next, selected.id, { aspect: frame.aspect, framing: videoAssetFraming(doc), aspects: outputSpecsFor(doc.settings).map((spec) => spec.aspect) }) ?? next;

@@ -3,6 +3,7 @@ import { createHash } from "crypto";
 import { promises as fs } from "fs";
 import { pathToFileURL } from "url";
 import { createDashscopeTts } from "../lib/providers/tts/dashscope";
+import { createEdgeTts } from "../lib/providers/tts/edge";
 import { GEMINI_TTS_FLASH_LITE_MODEL, GEMINI_TTS_FLASH_MODEL, GeminiTtsError, createGeminiTts, geminiApiKey } from "../lib/providers/tts/gemini";
 import type { SynthWord, TtsErrorCode, TtsUsage } from "../lib/providers/tts/types";
 
@@ -13,7 +14,7 @@ const SAMPLE_RATE = 24_000;
 
 type ProbeModel = {
   id: string;
-  family: "cosyvoice" | "qwen-audio" | "qwen-tts" | "gemini";
+  family: "cosyvoice" | "qwen-audio" | "qwen-tts" | "gemini" | "edge";
   voiceEnv: string;
   defaultVoice: string;
 };
@@ -26,9 +27,10 @@ const MODELS: ProbeModel[] = [
   { id: "qwen3-tts-instruct-flash", family: "qwen-tts", voiceEnv: "TTS_PROBE_QWEN_TTS_VOICE", defaultVoice: "Cherry" },
   { id: GEMINI_TTS_FLASH_MODEL, family: "gemini", voiceEnv: "TTS_PROBE_GEMINI_VOICE", defaultVoice: "Kore" },
   { id: GEMINI_TTS_FLASH_LITE_MODEL, family: "gemini", voiceEnv: "TTS_PROBE_GEMINI_VOICE", defaultVoice: "Kore" },
+  { id: "edge-tts", family: "edge", voiceEnv: "TTS_PROBE_EDGE_VOICE", defaultVoice: "zh-CN-XiaoxiaoNeural" },
 ];
 
-type ProbeVariant = "base" | "numbers" | "mixed" | "proper-nouns" | "punctuation" | "instruct" | "style-serious" | "style-suspense" | "style-warm" | "style-excited" | "emotion" | "ssml" | "long" | "tail" | "continuity";
+type ProbeVariant = "base" | "numbers" | "mixed" | "proper-nouns" | "punctuation" | "instruct" | "style-serious" | "style-suspense" | "style-warm" | "style-excited" | "emotion" | "ssml" | "long" | "tail" | "continuity" | "edge-rate-fast" | "edge-rate-slow" | "edge-pitch-up" | "edge-volume-low";
 
 export type HumanRating = {
   textCompleteness: 1 | 2 | 3 | 4 | 5;
@@ -105,7 +107,18 @@ function configuredModels() {
 }
 
 function transportFor(model: ProbeModel): ProbeResult["transport"] {
-  return model.family === "cosyvoice" && !env("DASHSCOPE_TTS_HTTP_URL") ? "websocket" : model.family === "gemini" ? "http-json" : "http-sse";
+  return model.family === "gemini" ? "http-json" : model.family === "cosyvoice" && !env("DASHSCOPE_TTS_HTTP_URL") ? "websocket" : model.family === "edge" ? "websocket" : "http-sse";
+}
+
+/** Edge 专属变体：验证倍率换算与「不接受 SSML / 表达指令」这两件事 */
+const EDGE_ONLY_VARIANTS: ProbeVariant[] = ["edge-rate-fast", "edge-rate-slow", "edge-pitch-up", "edge-volume-low"];
+
+function edgeParamsFor(variant: ProbeVariant) {
+  if (variant === "edge-rate-fast") return { rate: 1.5 };
+  if (variant === "edge-rate-slow") return { rate: 0.7 };
+  if (variant === "edge-pitch-up") return { pitch: 1.3 };
+  if (variant === "edge-volume-low") return { volume: 20 };
+  return {};
 }
 
 function parseArgs(argv: string[], models = configuredModels()): CliOptions {
@@ -365,6 +378,40 @@ async function runOne(model: ProbeModel, text: string, variant: ProbeVariant, ou
   const result: ProbeResult = { text: probeText, model: model.id, family: model.family, variant, voice, stylePrompt: stylePromptFor(variant), transport: transportFor(model), status: "failed", elapsedMs: 0, retryCount: 0, requestChars: visibleChars(probeText) };
   const fetchStats = { calls: 0, lastStatus: undefined as number | undefined };
   try {
+    if (model.family === "edge") {
+      // Edge 变体直接走适配器：合成结果与生产路径完全一致
+      const provider = createEdgeTts({ timeoutMs: 60_000 });
+      const params = edgeParamsFor(variant);
+      if (variant === "ssml" || variant === "instruct") {
+        // 这两个变体就是在探测「上游是否接受」——预期失败，失败才是正确结论
+        try {
+          await provider.synthesize({ text: probeText, model: model.id, voice, textType: variant === "ssml" ? "SSML" : undefined });
+          result.status = "succeeded";
+          result.error = "上游接受了 SSML / 表达指令，适配器里的拒绝判断需要放宽";
+        } catch (error) {
+          result.status = "succeeded";
+          result.error = `上游按预期拒绝：${error instanceof Error ? error.message : String(error)}`;
+        }
+        return result;
+      }
+      const audio = await provider.synthesize({ text: probeText, model: model.id, voice, ...params });
+      const file = `${slug(model.id)}-${variant}.wav`;
+      await fs.writeFile(`${outputDir}/${file}`, audio.audio);
+      result.status = "succeeded";
+      result.audioPath = file;
+      result.audioBytes = audio.audio.length;
+      result.durationMs = audio.durationMs;
+      result.timestampWords = audio.words.length;
+      result.timestampCoverage = result.requestChars ? Number((audio.words.length / result.requestChars).toFixed(3)) : 0;
+      result.billedChars = audio.billedChars;
+      result.mime = audio.mime;
+      result.usage = audio.usage;
+      result.sampleRate = audio.sampleRate;
+      result.channels = audio.channels;
+      result.alignmentSource = audio.alignmentSource;
+      result.audioSha256 = createHash("sha256").update(audio.audio).digest("hex");
+      return result;
+    }
     if (model.family === "gemini") {
       if (!geminiApiKey()) {
         result.status = "skipped";
@@ -530,7 +577,12 @@ export async function main(argv = process.argv.slice(2)) {
   const variants: ProbeVariant[] = ["base", ...(options.variants ? ["instruct", "emotion", "ssml"] as ProbeVariant[] : []), ...(options.extended ? ["numbers", "mixed", "proper-nouns", "punctuation", "style-serious", "style-suspense", "style-warm", "style-excited", "long", "tail", "continuity"] as ProbeVariant[] : [])];
   const results: ProbeResult[] = [];
   for (const model of selected) {
-    for (const variant of variants) {
+    // Edge 专属变体只在探 Edge 时跑；Edge 自己的 instruct/ssml 走独立分支
+    // （上游不接受这类请求，探针的作用是把「拒绝」这个结论记下来）
+    const modelVariants: ProbeVariant[] = model.family === "edge"
+      ? ["base", ...(options.variants ? ["instruct", "ssml"] as ProbeVariant[] : []), ...(options.extended ? EDGE_ONLY_VARIANTS : [])]
+      : variants.filter((variant) => !EDGE_ONLY_VARIANTS.includes(variant));
+    for (const variant of modelVariants) {
       if (model.family === "gemini" && stylePromptFor(variant)) {
         const skipped: ProbeResult = { text: variantText(model, options.text, variant), model: model.id, family: model.family, variant, voice: env(model.voiceEnv) || model.defaultVoice, stylePrompt: stylePromptFor(variant), transport: transportFor(model), status: "skipped", elapsedMs: 0, retryCount: 0, requestChars: visibleChars(options.text), error: "Gemini 表达指令曾被朗读，暂不测试风格" };
         results.push(skipped);

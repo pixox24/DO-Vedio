@@ -32,7 +32,8 @@ export function listProviderProfiles(): ProviderProfile[] {
   const builtins = builtinModels.map((raw) => {
     const model = effectiveBuiltinModel(raw);
     const row = overrides.get(`${model.providerId}/${model.modelId}`) ?? overrides.get(`${raw.providerId}/${raw.modelId}`);
-    const authConfigured = model.providerId === "google-gemini" ? !!geminiApiKey() : !!env(model.authEnv);
+    // Edge 朗读免费且无需 Key（鉴权靠请求头里的令牌），配了 Key 的服务商才要求 env
+    const authConfigured = model.providerId === "google-gemini" ? !!geminiApiKey() : model.providerId === "edge" ? true : !!env(model.authEnv);
     const override = row && {
       enabled: !!row.enabled,
       price: parse(row.price, {}),

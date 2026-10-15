@@ -39,6 +39,13 @@ async function fixture(count: number, pipeline: "image" | "video" = "video") {
 }
 
 const payloadOf = (prompt: { prompt: string }) => JSON.parse(prompt.prompt) as StoryboardPayload;
+
+it("rejects Chinese execution fields instead of marking them synchronized", async () => {
+  const { videoDraftSchema } = await import("@/lib/pipeline/stages/storyboard");
+  const draft = output({ lines: [{ id: "line" }] } as StoryboardPayload);
+  draft.shots[0].videoPlan.startState = "女人在窗边，中景构图";
+  expect(videoDraftSchema.safeParse(draft).success).toBe(false);
+});
 function output(payload: StoryboardPayload) {
   return { shots: payload.lines.map((line) => ({
     lineId: line.id, char: 0, intent: "转身", kind: "placeholder", mode: "generate", shotSize: "medium",
@@ -138,6 +145,20 @@ it("rejects adoption if the pipeline changes while video chunks are being genera
   });
   await storyboardStage.run({ projectId: project.id, modelId: "deepseek", mode: "stale" }, context());
   expect(getProject(project.id)!.doc.shots).toEqual(project.doc.shots);
+});
+
+it("an old director response cannot replace a Chinese shot edit made during generation", async () => {
+  const project = await fixture(1);
+  const { storyboardStage } = await import("@/lib/pipeline/stages/storyboard");
+  const { mutateProject, getProject } = await import("@/lib/server/projects");
+  llm.generateJson.mockImplementationOnce(async (_model, _schema, prompt) => {
+    mutateProject(project.id, (doc) => ({ ...doc, shots: doc.shots.map((shot) => ({ ...shot, description: "用户刚修改的全景构图" })) }));
+    return output(payloadOf(prompt));
+  });
+  await storyboardStage.run({ projectId: project.id, modelId: "deepseek", mode: "stale" }, context());
+  const shot = getProject(project.id)!.doc.shots[0];
+  expect(shot.id).toBe("old-0");
+  expect(shot.description).toBe("用户刚修改的全景构图");
 });
 
 it("resumes a divided range directly after one half succeeds and the other half is interrupted", async () => {

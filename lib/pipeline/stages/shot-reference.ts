@@ -1,5 +1,6 @@
 import { compileVideoReferencePrompt } from "../../core/video-prompt-compiler";
 import { sourceImageSnapshot } from "../../core/video";
+import { videoPlanNeedsSync } from "../../core/video-plan";
 import type { GenerationFrame } from "../../core/output-spec";
 import { getProject, mutateProject } from "../../server/projects";
 import { beginGenerationRun, failGenerationRun, finishGenerationRun } from "../../providers/runs";
@@ -17,6 +18,7 @@ export const shotReferenceStage = defineStage<ShotReferenceInput, { shotId: stri
     if (!project || !shot || project.doc.settings.visualPipeline !== "video" || !shot.videoPlan) throw new PermanentError("视频镜头不存在，请重新导演");
     if (resolveImageModel(project.doc.settings.video.referenceImageModelId || undefined) !== input.modelId) throw new PermanentError("参考图模型已变化，请重新生成");
     if (shot.locked) throw new PermanentError("镜头已锁定");
+    if (videoPlanNeedsSync(shot)) throw new PermanentError("等待中文镜头要求同步到执行计划");
     const frame = videoFrame(project.doc, input.frame);
     const snapshot = sourceImageSnapshot(project.doc, shot, frame);
     const compiled = compileVideoReferencePrompt(project.doc, shot);
@@ -25,7 +27,7 @@ export const shotReferenceStage = defineStage<ShotReferenceInput, { shotId: stri
     try {
       const { assets } = await generateMediaAssets({ kind: "image", modelId: input.modelId, prompt, frame, references: snapshot.referenceAssetIds, seed: shot.seed, meta: { projectId: input.projectId, shotId: shot.id, stage: "shot-reference" } }, ctx.signal);
       const assetId = assets[0];
-      if (!assetId) throw new PermanentError("参考图生成没有返回图片，请重试或选择已有图片");
+      if (!assetId) throw new PermanentError("参考图生成没有返回图片，请重试生成");
       finishGenerationRun(generation.id, { status: "succeeded", latencyMs: Date.now() - generation.startedAt, outputAssets: assets });
       mutateProject(input.projectId, (doc) => {
         const current = doc.shots.find((item) => item.id === shot.id);

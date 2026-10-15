@@ -430,6 +430,7 @@ export function VoicePanel({ id, store, draft, setDraft, onChanged, change, setC
             </Field>
             {currentModel?.configured === false && <p className="text-2xs text-warn">{currentModel.configurationHint ?? "这个模型暂不可用"}</p>}
             {voice.provider === "google-gemini" && <p className="text-2xs text-text-faint">文本会发送至 Google，音色为预置。</p>}
+            {voice.provider === "edge" && <p className="text-2xs text-text-faint">免费，无需 Key，文本会发送至微软 Edge 朗读接口；有字级时间戳。</p>}
           </div>
 
           <div className="space-y-2">
@@ -538,16 +539,18 @@ export function VoicePanel({ id, store, draft, setDraft, onChanged, change, setC
               <fieldset disabled={pending} className="min-w-0 space-y-4">
                 <Slider label="语速" value={voice.rate} min={0.5} max={2} step={0.05} defaultValue={DEFAULT_RATE} format={(v) => `${v}x`} disabled={pending} onChange={(rate) => updateVoice({ rate })} />
                 <Slider label="音量" value={voice.volume} min={0} max={100} step={1} defaultValue={DEFAULT_VOLUME} format={(v) => String(v)} disabled={pending} onChange={(volume) => updateVoice({ volume })} />
+                {/* Edge 内置音色只认语速：音调上游忽略，音量走本地增益。写清楚，别让人以为拖了没反应是 bug */}
+                {voice.provider === "edge" && <p className="text-2xs text-text-faint">Edge 内置音色只生效语速；音量由本地增益实现，音调不支持。</p>}
               </fieldset>
 
-              <Field label="表达" hint={voice.provider === "google-gemini" ? "暂不生效" : acceptsFreeVoiceInstruction(voice.model) ? undefined : "系统音色不接受自由说明"}>
+              <Field label="表达" hint={voice.provider === "google-gemini" ? "暂不生效" : voice.provider === "edge" ? "Edge 朗读不支持表达指令" : acceptsFreeVoiceInstruction(voice.model) ? undefined : "系统音色不接受自由说明"}>
                 <AutoTextarea
                   value={voice.provider === "google-gemini" ? voice.google?.stylePrompt ?? "" : voice.instruction}
                   onChange={(event) => updateVoice({ instruction: event.target.value, instructionSource: "user" })}
                   className="input min-h-16 py-2.5 leading-6"
                   placeholder="例如：沉稳、清晰，略带悬念"
                   maxLength={voice.provider === "google-gemini" ? 1000 : 500}
-                  disabled={voice.provider === "google-gemini" || !acceptsFreeVoiceInstruction(voice.model) || pending}
+                  disabled={voice.provider === "google-gemini" || voice.provider === "edge" || !acceptsFreeVoiceInstruction(voice.model) || pending}
                 />
               </Field>
             </div>

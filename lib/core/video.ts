@@ -5,10 +5,12 @@ import { sceneSourceHash } from "./scenes";
 import type { GenerationFrame } from "./output-spec";
 import type { Timeline, TimelineShot } from "./timeline";
 import type { ProjectDoc, Shot } from "./types";
+import { videoReferenceDescription } from "./video-plan";
 
 /** One source for the director/compiler/cache/status version contract. */
 export const VIDEO_SNAPSHOT_VERSION = 1;
-export const VIDEO_PROMPT_COMPILER_VERSION = "h3-full-reference-v1";
+export const VIDEO_PROMPT_COMPILER_VERSION = "h3-keyframe-reference-v2";
+export const VIDEO_REFERENCE_PROMPT_VERSION = "h3-silent-reference-v2";
 export const VIDEO_MAX_DURATION_MS = 15_000;
 export const VIDEO_MAX_HOLD_MS = 100;
 export const VIDEO_WORKFLOW = "minimax_h3_zm_u08";
@@ -55,7 +57,7 @@ export function finalVideoReferenceIds(doc: ProjectDoc, shot: Shot, referenceAss
 
 function staticPrompt(doc: ProjectDoc, shot: Shot) {
   // Never put action/camera/endState into a still-image prompt or its fingerprint.
-  const content = shot.videoPlan?.startState || shot.description;
+  const content = videoReferenceDescription(shot);
   return compileShotPrompt(doc, { ...shot, description: content, prompt: shot.videoPlan ? content : shot.prompt, onScreenText: undefined });
 }
 
@@ -63,8 +65,9 @@ export function sourceImageSnapshot(doc: ProjectDoc, shot: Shot, frame: Generati
   const refs = [...new Set(referenceAssetIds ?? videoReferenceIds(doc, shot))].filter((id) => id !== shot.sourceImageAssetId).slice(0, 8);
   const compiled = staticPrompt(doc, shot);
   const promptHash = quickHash({
-    version: VIDEO_SNAPSHOT_VERSION, pipeline: "video-reference", prompt: compiled.hash,
+    version: VIDEO_SNAPSHOT_VERSION, compilerVersion: VIDEO_REFERENCE_PROMPT_VERSION, pipeline: "video-reference", prompt: compiled.hash,
     modelId: doc.settings.video.referenceImageModelId, aspect: frame.aspect, seed: shot.seed, referenceAssetIds: refs,
+    description: shot.videoPlanDescriptionHash ? shot.description : undefined,
   });
   const hash = quickHash({ promptHash, sourceImageAssetId: shot.sourceImageAssetId, description: shot.sourceImageDescription });
   return { hash, promptHash, referenceAssetIds: refs };
@@ -98,6 +101,7 @@ export function videoGenerationSnapshot(doc: ProjectDoc, shot: Shot, timeline: T
     version: VIDEO_SNAPSHOT_VERSION, compilerVersion, pipeline: "video", workflow: VIDEO_WORKFLOW, modelId,
     aspect: frame.aspect, resolution: doc.settings.video.resolution, seed: shot.seed,
     sourceHash: source.hash, referenceAssetIds, characters, videoPlan: shot.videoPlan,
+    description: shot.videoPlanDescriptionHash ? shot.description : undefined,
     targetDurationMs: timing.targetDurationMs, requestDurationSeconds: timing.requestDurationSeconds,
     lines: doc.lines.filter((line) => lineIds.has(line.id)).map((line) => ({ id: line.id, text: line.text, spans: line.spans })),
     voices: timeline.voice.filter((voice) => lineIds.has(voice.lineId)).map((voice) => ({

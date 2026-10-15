@@ -58,7 +58,7 @@ export const voiceTagChoices = [
 export type VoiceTag = (typeof voiceTagChoices)[number]["value"];
 const voiceTagSchema = z.enum(voiceTagChoices.map((choice) => choice.value) as [VoiceTag, ...VoiceTag[]]);
 
-/** Qwen-Audio 接受自由全片说明。CosyVoice 系统音色和 Gemini 不发送。 */
+/** Qwen-Audio 接受自由全片说明。CosyVoice 系统音色、Gemini 和 Edge 都不发送。 */
 export function acceptsFreeVoiceInstruction(model: string) {
   return model.startsWith("qwen-audio-");
 }
@@ -229,6 +229,8 @@ export const shotSchema = z.object({
   /** 语义大卡分组；与候选批次 candidateGroupId 无关。 */
   groupId: z.string().optional(),
   videoPlan: videoPlanSchema.optional(),
+  /** Chinese description used to produce videoPlan; a mismatch blocks generation until synced. */
+  videoPlanDescriptionHash: z.string().optional(),
   kind: z.enum(shotKinds),
   /** 导演意图：观众此刻应该看到或感受到什么 */
   intent: z.string().optional(),
@@ -475,7 +477,7 @@ export const musicCueSchema = z.object({
 export type MusicCue = z.infer<typeof musicCueSchema>;
 
 export const voiceSettingsSchema = z.object({
-  provider: z.enum(["dashscope", "google-gemini"]).default("dashscope"),
+  provider: z.enum(["dashscope", "google-gemini", "edge"]).default("dashscope"),
   model: z.string().default("cosyvoice-v3-flash"),
   voiceId: z.string().default("longanyang"),
   /** 语速倍率 0.5–2 */

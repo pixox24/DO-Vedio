@@ -659,7 +659,7 @@ videoPlan 为 {startState,action,camera,endState}，四项必须用英文；inte
 当前输入可能只是全文中的一段。只为 lines 中的句子生成镜头；segments/brief 用于理解全文，partial.before/after 用于衔接相邻镜头，禁止为这些上下文再输出镜头。接续上一镜的结束状态，同一语义段沿用简短的组名。
 角色出现时用 characters 数组绑定表内 id，地点匹配时用 sceneId 绑定表内 id；没有人物或匹配场景时允许省略，禁止编造 id。按照该句造型和身份锚保持人物一致；真实公众人物按指定背影/剪影/手部/象征物呈现，不生成正脸。
 每镜均为可生成的视频画面，禁止 motion 模式、独立文字卡、real/stock 素材卡。重点文字可写 focusText={text,emphasis?,support?}，以后期叠加；text/support 各最多8个等价汉字宽度，数字必须与原文一致，不复制整句字幕，不要求模型绘制文字。
-旁白由外部 TTS 播放，不要求角色说旁白、对白、口型配合、声音、配乐或字幕。画面中的手机屏幕遵守物理朝向，只有抽象色块，不写可读文字。上传图片只能使用用户说明，不能声称已视觉检查图片。
+旁白由外部 TTS 播放。description 和 videoPlan 四字段均不得复制台词、引号对白，不得包含说话、耳语、喊话、嘴唇开合、口型配合或绘制字幕的动作；原文中的对白只转译为无声的可见反应、目光或肢体动作。不得使用 says/speaks/whispers/mouths/lip-sync 等表演指令。重点文字只放 focusText，由后期叠加。画面中的手机屏幕遵守物理朝向，只有抽象色块，不写可读文字。不声称已视觉检查图片。
 只输出规划，不输出推理过程。`,
     prompt: JSON.stringify(input),
   };

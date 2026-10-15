@@ -32,6 +32,7 @@ type ModelSpec = { id: string; voice: VoiceSettings; joiners: string[] };
 
 function modelSpec(id: string): ModelSpec {
   if (/^gemini/i.test(id)) return { id, voice: voiceSettingsSchema.parse({ provider: "google-gemini", model: id, voiceId: process.env.TTS_PROBE_GEMINI_VOICE || "Kore", google: {} }), joiners: ["", "\n"] };
+  if (id.startsWith("edge")) return { id, voice: voiceSettingsSchema.parse({ provider: "edge", model: id, voiceId: process.env.TTS_PROBE_EDGE_VOICE || "zh-CN-XiaoxiaoNeural" }), joiners: [""] };
   if (id.startsWith("qwen-audio-")) return { id, voice: voiceSettingsSchema.parse({ provider: "dashscope", model: id, voiceId: process.env.TTS_PROBE_QWEN_AUDIO_VOICE || "longanhuan_v3.6" }), joiners: [""] };
   return { id, voice: voiceSettingsSchema.parse({ provider: "dashscope", model: id, voiceId: process.env.TTS_PROBE_COSYVOICE_VOICE || "longanyang" }), joiners: [""] };
 }

@@ -70,8 +70,10 @@
 | 分镜 / 镜头 | `lib/core/shots.ts` + `stages/storyboard.ts` + `components/studio/storyboard-panel.tsx` |
 | AI 视频管线 / 真实配音时长 / 参考与输出指纹 | `lib/core/video.ts` + `lib/core/types.ts`（`settings.visualPipeline/video`）；主时间线仍是 `timeline.ts`，`artifacts.ts` 读取已入库视频实测元数据 |
 | 视频导演 / 镜头静态参考 / H3 动作提示词 | `lib/prompts.ts` + `stages/storyboard.ts` + `lib/core/video-prompt-compiler.ts`；语义 `groupId` 仅用于 UI，镜头独立生成 |
+| 中文镜头要求 → 英文执行计划 | `lib/core/video-plan.ts`（同步标记、无声清理）+ `lib/pipeline/video-plan-sync.ts`（复用 storyboard 队列、指纹去重、预算与并发写回保护）；保存入口 `lib/server/projects.ts` + 项目 API |
+| 整批审图与标记重做 | `app/api/projects/[id]/shots/reference/route.ts`（提交的就绪子集原子确认，返回是否已有目标续跑）+ `components/studio/video-storyboard-panel.tsx`（过滤未就绪镜头、展示阻塞原因）；单镜 generate 可携带 `confirmHash` 确认当前图并只提交当前镜头，不唤醒整批目标 |
 | 镜头参考确认 / 视频批量与单镜生成 | `stages/shot-reference.ts` · `stages/shot-generate.ts` · `lib/pipeline/video-generation.ts` · `lib/pipeline/plan.ts` · `app/api/projects/[id]/shots/`；源图不占输出候选槽 |
-| 视频大卡 / 独立画幅操作 | `components/studio/video-storyboard-panel.tsx` + `settings-panel.tsx`；默认 smart-dual/shared 共用首输出源，per-output 分别提交，status 用 `outputSpecId` 查询对应输出；候选保存源画幅 |
+| 视频折叠卡片 / 独立画幅操作 | `components/studio/video-storyboard-panel.tsx`（整行展开编辑与状态阶段）+ `video-shot-card.tsx`（静谧卡片、素材就绪反馈）+ `video-storyboard.module.css`（卡片动效、完整圆角裁剪）+ `video-shot-preview.tsx`（视频优先、加载保留参考图、悬停播放互斥）+ `settings-panel.tsx`；复用 `shot-view.ts` 排列，默认 smart-dual/shared 共用首输出源，per-output 分别提交，status 用 `outputSpecId` 查询对应输出；候选保存源画幅 |
 | AutoDL 视频 / 原任务恢复 | `lib/providers/media/autodl.ts` + `lib/pipeline/media-gen.ts` + `lib/providers/runs.ts`；`AUTODL_API_TOKEN` 仅服务端配置，恢复状态存在现有 `generation_runs.params` |
 | 一句话的**运镜**候选 | `lib/core/motion-library.ts` 的 `motionChoices(text)`；UI 在 `components/motion-preset-picker.tsx` |
 | **入场 / 转场动效** | `lib/core/animation.ts` + `remotion/animation/` |
@@ -100,24 +102,33 @@ grep -rn '"dashscope"\|"google-gemini"\|dashscope\|google-gemini' lib app compon
 
 | 位置 | 要做什么 | 漏了会怎样 |
 |---|---|---|
-| `lib/core/types.ts:463` | `provider: z.enum(["dashscope", "google-gemini"])` | **zod 直接拒绝** |
+| `lib/core/types.ts:478` | `provider: z.enum([...])` | **zod 直接拒绝** |
 | `lib/providers/tts/types.ts` | 服务商接口定义 | — |
 | `lib/providers/tts/<新>.ts` | 实现，照 `gemini.ts` / `dashscope.ts` | — |
+| `lib/providers/tts/audio.ts` | 非 WAV 容器（MP3 等）转 WAV、线性增益 | 又要抄一份 ffmpeg 调用 |
 | `lib/providers/tts/factory.ts` | 分发（`ttsProviderOf`） | 抛「不支持的配音服务商」 |
 | `lib/providers/catalog.ts` | 补每个模型一条（`kind: "tts"`、`adapter`、`authEnv`、`featureFlagEnv`…） | 模型不出现在选择器 |
-| `lib/providers/registry.ts` | `authConfigured` 的鉴权分派特判 | 误判「未配置」 |
-| **`app/api/voices/route.ts`** | 前端音色/模型下拉的数据源，**手写死两个服务商**（`import dashscopeTts + geminiTts`，`providers: [...]`） | **UI 里根本没有新服务商，前面全改完也接不进去** |
+| `lib/providers/registry.ts` | `authConfigured` 的鉴权分派特判（免 Key 的服务商恒 true） | 误判「未配置」 |
+| **`app/api/voices/route.ts`** | 前端音色/模型下拉的数据源，**手写死每个服务商**（import + `providers: [...]`） | **UI 里根本没有新服务商，前面全改完也接不进去** |
 | `lib/core/blocks.ts` | `BLOCK_LIMITS`、`PARAGRAPH_JOINERS`、`paragraphSupported` 按 provider 分支 | 整段模式**静默不支持** |
 | `lib/core/keys.ts` | 缓存键含 provider；`STAGE_VERSION.tts` 有 provider 特判（`:105`） | 缓存串味/不失效 |
-| **`lib/pipeline/stages/tts-block.ts:54`** | `refCps` 的 `provider === "dashscope" ? rate : 1` 三元 | 语速倍率**静默失效** |
+| **`lib/pipeline/stages/tts-block.ts:54`** | `refCps` 的 provider 三元（哪些服务商的语速参数真的改变语速） | 语速倍率**静默失效**或误判漏读 |
 | `lib/pipeline/pricing.ts` + **`config/pricing.json`** | 前者通用，往后者加 `"<provider>/<model>": { perTenThousandChars, verified }` | 按默认价计费（`verified: false`） |
 | `lib/server/custom-voices.ts` | 音色本硬编码 `"dashscope"`（3 处） | 非 DashScope 直接报错 |
 | `components/studio/voice-panel.tsx:212` | `canAddVoice` 写死 `provider === "dashscope"`；另有 Gemini 专用字段/文案 | 不能添加自定义音色 |
-| `app/api/providers/test/route.ts:12` | `providerId: z.literal("google-gemini")`，整段是 Gemini 专用 | 新服务商没有「测试连接」 |
+| `app/api/providers/test/route.ts:12` | 探测只认 Gemini（`z.literal`） | 新服务商没有「测试连接」 |
 | `components/provider-settings.tsx` | 「测试连接」按钮只对 `google-gemini` 渲染 | 设置页无测试入口 |
 | `scripts/tts-probe.ts` / `tts-paragraph-probe.ts` | `family` 联合类型 + `MODELS` 数组也硬编码 | ⚠️ **见下方警告** |
 
 ⚠️ **不要用 `npm run tts:probe` 来验证新服务商**：探针自己的模型表是硬编码的，新服务商进去会得到「无此模型」的**假阴性**，反而让你以为改动没生效。
+
+⚠️ **`npm run tts:probe -- --models=x` 在 npm 下参数会丢**（实测跑成全量模型）：直接 `node --import tsx scripts/tts-probe.ts --models=x` 才可靠。
+
+**Edge 朗读（2026-10 接入）留下的三条经验**，下一次接逆向/免 Key 服务商同样适用：
+
+1. **上游要鉴权令牌时，先问「现成库还跟得上吗」**。微软 2025 年把 Edge 朗读的 `Sec-MS-GEC` 换成 CS64 + 定制 SHA-256 的 v2，社区 npm 包（`msedge-tts`、`edge-tts-universal`）都还停在旧的纯 SHA-256，**实测握手直接 403**。移植只值 130 行，放 `lib/providers/tts/edge-drm.ts` 一个文件，用参考实现的向量在 `edge.test.ts` 里对拍——这是上游改协议时唯一的恢复点。
+2. **别信「参数发过去了就等于生效」**。Edge 内置中文音色会把 `pitch` / `volume` 原样忽略（换 Multilingual 音色才生效），拿到的是**逐字节相同**的音频；语速才有效。接入后必须逐参数对比输出，静默忽略要写进 UI 提示，别留给用户当成 bug。
+3. **免费 ≠ 可以随便跑量**。这是逆用 Edge 内置朗读，可能被限流或按 IP 拦截；错误要显式抛出，不要静默降级到别的服务商。
 
 `blocks.ts`、`tts-block.ts`、`voice-panel.tsx` 属于「改了 provider 就得动、不动会静默出错」的一类，最容易漏。
 
@@ -146,6 +157,7 @@ grep -rn '"dashscope"\|"google-gemini"\|dashscope\|google-gemini' lib app compon
 - **新增一个步骤**：写 `lib/pipeline/stages/xxx.ts` → 注册进 `stages/index.ts` 的 `allStages` → 前端加进 `video-studio.tsx` 的 `steps`。三处都要改，但后两处**不是镜像关系**（见第五节）。
 - **缓存键**：`lib/core/keys.ts`。改提示词或参数会改变缓存命中，通常是对的（旧产物不该被复用）。
 - **AI 视频恢复**：`attemptId` 表示一次生成尝试，跨 job/goal 恢复保留原值。已保存远端 taskId 时仅查询/下载；提交已开始但没有 taskId 时为未决，禁止自动重提。停止仅中断本地等待，不能表示云端取消或未收费。
+- **视频中文编辑**：`videoPlanDescriptionHash` 记录英文计划对应的中文；旧文档首次实际编辑后才启用同步。待同步时参考图、视频与渲染均受阻；同步只替换计划并使旧产物过期，保留镜头 ID、锚点与历史素材。AutoDL 当前仍是参考图接口，提示词构图锚定不等于硬首帧 I2V。
 - **视频分镜响应**：`stages/storyboard.ts` 每次最多规划 6 句并显式请求 8192 输出 token，传递相邻镜头结束状态；JSON/结构校验失败时二分失败范围，单句仍失败则暂停。成功范围沿用现有缓存，失败记录在 `generation_runs.params` 保留结束原因、响应长度与用量，不保存完整响应。`plan.ts` 的分镜任务键区分图片/视频管线。
 - **AI 视频播放**：`remotion/shots/video.tsx` 同时服务预览与成片，强制静音、不循环、不叠图片运镜。时间线裁多余尾段，只允许不超过 100ms 的末帧保持；缺失/过期/过短视频须由生产与渲染门禁提示。
 - **迁移只增不改**：往 `migrations.ts` 末尾追加，id 递增（当前最大 22）。修改历史条目会让老库直接跳过——已执行记录在 `schema_migrations` 表。

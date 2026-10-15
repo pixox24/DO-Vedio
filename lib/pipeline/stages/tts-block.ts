@@ -51,7 +51,10 @@ export const ttsBlockStage = defineStage<TtsBlockInput, Output>({
     if (!input.force && cacheMany(keys).size === keys.length) return { blockKey: input.blockKey, lines: keys.length, degraded: false, attempts: 0 };
 
     const measured = measuredCpmOf(input.voice);
-    const state = { attempts: 0, done: 0, total: input.lines.length, reasons: [] as string[], refCps: measured ? measured / 60 : DEFAULT_CPS * (input.voice.provider === "dashscope" ? input.voice.rate : 1) };
+    // 没有实测语速时按参考值推算。DashScope 和 Edge 的语速参数真的会改变输出语速，
+    // 不乘上去会在语速调到接近上限时把切分判成「漏读」而白白降级。
+    const rateScalesCps = input.voice.provider === "dashscope" || input.voice.provider === "edge";
+    const state = { attempts: 0, done: 0, total: input.lines.length, reasons: [] as string[], refCps: measured ? measured / 60 : DEFAULT_CPS * (rateScalesCps ? input.voice.rate : 1) };
     ctx.progress(0.05, "整段合成中");
     const entries = await synthGroup(ctx, input, input.lines.map((l, index) => ({ ...l, index })), 0, state);
     commitCache(ctx, entries, "revoice", input.force === true);

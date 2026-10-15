@@ -50,6 +50,71 @@ async function reference(projectId: string, confirm = false) {
 }
 function context(job: import("@/lib/core/types").Job) { return { job, signal: new AbortController().signal, current: () => true, progress: vi.fn(), spend: () => 0, log: vi.fn() }; }
 
+it("production adopts only fully fingerprinted, probed current candidates and leaves them stable on resume", async () => {
+  const project = await fixture();
+  const chosen = await reference(project.id, true);
+  const { run } = await import("@/lib/server/db");
+  const { getProject, mutateProject } = await import("@/lib/server/projects");
+  const { produce } = await import("@/lib/pipeline/plan");
+  const { timelineFor } = await import("@/lib/pipeline/artifacts");
+  const { videoFrame, usableVideoCandidate, videoRenderProblems } = await import("@/lib/pipeline/video-generation");
+  const frame = videoFrame(chosen.doc);
+  const timeline = timelineFor(chosen.doc, project.id, frame.aspect);
+  const hash = videoGenerationSnapshot(chosen.doc, chosen.doc.shots[0], timeline, frame).hash;
+  const assetId = "a".repeat(64);
+  run("INSERT OR IGNORE INTO assets (hash, kind, mime, ext, bytes, duration_ms, meta, created_at) VALUES (?, 'video', 'video/mp4', 'mp4', 1, 5000, '{}', 0)", assetId);
+  const old = { id: "legacy", kind: "video" as const, assetId, promptHash: hash, frame, selected: false };
+  expect(usableVideoCandidate(chosen.doc, { ...chosen.doc.shots[0], candidates: [old] }, timeline, frame)).toBeUndefined();
+  mutateProject(project.id, (doc) => ({ ...doc, shots: doc.shots.map((shot) => ({ ...shot, candidates: [old, { ...old, id: "valid", generationPromptHash: hash }] })) }));
+  const result = produce(project.id, goal);
+  const current = getProject(project.id)!;
+  expect(current.doc.shots[0].assetId).toBe(assetId);
+  expect(current.doc.shots[0].assetVariants[frame.aspect]?.promptHash).toBe(hash);
+  expect(videoRenderProblems(current.doc, timeline, frame)).toEqual([]);
+  expect(result.plan.steps.some((step) => step.stage === "shot-generate")).toBe(false);
+  produce(project.id, goal);
+  expect(getProject(project.id)!.revision).toBe(current.revision);
+  expect(mocks.generate).not.toHaveBeenCalled();
+});
+
+it("start returns the actually selected setup and continuing reuses its goal and queued requests", async () => {
+  const project = await fixture();
+  const { mutateProject, getProject } = await import("@/lib/server/projects");
+  const { setupFingerprintForDoc } = await import("@/lib/core/production");
+  const { projectJobs } = await import("@/lib/server/jobs");
+  mutateProject(project.id, (doc) => ({ ...doc, settings: { ...doc.settings, video: { ...doc.settings.video, referenceImageModelId: "" } } }));
+  const { POST } = await import("@/app/api/projects/[id]/produce/route");
+  const start = () => POST(new Request("http://test", { method: "POST", body: JSON.stringify({ action: "start", goal }) }), { params: Promise.resolve({ id: project.id }) });
+  const first = await (await start()).json();
+  expect(first.setupFingerprint).toBe(setupFingerprintForDoc(getProject(project.id)!.doc));
+  expect(getProject(project.id)!.doc.settings.video.referenceImageModelId).toBe("replicate::test-image");
+  const jobs = projectJobs(project.id).map((job) => job.id);
+  const second = await (await start()).json();
+  expect(second.goal.goal.goalId).toBe(first.goal.goal.goalId);
+  expect(projectJobs(project.id).map((job) => job.id)).toEqual(jobs);
+  expect(mocks.generate).not.toHaveBeenCalled();
+});
+
+it("reference API rejects removed manual inputs without changes or jobs and still queues automatic generation", async () => {
+  const project = await fixture();
+  await reference(project.id, true);
+  const { POST } = await import("@/app/api/projects/[id]/shots/[shotId]/reference/route");
+  const { getProject } = await import("@/lib/server/projects");
+  const { projectJobs } = await import("@/lib/server/jobs");
+  const before = getProject(project.id)!;
+  const post = (input: object) => POST(new Request("http://test", { method: "POST", body: JSON.stringify(input) }), { params: Promise.resolve({ id: project.id, shotId: "s0" }) });
+  for (const input of [{ assetId: "manual-image" }, { description: "Manually selected reference" }, { assetId: "manual-image", description: "Manual reference", modelId: "replicate::test-image" }]) {
+    expect((await post(input)).status).toBe(400);
+    expect(getProject(project.id)).toEqual(before);
+    expect(projectJobs(project.id)).toHaveLength(0);
+  }
+  const generated = await post({ modelId: "replicate::test-image", outputSpecId: "landscape-1080p" });
+  expect(generated.status).toBe(200);
+  expect(projectJobs(project.id)).toEqual([expect.objectContaining({ stage: "shot-reference", status: "queued", input: expect.objectContaining({ shotId: "s0" }) })]);
+  expect(getProject(project.id)!.doc.shots[0]).toEqual(before.doc.shots[0]);
+  expect(mocks.generate).not.toHaveBeenCalled();
+});
+
 it("default confirmation occupies no worker; valid confirmation wakes blocked goal; autoContinue bypasses only confirmation", async () => {
   const project = await fixture();
   const { planPipeline, setGoal, wakeCurrentGoal, getGoal } = await import("@/lib/pipeline/plan");
@@ -135,7 +200,7 @@ it("single-shot API waits for reference confirmation then queues only the reques
   expect([after.shots[0], after.shots[2]]).toEqual(untouched);
 });
 
-it("video worker uses one snapshot and original attempt across canceled jobs, preserving selected candidates", async () => {
+it("video worker resumes the original attempt and automatically replaces stale output while retaining its history", async () => {
   const project = await fixture();
   const chosen = await reference(project.id, true);
   const { enqueueVideoShot, videoFrame } = await import("@/lib/pipeline/video-generation");
@@ -162,10 +227,38 @@ it("video worker uses one snapshot and original attempt across canceled jobs, pr
   const next = enqueueVideoShot({ projectId: project.id, doc: changed.doc, shot: changed.doc.shots[0], frame, operation: "regenerate" });
   mocks.generate.mockResolvedValueOnce({ assets: ["video-two"] });
   await shotGenerateStage.run(next.job.input as never, context(next.job));
-  expect(getProject(project.id)!.doc.shots[0].assetId).toBe("video-one");
-  const plan = (await import("@/lib/pipeline/plan")).planPipeline(project.id, getProject(project.id)!.doc, goal);
-  expect(plan.steps.some((step) => step.stage === "shot-generate")).toBe(false);
-  expect(plan.waiting.join(" ")).toContain("请选择");
+  const updated = getProject(project.id)!.doc.shots[0];
+  expect(updated.assetId).toBe("video-two");
+  expect(updated.assetPromptHash).toBe((next.job.input as { requestHash: string }).requestHash);
+  expect(updated.candidates).toEqual(expect.arrayContaining([
+    expect.objectContaining({ assetId: "video-one", selected: false }),
+    expect.objectContaining({ assetId: "video-two", selected: true }),
+  ]));
+});
+
+it("video regeneration retains an already current selected output and saves the new result as history", async () => {
+  const project = await fixture();
+  const chosen = await reference(project.id, true);
+  const { enqueueVideoShot, videoFrame } = await import("@/lib/pipeline/video-generation");
+  const { shotGenerateStage } = await import("@/lib/pipeline/stages/shot-generate");
+  const { getProject } = await import("@/lib/server/projects");
+  const { cancelJob } = await import("@/lib/server/jobs");
+  const frame = videoFrame(chosen.doc);
+  const first = enqueueVideoShot({ projectId: project.id, doc: chosen.doc, shot: chosen.doc.shots[0], frame });
+  mocks.generate.mockResolvedValueOnce({ assets: ["selected-current-video"] });
+  await shotGenerateStage.run(first.job.input as never, context(first.job));
+  cancelJob(first.job.id);
+  const current = getProject(project.id)!;
+  const next = enqueueVideoShot({ projectId: project.id, doc: current.doc, shot: current.doc.shots[0], frame, operation: "regenerate" });
+  mocks.generate.mockResolvedValueOnce({ assets: ["alternative-current-video"] });
+  await shotGenerateStage.run(next.job.input as never, context(next.job));
+  const updated = getProject(project.id)!.doc.shots[0];
+  expect(updated.assetId).toBe("selected-current-video");
+  expect(updated.assetVariants[frame.aspect]?.assetId).toBe("selected-current-video");
+  expect(updated.candidates).toEqual(expect.arrayContaining([
+    expect.objectContaining({ assetId: "selected-current-video", selected: true }),
+    expect.objectContaining({ assetId: "alternative-current-video", selected: false }),
+  ]));
 });
 
 it("three shots invalidate locally and render gate checks duration/current hash/shared source aspect", async () => {
@@ -262,7 +355,7 @@ it("default smart-dual generates one source video and shares variants across bot
   const project = await fixture();
   await reference(project.id, true);
   const { mutateProject, getProject } = await import("@/lib/server/projects");
-  const current = mutateProject(project.id, (doc) => ({ ...doc, settings: { ...doc.settings, assetFraming: "smart-dual", aspects: ["16:9", "9:16"], outputSpecIds: ["landscape-1080p", "portrait-1080p"] } }))!;
+  const current = mutateProject(project.id, (doc) => ({ ...doc, settings: { ...doc.settings, assetFraming: "smart-dual", aspects: ["16:9", "9:16"], outputSpecIds: ["landscape-1080p", "portrait-1080p"] }, shots: doc.shots.map((shot) => ({ ...shot, assetId: "stale-shared-video", assetPromptHash: "stale", candidates: [{ id: "stale-shared", assetId: "stale-shared-video", promptHash: "stale", generationPromptHash: "stale", kind: "video", selected: true }], assetVariants: { "16:9": { aspect: "16:9", assetId: "stale-shared-video", promptHash: "stale", width: 1920, height: 1080, source: "generated" }, "9:16": { aspect: "9:16", assetId: "stale-shared-video", promptHash: "stale", width: 1080, height: 1920, source: "shared", sourceAspect: "16:9" } } })) }))!;
   const { planPipeline } = await import("@/lib/pipeline/plan");
   const { enqueueVideoShot, videoFrame, videoRenderProblems } = await import("@/lib/pipeline/video-generation");
   const { timelineFor } = await import("@/lib/pipeline/artifacts");
@@ -275,7 +368,10 @@ it("default smart-dual generates one source video and shares variants across bot
   mocks.generate.mockResolvedValueOnce({ assets: [asset.hash] });
   await (await import("@/lib/pipeline/stages/shot-generate")).shotGenerateStage.run(job.job.input as never, context(job.job));
   const doc = getProject(project.id)!.doc;
+  expect(doc.shots[0].assetId).toBe(asset.hash);
+  expect(doc.shots[0].assetVariants["16:9"]?.assetId).toBe(asset.hash);
   expect(doc.shots[0].assetVariants["9:16"]).toMatchObject({ assetId: asset.hash, source: "shared", sourceAspect: "16:9" });
+  expect(doc.shots[0].candidates).toContainEqual(expect.objectContaining({ assetId: "stale-shared-video", selected: false }));
   const { PATCH } = await import("@/app/api/projects/[id]/shots/[shotId]/generate/route");
   const selected = await PATCH(new Request("http://test", { method: "PATCH", body: JSON.stringify({ candidateId: doc.shots[0].candidates[0].id, aspect: "9:16" }) }), { params: Promise.resolve({ id: project.id, shotId: "s0" }) });
   expect(selected.status).toBe(200);
@@ -326,7 +422,7 @@ it("per-output status tracks the requested output and keeps source confirmation 
   expect((await read("landscape-1080p")).s0.state).toBe("ready");
   expect((await read("portrait-1080p")).s0.state).toBe("stale");
   expect((await read("portrait-1080p")).s0.snapshotHash).toBe((await read("landscape-1080p")).s0.snapshotHash);
-  const primary = getProject(project.id)!;
+  const primary = mutateProject(project.id, (doc) => ({ ...doc, shots: doc.shots.map((shot) => ({ ...shot, candidates: [...shot.candidates, { id: "stale-portrait", assetId: "stale-portrait-video", promptHash: "stale", generationPromptHash: "stale", kind: "video", selected: false, frame: { aspect: "9:16" } }], assetVariants: { ...shot.assetVariants, "9:16": { aspect: "9:16", assetId: "stale-portrait-video", promptHash: "stale", width: 1080, height: 1920, source: "generated" } } })) }))!;
   const second = enqueueVideoShot({ projectId: project.id, doc: primary.doc, shot: primary.doc.shots[0], frame: outputSpecForRequest(primary.doc.settings, "portrait-1080p") });
   const requestHash = (second.job.input as { requestHash: string }).requestHash;
   beginGenerationRun({ projectId: project.id, jobId: second.job.id, kind: "video", modelId: "autodl::minimax_h3_zm_u08", providerId: "autodl", inputHash: requestHash,
@@ -339,6 +435,9 @@ it("per-output status tracks the requested output and keeps source confirmation 
   run("UPDATE jobs SET status = 'succeeded' WHERE id = ?", second.job.id);
   expect((await read("portrait-1080p")).s0.state).toBe("ready");
   const adopted = getProject(project.id)!.doc.shots[0];
+  expect(adopted.assetVariants["16:9"]?.assetId).toBe(mainAsset.hash);
+  expect(adopted.assetVariants["9:16"]?.assetId).toBe(secondAsset.hash);
+  expect(adopted.candidates).toContainEqual(expect.objectContaining({ assetId: "stale-portrait-video", selected: false }));
   const mainCandidate = adopted.candidates.find((candidate) => candidate.assetId === mainAsset.hash)!;
   const secondCandidate = adopted.candidates.find((candidate) => candidate.assetId === secondAsset.hash)!;
   expect(secondCandidate.frame?.aspect).toBe("9:16");

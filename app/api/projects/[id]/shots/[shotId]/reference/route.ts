@@ -2,15 +2,15 @@ import { z } from "zod";
 import { fail, handle, parseBody } from "@/lib/api";
 import { sourceImageSnapshot, sourceImageStale } from "@/lib/core/video";
 import { getProject, mutateProject } from "@/lib/server/projects";
-import { getAsset } from "@/lib/server/media";
 import { enqueueShotReference, videoFrame } from "@/lib/pipeline/video-generation";
 import { wakeCurrentGoal } from "@/lib/pipeline/plan";
 import { resolveImageModel } from "@/lib/pipeline/image-models";
 import { listProviderProfiles } from "@/lib/providers/registry";
 import { enqueueAutoPortraits, enqueueAutoScenes } from "@/lib/pipeline/auto-portrait";
 import { PermanentError } from "@/lib/pipeline/stage";
+import { videoPlanNeedsSync } from "@/lib/core/video-plan";
 
-const body = z.object({ assetId: z.string().min(1).optional(), description: z.string().max(4000).optional(), modelId: z.string().optional(), outputSpecId: z.enum(["landscape-1080p", "portrait-1080p"]).optional() });
+const body = z.object({ modelId: z.string().optional(), outputSpecId: z.enum(["landscape-1080p", "portrait-1080p"]).optional() }).strict();
 export async function POST(req: Request, ctx: { params: Promise<{ id: string; shotId: string }> }) {
   return handle(async () => {
     const { id, shotId } = await ctx.params;
@@ -20,13 +20,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; sh
     if (!project || !shot) return fail("镜头不存在", 404);
     if (project.doc.settings.visualPipeline !== "video" || shot.kind !== "video" || !shot.videoPlan) return fail("请先重新导演生成视频分镜", 409);
     if (shot.locked) return fail("镜头已锁定，请先解锁", 409);
-    if (input.assetId) {
-      if (getAsset(input.assetId)?.kind !== "image") return fail("请选择有效的图片素材", 409);
-      project = mutateProject(id, (doc) => ({ ...doc, shots: doc.shots.map((item) => item.id === shotId ? { ...item, sourceImageAssetId: input.assetId, sourceImageDescription: input.description?.trim() || undefined, sourceImagePromptHash: "unknown", sourceImageConfirmedHash: undefined } : item) }))!;
-      shot = project.doc.shots.find((item) => item.id === shotId)!;
-      wakeCurrentGoal(id);
-      return Response.json({ shot, snapshotHash: sourceImageSnapshot(project.doc, shot, videoFrame(project.doc)).hash });
-    }
+    if (videoPlanNeedsSync(shot)) return fail("等待中文镜头要求同步到执行计划", 409);
     const resolved = resolveImageModel(input.modelId || project.doc.settings.video.referenceImageModelId || undefined);
     if (!resolved) return fail("参考图模型不可用，请在模型中心检查配置", 409);
     const profile = listProviderProfiles().find((model) => model.kind === "image" && (resolved === model.modelId || resolved === `${model.providerId}::${model.modelId}`));
@@ -49,7 +43,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string; s
     let matched = false;
     const project = mutateProject(id, (doc) => {
       const shot = doc.shots.find((item) => item.id === shotId);
-      if (!shot || shot.locked || doc.settings.visualPipeline !== "video" || !shot.sourceImageAssetId) return null;
+      if (!shot || shot.locked || doc.settings.visualPipeline !== "video" || !shot.sourceImageAssetId || videoPlanNeedsSync(shot)) return null;
       const snapshot = sourceImageSnapshot(doc, shot, videoFrame(doc));
       if (snapshot.hash !== confirmHash || sourceImageStale(doc, shot, videoFrame(doc))) return null;
       matched = true;

@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { z } from "zod";
 import { NoObjectGeneratedError } from "ai";
 import { storyboardKey } from "../../core/keys";
+import { quickHash } from "../../core/hash";
 import { sanitizeCard } from "../../core/cards";
 import { focusNumbersMatchSource, focusTextFromLegacy, focusVisualWidth, normalizeFocusText } from "../../core/focus";
 import { distributeMotionCards, isMotionCardShot, normalizeShots, normalizeVideoShots, repairShots, sortShots, stampShots, blankShot, shotLineIds } from "../../core/shots";
@@ -9,6 +10,8 @@ import { buildTimeline, layoutLines } from "../../core/timeline";
 import { previewSpecFor } from "../../core/output-spec";
 import { anchorText, lookAt } from "../../core/cast";
 import { MAX_SHOT_CHARACTERS } from "../../core/prompt-compiler";
+import { videoDescriptionHash } from "../../core/video-plan";
+import { sanitizeVideoPlan } from "../../core/video-prompt-compiler";
 import { characterRoleLabels, motions, presentationLabels, shotSizeLabels, shotSizes, type Card, type Line, type ProjectDoc, type Shot } from "../../core/types";
 import { generateJson } from "../../llm";
 import { storyboardPrompt, type StoryboardPayload } from "../../prompts";
@@ -19,6 +22,7 @@ import { loadArtifacts } from "../artifacts";
 import { estimateLlmCost } from "../pricing";
 import { defineStage, PermanentError } from "../stage";
 import { beginGenerationRun, failGenerationRun, finishGenerationRun, noteGenerationRun } from "../../providers/runs";
+import { syncVideoShotPlan } from "../video-plan-sync";
 
 /**
  * 分镜：大模型先写意图、再选表达方式（生成画面 / 信息卡）、再出内容；规则定「节奏」。
@@ -53,7 +57,8 @@ export const videoDraftSchema = z.object({ shots: z.array(z.object({
   kind: z.literal("placeholder"), mode: z.literal("generate"), shotSize: z.enum(shotSizes),
   description: z.string(), motion: z.literal("none"), importance: z.number().int().min(1).max(3),
   groupId: z.string().trim().min(1),
-  videoPlan: z.object({ startState: z.string().trim().min(1), action: z.string().trim().min(1), camera: z.string().trim().min(1), endState: z.string().trim().min(1) }).strict(),
+  videoPlan: z.object({ startState: z.string().trim().min(1), action: z.string().trim().min(1), camera: z.string().trim().min(1), endState: z.string().trim().min(1) }).strict()
+    .refine((plan) => Object.values(sanitizeVideoPlan(plan)).every((value) => /[a-z]/i.test(value) && !/[\u3400-\u9fff\uf900-\ufaff]/.test(value)), "视频执行计划必须使用英文"),
   characters: z.array(z.string()).optional(), sceneId: z.string().optional(),
   focusText: z.object({ text: z.string().trim().min(1).refine((value) => focusVisualWidth(value.replace(/\s+/g, "")) <= 8), emphasis: z.string().optional(), support: z.string().refine((value) => focusVisualWidth(value.replace(/\s+/g, "")) <= 8).optional() }).optional(),
 }).strict()).min(1) });
@@ -67,7 +72,7 @@ export function toVideoShots(draft: z.infer<typeof videoDraftSchema>["shots"], l
     const focusText = focus && focusNumbersMatchSource(focus.text, caption) ? {
       ...focus, support: focus.support && focusNumbersMatchSource(focus.support, caption) ? focus.support : undefined, layoutMode: "auto" as const,
     } : undefined;
-    return { ...shot, kind: "video", mode: "generate", motion: "none", groupId: entry?.groupId, videoPlan: entry?.videoPlan,
+    return { ...shot, kind: "video", mode: "generate", motion: "none", groupId: entry?.groupId, videoPlan: entry?.videoPlan && sanitizeVideoPlan(entry.videoPlan), videoPlanDescriptionHash: videoDescriptionHash(shot.description),
       focusText };
   });
 }
@@ -75,7 +80,7 @@ export function toVideoShots(draft: z.infer<typeof videoDraftSchema>["shots"], l
 /** Legacy draft shape is accepted only while converting cached/persisted content. */
 type Draft = (Omit<z.infer<typeof draftSchema>["shots"][number], "kind"> & { kind: "placeholder" | "title" | "quote"; card?: Card; onScreenText?: string })[];
 
-export type StoryboardInput = { projectId: string; modelId: string; mode: "full" | "stale" };
+export type StoryboardInput = { projectId: string; modelId: string; mode: "full" | "stale"; shotId?: string; planFingerprint?: string };
 
 /**
  * A storyboard draft is generated from a contiguous slice of lines. Apply it
@@ -241,6 +246,7 @@ export const storyboardStage = defineStage<StoryboardInput, { shots: number; llm
   name: "storyboard",
   concurrency: 2,
   async run(input, ctx) {
+    if (input.shotId) return syncVideoShotPlan({ ...input, shotId: input.shotId }, ctx);
     const { getProject } = await import("../../server/projects");
     const project = getProject(input.projectId);
     if (!project) throw new Error("项目不存在");
@@ -289,7 +295,7 @@ export const storyboardStage = defineStage<StoryboardInput, { shots: number; llm
         lines: slice.map((l) => ({ id: l.id, segmentIndex: l.segmentIndex, text: l.text, ms: ms.get(l.id) ?? 0, keywords: l.keywords, mood: l.mood, ...(video ? (() => { const time = laid.lines.find((item) => item.id === l.id)!; return { startMs: time.startMs, endMs: time.endMs, chars: time.chars, estimated: time.estimated }; })() : {}) })),
         partial,
       };
-      const key = storyboardKey({ payload, modelId: input.modelId, ...(video ? { directorVersion: 2 } : {}) }, input.projectId);
+      const key = storyboardKey({ payload, modelId: input.modelId, ...(video ? { directorVersion: 3 } : {}) }, input.projectId);
       const splitRange = () => {
         const middle = Math.floor((r.from + r.to) / 2);
         ranges.splice(k, 1, { from: r.from, to: middle }, { from: middle + 1, to: r.to });
@@ -348,6 +354,14 @@ export const storyboardStage = defineStage<StoryboardInput, { shots: number; llm
       const replaced = new Set<string>();
       ranges.forEach((r) => {
         if (!rangeMatchesCurrent(doc.lines, cur.lines, r)) return;
+        if (video) {
+          const ids = new Set(doc.lines.slice(r.from, r.to + 1).map((line) => line.id));
+          const semanticShots = (source: ProjectDoc) => source.shots.filter((shot) => ids.has(shot.at.lineId)).map((shot) => ({
+            id: shot.id, at: shot.at, description: shot.description, plan: shot.videoPlan, descriptionHash: shot.videoPlanDescriptionHash,
+            characters: shot.characterIds, scene: shot.sceneId, locked: shot.locked, shotSize: shot.shotSize, focusText: shot.focusText,
+          }));
+          if (quickHash(semanticShots(doc)) !== quickHash(semanticShots(cur))) return;
+        }
         for (const l of doc.lines.slice(r.from, r.to + 1)) replaced.add(l.id);
       });
       const keep = cur.shots.filter((s) => s.locked || !replaced.has(s.at.lineId));
