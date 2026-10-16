@@ -15,6 +15,24 @@ export const VIDEO_MAX_DURATION_MS = 15_000;
 export const VIDEO_MAX_HOLD_MS = 100;
 export const VIDEO_WORKFLOW = "minimax_h3_zm_u08";
 
+/**
+ * 「画面形态是视频」和「画面由 AI 生成」是两件事，必须分开判断。
+ *
+ * - `isVideoForm`：这一镜的画面是**一段视频**。决定时间轴编排（不叠加图片运镜）、
+ *   转场强制 cut、渲染门禁走视频分支、分镜产出 videoPlan。
+ * - `isAiVideo`：画面由**生成模型**产出。只有它才需要镜头参考图、角色/场景标准图
+ *   和视频模型。
+ *
+ * 散落的 `=== "video"` 判定曾经把两件事混在一个枚举里。任何一处漏改成
+ * `isVideoForm`，素材管线都会**静默走进图片分支**——不报错，只是画面不对。
+ */
+export const videoFormPipelines = ["video", "stock"] as const;
+export type VideoFormPipeline = (typeof videoFormPipelines)[number];
+export const isVideoForm = (pipeline: string | null | undefined): pipeline is VideoFormPipeline =>
+  (videoFormPipelines as readonly string[]).includes(pipeline ?? "");
+export const isAiVideo = (pipeline: string | null | undefined) => pipeline === "video";
+export const isStock = (pipeline: string | null | undefined) => pipeline === "stock";
+
 export type VideoShotTiming = {
   startMs: number; endMs: number; targetDurationMs: number; requestDurationSeconds: number;
   coveredLineIds: string[]; missingTtsLineIds: string[]; ready: boolean;
@@ -49,7 +67,7 @@ export function videoReferenceIds(doc: ProjectDoc, shot: Shot): string[] {
 
 /** AI 视频只依赖本镜实际使用的角色与场景；任务成功或候选存在不代表已采用有效标准图。 */
 export function missingVideoStandards(doc: ProjectDoc, shot: Shot): { kind: "character" | "scene"; id: string }[] {
-  if (doc.settings.visualPipeline !== "video" || shot.kind !== "video") return [];
+  if (!isAiVideo(doc.settings.visualPipeline) || shot.kind !== "video") return [];
   const missing: { kind: "character" | "scene"; id: string }[] = [];
   for (const card of shotCharacters(doc, shot)) {
     if (card.kind === "group" || card.presentation !== "full") continue;

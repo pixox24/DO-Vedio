@@ -2,6 +2,7 @@ import { charsFor, countChars } from "./duration";
 import { rewriteActions, speechRateLabels, type Brief, type RewriteAction, type Section, type SpeechRate, type StyleTemplate } from "./types";
 import type { Prompt } from "./llm";
 import { detectAiTone, groupHits } from "./humanize/detect";
+import { isVideoForm } from "./core/video";
 import { notAiTone, rules } from "./humanize/rules";
 import { assignMemes, countMemeUses, enabledMemeCategories, groundedBudget, groundedLevels, MAX_USES_PER_GROUNDED, MAX_USES_PER_MEME, memeBudget, memeCategories, memeCircles, memeHeats, memesForSection, resolveSlang, slangLevels, type Meme, type MemeRef } from "./memes";
 import type { ToneContext } from "./humanize/detect";
@@ -589,7 +590,7 @@ export type StoryboardPayload = {
 };
 
 export function storyboardPrompt(input: StoryboardPayload): Prompt {
-  if (input.visualPipeline === "video") return videoStoryboardPrompt(input);
+  if (isVideoForm(input.visualPipeline)) return videoStoryboardPrompt(input);
   let cur = -1;
   const body: string[] = [];
   for (const l of input.lines) {

@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Select, Switch } from "@/components/ui";
 import { type ProjectDoc } from "@/lib/core/types";
 import { outputSpecIdForAspect } from "@/lib/core/output-spec";
+import { isAiVideo } from "@/lib/core/video";
 import { useFeedback } from "@/components/feedback";
 import { PresetSection } from "@/components/preset-dialog";
 import type { ProjectStore } from "./shared";
@@ -31,7 +32,7 @@ export function SettingsPanel({ store }: { store: ProjectStore }) {
   }, []);
   useEffect(() => {
     const modelId = mediaModels.find((model) => model.kind === "image")?.id;
-    if (modelId && doc?.settings.visualPipeline === "video" && !doc.settings.video.referenceImageModelId) {
+    if (modelId && isAiVideo(doc?.settings.visualPipeline) && !doc.settings.video.referenceImageModelId) {
       store.setDoc((current) => ({ ...current, settings: { ...current.settings, video: { ...current.settings.video, referenceImageModelId: current.settings.video.referenceImageModelId || modelId } } }));
     }
   }, [mediaModels, doc?.settings.visualPipeline, doc?.settings.video.referenceImageModelId, store]);
@@ -56,10 +57,10 @@ export function SettingsPanel({ store }: { store: ProjectStore }) {
         </SettingGroup>
 
         <SettingGroup title="画面驱动">
-          <Select aria-label="画面驱动管线" value={doc.settings.visualPipeline} onChange={(value) => store.setDoc((current) => ({ ...current, settings: { ...current.settings, visualPipeline: value as "image" | "video", video: { ...current.settings.video, referenceImageModelId: current.settings.video.referenceImageModelId || (value === "video" ? mediaModels.find((m) => m.kind === "image")?.id ?? "" : "") } } }))}>
+          <Select aria-label="画面驱动管线" value={doc.settings.visualPipeline} onChange={(value) => store.setDoc((current) => ({ ...current, settings: { ...current.settings, visualPipeline: value as "image" | "video", video: { ...current.settings.video, referenceImageModelId: current.settings.video.referenceImageModelId || (isAiVideo(value) ? mediaModels.find((m) => m.kind === "image")?.id ?? "" : "") } } }))}>
             <option value="image">图片驱动</option><option value="video">AI 视频驱动</option>
           </Select>
-          {doc.settings.visualPipeline === "video" && <div className="mt-3 space-y-3">
+          {isAiVideo(doc.settings.visualPipeline) && <div className="mt-3 space-y-3">
             <label className="block space-y-1 text-xs"><span>制作方式</span><Select aria-label="视频制作方式" value={doc.settings.video.autoContinue ? "auto" : "review"} onChange={(mode) => store.setDoc((current) => ({ ...current, settings: { ...current.settings, video: { ...current.settings.video, autoContinue: mode === "auto" } } }))}><option value="review">整批审图后继续（推荐）</option><option value="auto">自动制作</option></Select></label>
             <p className="text-2xs leading-5 text-text-faint">整批审图只需标记不满意的画面，其余一次确认。自动制作会在参考图完成后继续视频和合成；参考图与视频费用以服务商账单为准。</p>
             <details><summary className="cursor-pointer text-xs">模型与清晰度 · 项目统一设置</summary><div className="mt-3 space-y-3">

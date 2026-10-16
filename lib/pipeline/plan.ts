@@ -22,7 +22,7 @@ import type { Quality } from "./render";
 import { staleRanges } from "./stages/storyboard";
 import { autoPortraitPlan, autoScenePlan, isAutoPortraitInput } from "./auto-portrait";
 import { castSourceHash } from "../core/cast";
-import { missingVideoStandards, sourceImageStale, videoGenerationSnapshot } from "../core/video";
+import { isAiVideo, isVideoForm, missingVideoStandards, sourceImageStale, videoGenerationSnapshot } from "../core/video";
 import { videoPlanNeedsSync } from "../core/video-plan";
 import { videoPlanSyncStep } from "./video-plan-sync";
 import { referenceJobKey, videoAttempt, videoFrame, videoPrerequisite, videoRenderProblems, videoModelAvailable, videoAssetFraming, adoptReadyVideoCandidates, usableVideoCandidate } from "./video-generation";
@@ -166,9 +166,9 @@ export function planPipeline(projectId: string, doc: ProjectDoc, goal: Goal): Pl
   // 4) 分镜（配音齐了才做，因为节奏依赖真实时长）
   const storyboardSig = JSON.stringify(doc.lines.map((line) => line.id + line.text)) + JSON.stringify(doc.shots.map((shot) => shot.id + shot.sourceHash + shot.locked)) + JSON.stringify(doc.settings.visualPipeline ?? "image");
   const storyboardJobKey = `storyboard:${projectId}:${hashStr(storyboardSig)}`;
-  let shotsReady = doc.shots.length > 0 && staleRanges(doc).length === 0 && (doc.settings.visualPipeline !== "video" || doc.shots.every((shot) => shot.kind === "video" && !!shot.videoPlan));
+  let shotsReady = doc.shots.length > 0 && staleRanges(doc).length === 0 && (!isVideoForm(doc.settings.visualPipeline) || doc.shots.every((shot) => shot.kind === "video" && !!shot.videoPlan));
   if (voiced && !castReady && !shotsReady) waiting.push("等待识别角色和场景");
-  const lockedNonVideo = doc.settings.visualPipeline === "video" && doc.shots.some((shot) => shot.locked && (shot.kind !== "video" || !shot.videoPlan));
+  const lockedNonVideo = isVideoForm(doc.settings.visualPipeline) && doc.shots.some((shot) => shot.locked && (shot.kind !== "video" || !shot.videoPlan));
   if (lockedNonVideo) waiting.push("锁定镜头还不是视频分镜，请解锁并重新导演");
   if (voiced && castReady && !shotsReady && modelId && !(lockedNonVideo && staleRanges(doc).length === 0)) {
     const mode = doc.shots.length === 0 ? "full" : "stale";
@@ -184,7 +184,7 @@ export function planPipeline(projectId: string, doc: ProjectDoc, goal: Goal): Pl
   }
   if (voiced && !modelId) {
     waiting.push("没有可用文本模型，请在模型中心配置并启用");
-    shotsReady = doc.shots.length > 0 && (doc.settings.visualPipeline !== "video" || doc.shots.every((shot) => shot.kind === "video" && !!shot.videoPlan));
+    shotsReady = doc.shots.length > 0 && (!isVideoForm(doc.settings.visualPipeline) || doc.shots.every((shot) => shot.kind === "video" && !!shot.videoPlan));
   }
   if (!shotsReady && voiced) waiting.push("等待分镜");
 
@@ -209,7 +209,7 @@ export function planPipeline(projectId: string, doc: ProjectDoc, goal: Goal): Pl
   // 双语没译完时不排渲染：渲染键在入队时就按当前文稿算好，译文还没写回会做出没有副行的成片。
   const mediaKeys: string[] = [];
   let videosReady = true;
-  if (doc.settings.visualPipeline === "video") {
+  if (isVideoForm(doc.settings.visualPipeline)) {
     videosReady = false;
     if (voiced && shotsReady) {
       const referenceFrame = videoFrame(doc);
@@ -355,7 +355,7 @@ export function produce(projectId: string, goal: Goal, opts: { dryRun?: boolean;
   const synced = syncLines(p.doc);
   if (synced !== p.doc && !opts.dryRun) p = mutateProject(projectId, (d) => syncLines(d))!;
   let doc = opts.dryRun ? synced : p.doc;
-  if (doc.settings.visualPipeline === "video" && !doc.settings.video.referenceImageModelId) {
+  if (isAiVideo(doc.settings.visualPipeline) && !doc.settings.video.referenceImageModelId) {
     const model = listProviderProfiles().find((profile) => profile.kind === "image" && profile.adapterStatus === "ready" && profile.configured && profile.enabled);
     if (model) {
       const referenceImageModelId = `${model.providerId}::${model.modelId}`;
@@ -363,7 +363,7 @@ export function produce(projectId: string, goal: Goal, opts: { dryRun?: boolean;
       doc = opts.dryRun ? withModel(doc) : mutateProject(projectId, (current) => current.settings.video.referenceImageModelId ? null : withModel(current))!.doc;
     }
   }
-  if (!opts.dryRun && doc.settings.visualPipeline === "video") {
+  if (!opts.dryRun && isVideoForm(doc.settings.visualPipeline)) {
     doc = mutateProject(projectId, (current) => {
       const adopted = adoptReadyVideoCandidates(projectId, current, goal.aspects);
       return adopted === current ? null : adopted;

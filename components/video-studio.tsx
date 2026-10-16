@@ -25,7 +25,7 @@ import { isTtsStage } from "@/lib/core/keys";
 import { outputReadiness, renderBadge, visibleRenders, type ExportFile } from "@/lib/core/output-flow";
 import { storyboardImageHint, voiceDirectionHint, type StepHint } from "@/lib/core/step-status";
 import { mediaUrl, type Aspect, type ProjectDoc, type VoiceSettings } from "@/lib/core/types";
-import { sourceImageConfirmed, videoAssetStale } from "@/lib/core/video";
+import { isAiVideo, isVideoForm, sourceImageConfirmed, videoAssetStale } from "@/lib/core/video";
 import { shotReferenceStatus } from "@/lib/core/reference-status";
 import { outputSpecsFor } from "@/lib/core/output-spec";
 import { subtitlePresetMeta } from "@/lib/core/subtitle/presets";
@@ -59,10 +59,10 @@ function stepHints(doc: ProjectDoc, jobs: { stage: string; status: string }[], s
   const hints: Record<string, StepHint> = {};
   const voice = voiceDirectionHint(doc.settings.voice, jobs.some((job) => job.stage === "voice-direction" && job.status === "succeeded"));
   if (voice) hints["voice-direction"] = voice;
-  if (doc.settings.visualPipeline === "video" && storyboardPending) {
+  if (isVideoForm(doc.settings.visualPipeline) && storyboardPending) {
     hints["shot-reference"] = { tone: "hold", message: "等待视频分镜" };
     hints["shot-generate"] = { tone: "hold", message: "等待视频分镜" };
-  } else if (doc.settings.visualPipeline === "video" && doc.shots.length) {
+  } else if (isAiVideo(doc.settings.visualPipeline) && doc.shots.length) {
     const frame = outputSpecsFor(doc.settings)[0];
     const videoShots = doc.shots.filter((shot) => shot.kind === "video" && !!shot.videoPlan);
     const pending = videoShots.filter((shot) => !shot.locked && !sourceImageConfirmed(doc, shot, frame));
@@ -71,7 +71,7 @@ function stepHints(doc: ProjectDoc, jobs: { stage: string; status: string }[], s
     const missing = videoShots.filter((shot) => !shot.locked && (!shot.assetId || !timeline || videoAssetStale(doc, shot, timeline, frame)));
     hints["shot-generate"] = missing.length ? { tone: "hold", message: `待生成视频 · ${missing.length} 镜` } : { tone: "done" };
   }
-  if (!storyboardPending && doc.settings.visualPipeline !== "video") {
+  if (!storyboardPending && !isVideoForm(doc.settings.visualPipeline)) {
     const generating = jobs.some((job) => job.stage === "shot-generate" && (job.status === "queued" || job.status === "running"));
     const image = storyboardImageHint(doc, generating);
     if (image) hints.storyboard = image;
@@ -516,7 +516,7 @@ export function VideoStudio({ id }: { id: string }) {
     try {
       if (store.doc) sessionStorage.setItem(`do-vedio:setup-confirmed:${id}`, setupFingerprintForDoc(store.doc));
     } catch {}
-    void start({ until: store.doc?.settings.visualPipeline === "video" ? "render" : "compose" });
+    void start({ until: isVideoForm(store.doc?.settings.visualPipeline) ? "render" : "compose" });
   }
 
   function selectPreview(value: Aspect) {
@@ -551,7 +551,7 @@ export function VideoStudio({ id }: { id: string }) {
   const catchUpActive = jobList.some((job) => isCatchUpInput(job.input) && (job.status === "queued" || job.status === "running"));
   const running = currentJobs.some((j) => !isCatchUpInput(j.input) && currentKeys.has(j.key) && (j.status === "queued" || j.status === "running") && (!currentGoalId || jobBelongsToGoal(j, currentGoalId) || ["shot-reference", "shot-generate"].includes(j.stage) || j.key.startsWith("video-plan:")));
   const blocked = plan?.goal?.blocked;
-  const blockedMessage = doc.settings.visualPipeline !== "video" ? blocked : blocked?.startsWith("有任务失败") ? "请处理对应模块中的问题后继续制作。" : blocked?.startsWith("镜头 ") ? "部分镜头尚未完成，请在分镜模块查看处理。" : blocked;
+  const blockedMessage = !isVideoForm(doc.settings.visualPipeline) ? blocked : blocked?.startsWith("有任务失败") ? "请处理对应模块中的问题后继续制作。" : blocked?.startsWith("镜头 ") ? "部分镜头尚未完成，请在分镜模块查看处理。" : blocked;
   const referenceShots = doc.shots.filter((shot) => shot.kind === "video" && !!shot.videoPlan);
   const references = referenceShots.map((shot) => shotReferenceStatus(doc, shot, outputSpecs[0], studioJobs));
   const referenceDone = references.filter((reference) => reference.usable).length;
@@ -584,7 +584,7 @@ export function VideoStudio({ id }: { id: string }) {
   const renderStale: Partial<Record<Aspect, boolean>> | undefined = readiness.phase === "fresh" || readiness.phase === "stale"
     ? Object.fromEntries(finalsByAspect.map((outputAspect) => [outputAspect, readiness.phase === "stale" && readiness.staleAspects.includes(outputAspect)]))
     : undefined;
-  const produceLabel = doc.settings.visualPipeline === "video" ? "继续制作" : readiness.phase === "fresh" ? "再次生成" : readiness.phase === "stale" || renders.some((render) => render.quality === "final") ? "更新成片" : "生成成片";
+  const produceLabel = isVideoForm(doc.settings.visualPipeline) ? "继续制作" : readiness.phase === "fresh" ? "再次生成" : readiness.phase === "stale" || renders.some((render) => render.quality === "final") ? "更新成片" : "生成成片";
   const produceCost = (plan?.plan.costYuan ?? 0).toFixed(2);
   async function requestProduce() {
     if (readiness.phase === "fresh") {
@@ -673,7 +673,7 @@ export function VideoStudio({ id }: { id: string }) {
                   ) : (
                     <>
                       <button className="btn btn-primary" disabled={busy || running} onClick={() => void requestProduce()}>
-                        {busy ? <Spinner className="size-3.5" /> : <Icon name="sparkle" className="size-4" />} {produceLabel}{doc.settings.visualPipeline !== "video" && ` · 约 ¥${produceCost}`}
+                        {busy ? <Spinner className="size-3.5" /> : <Icon name="sparkle" className="size-4" />} {produceLabel}{!isVideoForm(doc.settings.visualPipeline) && ` · 约 ¥${produceCost}`}
                       </button>
                       <ExportControl files={readiness.files} disabled={busy || running || readiness.files.length === 0} title={readiness.files.length === 0 ? "先生成成片" : undefined} onExport={(files) => void exportChosen(files)} />
                     </>
@@ -706,16 +706,16 @@ export function VideoStudio({ id }: { id: string }) {
           />
           {legacyActiveJobs.length > 0 && <p className="rounded-xl border border-amber-300/20 bg-amber-300/[0.04] px-4 py-2 text-xs text-amber-100/75">仍有 {legacyActiveJobs.length} 个旧版本或独立任务在运行；停止当前制作不会取消它们。</p>}
           <JobStrip
-            steps={produceSteps(doc.settings.subtitle.bilingual, doc.settings.visualPipeline === "video")}
+            steps={produceSteps(doc.settings.subtitle.bilingual, isVideoForm(doc.settings.visualPipeline))}
             jobs={currentJobs}
             hints={stepHints(doc, studioJobs, plan?.plan.steps.some((step) => step.stage === "storyboard" && !step.key.startsWith("video-plan:")) ?? false, timeline)}
             currentKeys={currentKeys}
             confirm={confirm}
-            stageViews={doc.settings.visualPipeline === "video" && referenceShots.length ? { "shot-reference": { done: referenceDone, total: referenceShots.length, tone: referenceActive || standardActive ? "active" : referenceFailed || standardFailed ? "failed" : referenceDone < referenceShots.length || pendingConfirmation > 0 ? "hold" : "done", message: referenceMessage } } : undefined}
-            onOpenStage={doc.settings.visualPipeline === "video" ? () => openReferencePanel("storyboard", "reference-feedback") : undefined}
+            stageViews={isAiVideo(doc.settings.visualPipeline) && referenceShots.length ? { "shot-reference": { done: referenceDone, total: referenceShots.length, tone: referenceActive || standardActive ? "active" : referenceFailed || standardFailed ? "failed" : referenceDone < referenceShots.length || pendingConfirmation > 0 ? "hold" : "done", message: referenceMessage } } : undefined}
+            onOpenStage={isAiVideo(doc.settings.visualPipeline) ? () => openReferencePanel("storyboard", "reference-feedback") : undefined}
           />
-          {blocked && <div className="flex flex-wrap items-center gap-3 text-xs text-text-secondary"><p>已暂停：{blockedMessage}</p>{doc.settings.visualPipeline === "video" && panel !== "storyboard" && <button className="btn btn-text btn-sm" onClick={() => openReferencePanel("storyboard", "reference-feedback")}>查看待处理镜头</button>}</div>}
-          {!running && !blocked && plan && <p className="text-xs text-text-muted">{[...new Set(plan.plan.waiting.filter((message) => doc.settings.visualPipeline !== "video" || !message.startsWith("镜头 ")))].slice(0, 2).join(" · ")}</p>}
+          {blocked && <div className="flex flex-wrap items-center gap-3 text-xs text-text-secondary"><p>已暂停：{blockedMessage}</p>{isAiVideo(doc.settings.visualPipeline) && panel !== "storyboard" && <button className="btn btn-text btn-sm" onClick={() => openReferencePanel("storyboard", "reference-feedback")}>查看待处理镜头</button>}</div>}
+          {!running && !blocked && plan && <p className="text-xs text-text-muted">{[...new Set(plan.plan.waiting.filter((message) => !isVideoForm(doc.settings.visualPipeline) || !message.startsWith("镜头 ")))].slice(0, 2).join(" · ")}</p>}
 
           {/*
             分镜全宽：预览缩到 300px 并吸顶，右栏拿走其余全部宽度。
@@ -846,14 +846,14 @@ function setupFacts(doc: ProjectDoc, voiceName: string): SetupFact[] {
   const facts: SetupFact[] = [
     { label: "配音", value: voiceValue, panel: "voice" },
     { label: "画幅", value: aspects.join("、") || "16:9", panel: "settings" },
-    { label: "素材策略", value: doc.settings.visualPipeline === "video" && doc.settings.assetFraming !== "per-output" ? "共享主画幅视频" : assetFramingLabels[doc.settings.assetFraming], panel: "settings" },
+    { label: "素材策略", value: isVideoForm(doc.settings.visualPipeline) && doc.settings.assetFraming !== "per-output" ? "共享主画幅视频" : assetFramingLabels[doc.settings.assetFraming], panel: "settings" },
     { label: "预算", value: doc.settings.budgetYuan == null ? "不设上限" : `¥${doc.settings.budgetYuan.toFixed(2)}`, panel: "settings" },
     { label: "画面风格", value: doc.visualStyle?.name.trim() || "推荐", panel: "style" },
     { label: "角色和场景标准图", value: doc.settings.autoPortrait ? "自动生成" : "手动", panel: "settings" },
     { label: "字幕", value: subtitle.enabled ? subtitlePresetMeta(subtitle.preset).name : "关闭", panel: "subtitle" },
     { label: "配乐", value: doc.settings.music.enabled ? "开启" : "关闭", panel: "music" },
   ];
-  if (doc.settings.visualPipeline === "video") facts.splice(3, 0,
+  if (isAiVideo(doc.settings.visualPipeline)) facts.splice(3, 0,
     { label: "画面驱动", value: `AI 视频 · ${doc.settings.video.resolution}`, panel: "settings" },
     { label: "制作方式", value: doc.settings.video.autoContinue ? "自动制作" : "整批审图后继续", panel: "settings" },
   );
@@ -904,10 +904,11 @@ function SetupConfirm({ doc, costYuan, standardDisclosure, onOpen, onConfirm }: 
         <div className="min-w-0">
           <h2 id="setup-confirm-title" className="text-sm font-medium text-text">开工确认</h2>
           <p className="mt-1 text-2xs text-text-faint">
-            {doc.settings.visualPipeline === "video" ? "确认一次后自动完成配音、分镜、参考图、视频和合成；整批审图模式会在参考图完成后等待一次确认。" : "确认后开始断句、配音和分镜。成片需要再点生成。"}任一项设置变动都会让确认失效，需要重新确认。
+            {/* 视频形态（含素材管线）确认后一次做到成片；素材管线的文案在后续阶段区分。 */}
+            {isVideoForm(doc.settings.visualPipeline) ? "确认一次后自动完成配音、分镜、参考图、视频和合成；整批审图模式会在参考图完成后等待一次确认。" : "确认后开始断句、配音和分镜。成片需要再点生成。"}任一项设置变动都会让确认失效，需要重新确认。
             {doc.settings.autoPortrait && " 已开启自动标准图：识别后会为每个需要立绘的角色、每个缺少标准图的场景各生成一张，图片费用以服务商账单为准，不计入上面的预估。"}
-            {doc.settings.visualPipeline === "video" && " 预估仅包含已知费用；镜头参考图与视频另由服务商收费，当前价格未知。"}
-            {doc.settings.visualPipeline === "video" && doc.settings.video.autoContinue && " 自动连续已开启：参考图成功后会继续提交视频请求，停止本地等待不能撤销云端接单。"}
+            {isAiVideo(doc.settings.visualPipeline) && " 预估仅包含已知费用；镜头参考图与视频另由服务商收费，当前价格未知。"}
+            {isAiVideo(doc.settings.visualPipeline) && doc.settings.video.autoContinue && " 自动连续已开启：参考图成功后会继续提交视频请求，停止本地等待不能撤销云端接单。"}
           </p>
           {standardDisclosure && <p className="mt-2 text-xs text-text-faint">{standardDisclosure}</p>}
         </div>
@@ -915,7 +916,7 @@ function SetupConfirm({ doc, costYuan, standardDisclosure, onOpen, onConfirm }: 
           {sealed && <span aria-hidden className="pointer-events-none absolute inset-0 animate-seal-ring rounded-full border border-accent" />}
           <button className="btn btn-primary btn-sm" disabled={sealed} onClick={seal}>
             {sealed ? <Spinner className="size-3.5" /> : <Icon name="check" className="size-3.5" />}
-            {sealed ? "已确认" : doc.settings.visualPipeline === "video" ? "开始制作" : costYuan == null ? "确认开工" : `确认开工 · 约 ¥${costYuan.toFixed(2)}`}
+            {sealed ? "已确认" : isVideoForm(doc.settings.visualPipeline) ? "开始制作" : costYuan == null ? "确认开工" : `确认开工 · 约 ¥${costYuan.toFixed(2)}`}
           </button>
         </div>
       </div>

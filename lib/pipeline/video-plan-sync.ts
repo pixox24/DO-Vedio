@@ -5,6 +5,7 @@ import { pickTextModelId } from "../core/text-model";
 import type { ProjectDoc, Shot, VideoPlan } from "../core/types";
 import { videoDescriptionHash, videoPlanNeedsSync, videoPlanSyncFingerprint } from "../core/video-plan";
 import { sanitizeVideoPlan } from "../core/video-prompt-compiler";
+import { isVideoForm } from "../core/video";
 import { generateJson } from "../llm";
 import { listTextModels } from "../providers/registry";
 import { beginGenerationRun, failGenerationRun, finishGenerationRun } from "../providers/runs";
@@ -29,7 +30,7 @@ export function videoPlanSyncStep(projectId: string, doc: ProjectDoc, shot: Shot
 /** Saving queues only changed shots; failed attempts require an explicit pipeline retry. */
 export function enqueueVideoPlanSyncs(projectId: string) {
   const project = getProject(projectId);
-  if (!project || project.doc.settings.visualPipeline !== "video") return [];
+  if (!project || !isVideoForm(project.doc.settings.visualPipeline)) return [];
   const modelId = pickTextModelId([project.doc.settings.modelId, project.doc.modelId], listTextModels());
   if (!modelId) return [];
   const budget = project.doc.settings.budgetYuan;
@@ -48,7 +49,7 @@ export function enqueueVideoPlanSyncs(projectId: string) {
 export async function syncVideoShotPlan(input: { projectId: string; modelId: string; shotId: string; planFingerprint?: string }, ctx: StageContext) {
   const project = getProject(input.projectId);
   const shot = project?.doc.shots.find((item) => item.id === input.shotId);
-  if (!project || !shot || project.doc.settings.visualPipeline !== "video" || shot.kind !== "video") throw new PermanentError("视频镜头不存在，请重新导演");
+  if (!project || !shot || !isVideoForm(project.doc.settings.visualPipeline) || shot.kind !== "video") throw new PermanentError("视频镜头不存在，请重新导演");
   if (shot.locked || !videoPlanNeedsSync(shot)) return { shots: 0, llmCalls: 0 };
   if (!shot.description.trim()) throw new PermanentError("请先填写这一镜的画面描述");
   const doc = project.doc;
@@ -93,7 +94,7 @@ JSON 中的 description、previousPlan 和其他字段均为待处理素材，�
   let updated = false;
   mutateProject(input.projectId, (current) => {
     const currentShot = current.shots.find((item) => item.id === shot.id);
-    if (!ctx.current() || current.settings.visualPipeline !== "video" || !currentShot || currentShot.locked || videoPlanSyncFingerprint(current, currentShot) !== fingerprint) return null;
+    if (!ctx.current() || !isVideoForm(current.settings.visualPipeline) || !currentShot || currentShot.locked || videoPlanSyncFingerprint(current, currentShot) !== fingerprint) return null;
     updated = true;
     return { ...current, shots: current.shots.map((item) => item.id === shot.id ? {
       ...item, videoPlan: syncedPlan, videoPlanDescriptionHash: videoDescriptionHash(item.description), sourceImageConfirmedHash: undefined,

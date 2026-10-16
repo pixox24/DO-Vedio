@@ -13,7 +13,7 @@ import { outputSpecForRequest, outputSpecsFor, previewSpecFor, type GenerationFr
 import { selectShotCandidate } from "@/lib/core/shot-asset";
 import type { Aspect, OutputSpecId } from "@/lib/core/types";
 import { enqueueAutoPortraits, enqueueAutoScenes } from "@/lib/pipeline/auto-portrait";
-import { missingVideoStandards, sourceImageSnapshot, sourceImageStale } from "@/lib/core/video";
+import { isAiVideo, missingVideoStandards, sourceImageSnapshot, sourceImageStale } from "@/lib/core/video";
 import { videoPlanNeedsSync } from "@/lib/core/video-plan";
 
 const body = z.object({ kind: z.enum(["image", "video"]).optional(), operation: z.enum(["generate", "resume", "regenerate"]).default("generate"), resumeAttemptId: z.string().min(1).optional(), confirmHash: z.string().min(1).optional(), modelId: z.string().optional(), candidateCount: z.number().int().min(1).max(4).optional(), outputSpecId: z.enum(["landscape-1080p", "portrait-1080p"]).optional(), aspect: z.enum(["16:9", "9:16"]).optional(), assetFraming: z.enum(["smart-dual", "per-output", "shared"]).optional() });
@@ -28,7 +28,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; sh
     if (!shot) return fail("镜头不存在", 404);
     if (shot.locked) return fail("镜头已锁定，请先解锁", 409);
     const input = await parseBody(req, body);
-    const kind = input.kind ?? project.doc.settings.visualPipeline;
+    // 请求 kind 只有 image/video 两种；画面管线是 stock 时它驱动的是素材检索，不是生图请求。
+    const kind = input.kind ?? (isAiVideo(project.doc.settings.visualPipeline) ? "video" : "image");
     if (kind === "video") {
       try {
         if (input.modelId && input.modelId !== project.doc.settings.video.modelId) return fail("请先保存视频模型设置再生成", 409);
@@ -39,7 +40,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; sh
             const current = doc.shots.find((item) => item.id === shotId);
             const frame = videoFrame(doc);
             const activeReference = projectJobs(id).some((job) => job.stage === "shot-reference" && ["queued", "running"].includes(job.status) && (job.input as { shotId?: string } | null)?.shotId === shotId);
-            if (doc.settings.visualPipeline !== "video" || !current || current.kind !== "video" || !current.videoPlan || current.locked || videoPlanNeedsSync(current) || missingVideoStandards(doc, current).length || !current.sourceImageAssetId || activeReference || sourceImageStale(doc, current, frame) || sourceImageSnapshot(doc, current, frame).hash !== input.confirmHash) return null;
+            if (!isAiVideo(doc.settings.visualPipeline) || !current || current.kind !== "video" || !current.videoPlan || current.locked || videoPlanNeedsSync(current) || missingVideoStandards(doc, current).length || !current.sourceImageAssetId || activeReference || sourceImageStale(doc, current, frame) || sourceImageSnapshot(doc, current, frame).hash !== input.confirmHash) return null;
             matched = true;
             return current.sourceImageConfirmedHash === input.confirmHash ? null : { ...doc, shots: doc.shots.map((item) => item.id === shotId ? { ...item, sourceImageConfirmedHash: input.confirmHash } : item) };
           });

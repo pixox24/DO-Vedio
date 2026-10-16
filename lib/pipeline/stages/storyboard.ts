@@ -12,6 +12,7 @@ import { anchorText, lookAt } from "../../core/cast";
 import { MAX_SHOT_CHARACTERS } from "../../core/prompt-compiler";
 import { videoDescriptionHash } from "../../core/video-plan";
 import { sanitizeVideoPlan } from "../../core/video-prompt-compiler";
+import { isVideoForm } from "../../core/video";
 import { characterRoleLabels, motions, presentationLabels, shotSizeLabels, shotSizes, type Card, type Line, type ProjectDoc, type Shot } from "../../core/types";
 import { generateJson } from "../../llm";
 import { storyboardPrompt, type StoryboardPayload } from "../../prompts";
@@ -104,7 +105,7 @@ export function rangeMatchesCurrent(source: Line[], current: Line[], range: { fr
 /** 需要重做的连续句子范围 */
 export function staleRanges(doc: ProjectDoc): { from: number; to: number }[] {
   if (doc.shots.length === 0) return doc.lines.length ? [{ from: 0, to: doc.lines.length - 1 }] : [];
-  if (doc.settings.visualPipeline === "video" && doc.shots.some((shot) => !shot.locked && !shot.videoPlan)) return doc.lines.length ? [{ from: 0, to: doc.lines.length - 1 }] : [];
+  if (isVideoForm(doc.settings.visualPipeline) && doc.shots.some((shot) => !shot.locked && !shot.videoPlan)) return doc.lines.length ? [{ from: 0, to: doc.lines.length - 1 }] : [];
   const { shots, stale } = repairShots(doc.shots, doc.lines, doc.lines);
   const order = new Map(doc.lines.map((l, k) => [l.id, k]));
   const sorted = sortShots(shots, doc.lines);
@@ -257,7 +258,7 @@ export const storyboardStage = defineStage<StoryboardInput, { shots: number; llm
     const template = await getTemplate(doc.brief.templateId).catch(() => undefined);
     // 章节与大纲一一对应时带上本章要点
     const points = doc.sections.length === doc.segments.length ? doc.sections.map((x) => x.points) : [];
-    const video = doc.settings.visualPipeline === "video";
+    const video = isVideoForm(doc.settings.visualPipeline);
     const cast = castForStoryboard(doc);
     const castIds = new Set(cast.map((c) => c.id));
 

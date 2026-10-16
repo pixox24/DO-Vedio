@@ -8,7 +8,7 @@ import { selectShotCandidate } from "./shot-asset";
 import { blankShot, normalizeVideoShots } from "./shots";
 import { buildTimeline, layoutLines, type Artifacts } from "./timeline";
 import { characterCardSchema, emptyDoc, projectDocSchema, type Line, type Shot } from "./types";
-import { sourceImageConfirmed, sourceImageSnapshot, sourceImageStale, videoAssetStale, videoGenerationSnapshot, videoPlayback, videoReferenceIds, videoShotTiming } from "./video";
+import { isAiVideo, isStock, isVideoForm, sourceImageConfirmed, sourceImageSnapshot, sourceImageStale, videoAssetStale, videoGenerationSnapshot, videoPlayback, videoReferenceIds, videoShotTiming } from "./video";
 
 const line = (id: string, text = "一段足够长的连续旁白内容"): Line => ({ id, text, segmentIndex: 0, spans: [], keywords: [], locked: false });
 const tts = (text: string, durationMs: number): TtsResult => ({
@@ -170,5 +170,41 @@ describe("video domain contract", () => {
     const target = emptyDoc();
     expect(applyPresetToDoc(target, payload, { groups: ["output"] }).doc.settings.visualPipeline).toBe("image");
     expect(applyPresetToDoc(target, payload, { groups: ["video"] }).doc.settings.visualPipeline).toBe("video");
+  });
+});
+
+/**
+ * 「画面形态是视频」和「画面由 AI 生成」必须分开判断。
+ * 这两件事曾经混在一个 `=== "video"` 里；混回去会让素材管线静默走进图片分支。
+ */
+describe("pipeline form helpers", () => {
+  it("stock is a video form but not AI video", () => {
+    expect(isVideoForm("video")).toBe(true);
+    expect(isVideoForm("stock")).toBe(true);
+    expect(isVideoForm("image")).toBe(false);
+
+    expect(isAiVideo("video")).toBe(true);
+    expect(isAiVideo("stock")).toBe(false);
+    expect(isAiVideo("image")).toBe(false);
+
+    expect(isStock("stock")).toBe(true);
+    expect(isStock("video")).toBe(false);
+  });
+
+  it("treats a missing pipeline as the image default, never as video", () => {
+    for (const missing of [undefined, null, ""]) {
+      expect(isVideoForm(missing)).toBe(false);
+      expect(isAiVideo(missing)).toBe(false);
+      expect(isStock(missing)).toBe(false);
+    }
+  });
+
+  it("keeps the two helpers mutually consistent over every pipeline value", () => {
+    for (const pipeline of ["image", "video", "stock", "unknown"]) {
+      // AI 视频一定是视频形态；素材管线也是视频形态，但不是 AI 视频。
+      if (isAiVideo(pipeline)) expect(isVideoForm(pipeline)).toBe(true);
+      if (isStock(pipeline)) expect(isVideoForm(pipeline)).toBe(true);
+      expect(isAiVideo(pipeline) && isStock(pipeline)).toBe(false);
+    }
   });
 });

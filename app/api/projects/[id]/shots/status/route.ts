@@ -1,4 +1,4 @@
-import { sourceImageSnapshot, sourceImageConfirmed, videoGenerationSnapshot, videoShotTiming } from "@/lib/core/video";
+import { isAiVideo, isVideoForm, sourceImageSnapshot, sourceImageConfirmed, videoGenerationSnapshot, videoShotTiming } from "@/lib/core/video";
 import { timelineFor } from "@/lib/pipeline/artifacts";
 import { videoFrame, videoRenderProblems } from "@/lib/pipeline/video-generation";
 import { findOriginalMediaAttempt } from "@/lib/providers/runs";
@@ -31,7 +31,7 @@ export async function GET(req: Request, ctx: RouteContext<"/api/projects/[id]/sh
     const requestedSpecId = new URL(req.url).searchParams.get("outputSpecId");
     if (requestedSpecId && requestedSpecId !== "landscape-1080p" && requestedSpecId !== "portrait-1080p") return fail("输出规格无效");
     const sourceFrame = videoFrame(project.doc);
-    const perOutputVideo = project.doc.settings.visualPipeline === "video" && project.doc.settings.assetFraming === "per-output";
+    const perOutputVideo = isVideoForm(project.doc.settings.visualPipeline) && project.doc.settings.assetFraming === "per-output";
     const requestedSpec = requestedSpecId === "landscape-1080p" || requestedSpecId === "portrait-1080p" ? requestedSpecId : undefined;
     const outputFrame = perOutputVideo && requestedSpec ? outputSpecForRequest(project.doc.settings, requestedSpec) : sourceFrame;
 
@@ -84,7 +84,9 @@ export async function GET(req: Request, ctx: RouteContext<"/api/projects/[id]/sh
       }
       out[row.shot_id] = entry;
     }
-    if (project.doc.settings.visualPipeline === "video") {
+    // 这一段是 AI 视频专属的镜头状态机（参考图 / 标准图 / 确认点）。
+    // 素材管线需要自己的状态分支，见 docs/stock-pipeline-plan.md 第 6.3 / 6.4 节。
+    if (isAiVideo(project.doc.settings.visualPipeline)) {
       const doc = project.doc;
       const frame = outputFrame;
       const timeline = timelineFor(doc, id, frame.aspect);

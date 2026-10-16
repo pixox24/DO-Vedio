@@ -12,6 +12,7 @@ import { newId } from "@/lib/core/sync";
 import { outputSpecsFor, previewSpecFor } from "@/lib/core/output-spec";
 import { selectShotCandidate } from "@/lib/core/shot-asset";
 import { stampShots } from "@/lib/core/shots";
+import { isVideoForm } from "@/lib/core/video";
 import { assetStale, compileShotPrompt, MAX_SHOT_CHARACTERS, needsGeneratedImage, type CompiledPrompt } from "@/lib/core/prompt-compiler";
 import { needsConfirm } from "@/lib/core/interaction";
 import { focusPresetLabels, focusTextFromLegacy, focusVisualWidth } from "@/lib/core/focus";
@@ -44,7 +45,7 @@ type ShotCommon = {
 };
 
 export function StoryboardPanel(props: Parameters<typeof ImageStoryboardPanel>[0] & { onContinue?: () => Promise<void>; onSettings?: () => void; onStandards?: () => void; productionConfirmed?: boolean }) {
-  return props.store.doc?.settings.visualPipeline === "video" ? <VideoStoryboardPanel {...props} /> : <ImageStoryboardPanel {...props} />;
+  return isVideoForm(props.store.doc?.settings.visualPipeline) ? <VideoStoryboardPanel {...props} /> : <ImageStoryboardPanel {...props} />;
 }
 
 function ImageStoryboardPanel({ id, store, timeline, jobs, onSeek, wide = false, onToggleWide }: { id: string; store: ProjectStore; timeline: Timeline | null; jobs: Map<string, Job>; onSeek: (ms: number) => void; wide?: boolean; onToggleWide?: () => void }) {
