@@ -222,11 +222,13 @@ export function useProject(id: string, delay = 800) {
       setSave("saving");
       const requestBase = base.current;
       const run = (async () => {
+        const body = JSON.stringify({ doc: cur.doc, revision: force ? null : cur.revision });
         const res = await fetch(`/api/projects/${id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ doc: cur.doc, revision: force ? null : cur.revision }),
-          keepalive: JSON.stringify(cur.doc).length < 60_000,
+          body,
+          // keepalive 的 64 KiB 限制按 UTF-8 字节计算，中文字符不能按 length 估算。
+          keepalive: new Blob([body]).size < 60_000,
         });
         if (res.status === 409) {
           const data = await res.json();

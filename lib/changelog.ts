@@ -39,6 +39,26 @@ export const changeKindOrder: ChangeKind[] = ["feature", "improvement", "fix", "
 
 export const changelog: ChangeEntry[] = [
   {
+    version: "0.88.1",
+    date: "2026-10-16",
+    title: "视频结果状态与长任务取回修复",
+    summary: "已就绪的视频不再误报失败；云端仍在排队或执行时持续查询原任务，避免超过十五分钟后漏取结果。",
+    items: [
+      { kind: "fix", title: "镜头状态与实际素材一致", detail: "单镜检查保留完整分镜上下文，正确识别已生成并采用的视频；有效结果不受旧失败记录影响，批量续跑也跳过已完成镜头。" },
+      { kind: "fix", title: "持续取回云端结果", detail: "AutoDL 活跃任务不再因本地十五分钟等待上限而失败，查询间隔调整为三秒；停止和恢复继续沿用原任务 ID。" },
+    ],
+  },
+  {
+    version: "0.88.0",
+    date: "2026-10-16",
+    title: "AI 视频批量并发提交",
+    summary: "视频任务默认最多并发 40 个，批量制作无需每次等待两个镜头完成；云端任务仍按服务商额度和调度执行。",
+    items: [
+      { kind: "improvement", title: "整批视频同时推进", detail: "已就绪镜头可并发提交、查询和下载，已有远端任务继续按原任务 ID 恢复，避免重新提交。" },
+      { kind: "infra", title: "图片与视频分别限流", detail: "视频通过 WORKER_VIDEO_CONCURRENCY 配置全局并发，图片保留原有并发设置；多 Worker 共用数据库限流。" },
+    ],
+  },
+  {
     version: "0.87.2",
     date: "2026-10-15",
     title: "停止后继续制作，补齐未完成标准图",

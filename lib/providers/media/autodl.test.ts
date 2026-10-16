@@ -100,6 +100,21 @@ describe("AutoDL recovery", () => {
     expect(fetchMock.mock.calls.filter((call) => call[1]?.method === "POST")).toHaveLength(1);
   });
 
+  it("keeps querying a known queued/running task after 15 minutes without another submission", async () => {
+    let now = 0;
+    const time = vi.spyOn(Date, "now").mockImplementation(() => now);
+    try {
+      const fetchMock = vi.fn()
+        .mockImplementationOnce(async () => { now = 16 * 60_000; return envelope({ status: "QUEUED" }); })
+        .mockResolvedValueOnce(envelope({ status: "RUNNING" }))
+        .mockResolvedValueOnce(completed());
+      vi.stubGlobal("fetch", fetchMock);
+      await expect(client().output("original-long-task", new AbortController().signal)).resolves.toBe("https://cdn.test/video.mp4");
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(fetchMock.mock.calls.every((call) => call[1]?.method === "GET")).toBe(true);
+    } finally { time.mockRestore(); }
+  });
+
   it("retains explicit rejection and bounds polling unknown remote statuses", async () => {
     const req = request("rejected");
     const fetchMock = vi.fn().mockResolvedValueOnce(new Response("quota", { status: 429 }));

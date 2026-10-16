@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import path from "path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 let dir = "";
 beforeAll(() => {
@@ -102,6 +102,50 @@ describe("任务队列", () => {
     expect(getJob(job.id)?.status).toBe("queued");
     expect(getJob(job.id)!.runAfter).toBeGreaterThanOrEqual(now + 21_850);
   });
+
+  it("视频配置在多个 Worker 间共享，完成一个后领取下一个", async () => {
+    const { enqueue, claim, succeed } = await import("@/lib/server/jobs");
+    const { run } = await import("@/lib/server/db");
+    run("UPDATE jobs SET status = 'succeeded'");
+    vi.stubEnv("WORKER_VIDEO_CONCURRENCY", "3");
+    try {
+      const jobs = Array.from({ length: 4 }, (_, i) => enqueue({ projectId: `video-${i % 2}`, stage: "shot-generate", key: `video-limit-${i}`, input: { kind: "video" } }));
+      const active = [claim("w1", ["shot-generate"]), claim("w2", ["shot-generate"]), claim("w1", ["shot-generate"])];
+      expect(active.map((job) => job?.id)).toEqual(jobs.slice(0, 3).map((job) => job.id));
+      expect(claim("w2", ["shot-generate"])).toBeUndefined();
+      expect(succeed(active[0]!.id, "w1", {}, 0, active[0]!.lockToken)).toBe(true);
+      expect(claim("w2", ["shot-generate"])?.id).toBe(jobs[3].id);
+    } finally { vi.unstubAllEnvs(); }
+  });
+
+  it("Worker 默认并发 40 个视频，图片保留独立的并发槽位", async () => {
+    const { enqueue, getJob } = await import("@/lib/server/jobs");
+    const { run } = await import("@/lib/server/db");
+    const { startLoop } = await import("@/worker/loop");
+    run("UPDATE jobs SET status = 'succeeded'");
+    vi.stubEnv("WORKER_VIDEO_CONCURRENCY", "");
+    vi.stubEnv("WORKER_CONCURRENCY_SHOT-GENERATE", "2");
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const stage = { name: "shot-generate", concurrency: 2, run: async () => { await gate; return {}; } };
+    const videos = Array.from({ length: 41 }, (_, i) => enqueue({ projectId: `batch-${i % 2}`, stage: "shot-generate", key: `batch-video-${i}`, input: { kind: "video" } }));
+    const images = Array.from({ length: 3 }, (_, i) => enqueue({ projectId: "images", stage: "shot-generate", key: `batch-image-${i}`, input: { kind: "image" } }));
+    const workers = ["one", "two"].map(() => startLoop({ stages: [stage as never], pollMs: 20, log: () => {} }));
+    try {
+      const end = Date.now() + 5000;
+      while (images.slice(0, 2).some((job) => getJob(job.id)?.status !== "running")) {
+        if (Date.now() > end) throw new Error("等待并发领取超时");
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      expect(videos.filter((job) => getJob(job.id)?.status === "running")).toHaveLength(40);
+      expect(getJob(videos[40].id)?.status).toBe("queued");
+      expect(getJob(images[2].id)?.status).toBe("queued");
+    } finally {
+      release();
+      await Promise.all(workers.map((worker) => worker.stop()));
+      vi.unstubAllEnvs();
+    }
+  }, 15000);
 
   it("Worker 端到端：执行、重试、取消", async () => {
     const { enqueue, getJob, cancelJob } = await import("@/lib/server/jobs");

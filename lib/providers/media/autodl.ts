@@ -58,7 +58,7 @@ export class AutoDlClient {
   constructor(opts: { token?: string; baseUrl?: string; pollMs?: number } = {}) {
     this.token = opts.token ?? process.env.AUTODL_API_TOKEN?.trim() ?? "";
     this.baseUrl = (opts.baseUrl ?? "https://autodl.art/api/v1/comfyui").replace(/\/$/, "");
-    this.pollMs = opts.pollMs ?? 1000;
+    this.pollMs = opts.pollMs ?? 3000;
   }
   configured() { if (!this.token) throw new PermanentError("未配置 AUTODL_API_TOKEN"); }
   async request(path: string, method: "GET" | "POST", signal: AbortSignal, body?: Record<string, unknown>): Promise<Task> {
@@ -72,7 +72,6 @@ export class AutoDlClient {
   submit(body: Record<string, unknown>, signal: AbortSignal) { return this.request(WORKFLOW_ID, "POST", signal, body); }
   query(taskId: string, signal: AbortSignal) { return this.request(`result/${encodeURIComponent(taskId)}`, "GET", signal); }
   async output(taskId: string, signal: AbortSignal): Promise<string> {
-    const deadline = Date.now() + 15 * 60_000;
     let unknownStatuses = 0;
     while (true) {
       aborted(signal);
@@ -87,7 +86,7 @@ export class AutoDlClient {
       if (!["QUEUED", "RUNNING", "PENDING", "PROCESSING"].includes(status ?? "")) {
         if (++unknownStatuses >= 3) throw new AutoDlError(`AutoDL 原任务连续返回无法识别的状态：${task.status || "空"}，请稍后恢复原任务`, undefined, "unknown-status");
       } else { unknownStatuses = 0; }
-      if (Date.now() >= deadline) throw new AutoDlError("AutoDL 原任务查询超时，稍后恢复仍查询此任务", 504, "timeout");
+      // 云端排队/执行时间不设总超时；只在明确终态或用户停止时结束，始终查询原任务。
       await delay(this.pollMs, signal);
     }
   }

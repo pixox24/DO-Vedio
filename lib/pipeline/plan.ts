@@ -250,7 +250,7 @@ export function planPipeline(projectId: string, doc: ProjectDoc, goal: Goal): Pl
           mediaKeys.push(snapshot.key);
           const prerequisite = videoPrerequisite(doc, shot, timeline);
           if (prerequisite) { waiting.push(`镜头 ${shot.id} ${prerequisite}`); continue; }
-          if (!videoRenderProblems({ ...doc, shots: [shot] }, timeline, frame).length) continue;
+          if (!videoRenderProblems(doc, timeline, frame, [shot]).length) continue;
           if (usableVideoCandidate(doc, shot, timeline, frame)) { waiting.push(`镜头 ${shot.id} 已有可用视频，继续制作会自动采用`); continue; }
           if (shot.locked) { waiting.push(`镜头 ${shot.id} 已锁定且视频缺失或过期`); continue; }
           if (!videoModelAvailable(doc.settings.video.modelId)) { waiting.push("视频模型不可用，请在模型中心检查配置"); continue; }

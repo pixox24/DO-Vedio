@@ -38,10 +38,11 @@ export function videoPrerequisite(doc: ProjectDoc, shot: Shot, timeline: Timelin
 }
 
 /** Readiness checks the selected output for every requested aspect, including probe data. */
-export function videoRenderProblems(doc: ProjectDoc, timeline: Timeline, frame: GenerationFrame): string[] {
+export function videoRenderProblems(doc: ProjectDoc, timeline: Timeline, frame: GenerationFrame, shots: readonly Shot[] = doc.shots): string[] {
   if (doc.settings.visualPipeline !== "video") return [];
   if (!doc.shots.length) return ["等待视频分镜"];
-  return doc.shots.flatMap((shot) => {
+  // 单镜检查仍需完整分镜上下文：参考图指纹中的情绪取决于相邻镜头的覆盖范围。
+  return shots.flatMap((shot) => {
     if (shot.kind !== "video" || !shot.videoPlan) return [`镜头 ${shot.id} 需要重新导演为视频`];
     if (videoPlanNeedsSync(shot)) return [`镜头 ${shot.id} 等待中文镜头要求同步`];
     const variant = shot.assetVariants[frame.aspect];
@@ -76,7 +77,7 @@ export function adoptReadyVideoCandidates(projectId: string, doc: ProjectDoc, as
     let current = shot;
     for (const frame of frames) {
       const timeline = timelineFor(doc, projectId, frame.aspect);
-      if (videoPrerequisite(doc, current, timeline) || !videoRenderProblems({ ...doc, shots: [current] }, timeline, frame).length) continue;
+      if (videoPrerequisite(doc, current, timeline) || !videoRenderProblems(doc, timeline, frame, [current]).length) continue;
       const candidate = usableVideoCandidate(doc, current, timeline, frame);
       if (!candidate) continue;
       const next = selectShotCandidate(current, candidate.id, { aspect: frame.aspect, framing, aspects: outputSpecsFor(doc.settings).map((spec) => spec.aspect) });

@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import path from "path";
-import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { evenChars } from "@/lib/core/align";
 import { blankShot, stampShots } from "@/lib/core/shots";
 import { emptyDoc, type ProjectDoc } from "@/lib/core/types";
@@ -21,6 +21,7 @@ let dir = "";
 beforeAll(() => { dir = mkdtempSync(path.join(tmpdir(), "dovedio-video-pipeline-")); process.env.DATA_DIR = dir; });
 afterAll(async () => { (await import("@/lib/server/db")).closeDb(); rmSync(dir, { recursive: true, force: true }); });
 beforeEach(async () => { (await import("@/lib/server/db")).run("DELETE FROM jobs"); mocks.generate.mockReset(); });
+afterEach(() => { vi.unstubAllEnvs(); });
 const goal = { until: "compose" as const, aspects: ["16:9" as const], quality: "draft" as const };
 async function fixture(count = 1) {
   const { createProject } = await import("@/lib/server/projects");
@@ -372,7 +373,8 @@ it("three shots invalidate locally and render gate checks duration/current hash/
   expect(videoRenderProblems(doc, timelineFor(doc, project.id, frame.aspect), frame)).toHaveLength(3);
 });
 
-it("claim limits running video jobs to two without reducing image concurrency and waits standard references", async () => {
+it("claim honors configured video concurrency without reducing image concurrency and waits standard references", async () => {
+  vi.stubEnv("WORKER_VIDEO_CONCURRENCY", "2");
   const { enqueue, claim, cancelJob } = await import("@/lib/server/jobs");
   const { run } = await import("@/lib/server/db");
   for (let i = 0; i < 3; i++) enqueue({ projectId: "p", stage: "shot-generate", key: `v${i}`, input: { kind: "video" } });
@@ -389,6 +391,50 @@ it("claim limits running video jobs to two without reducing image concurrency an
   expect(claim("w5", ["shot-reference"])).toBeUndefined();
   cancelJob(standard.id);
   expect(claim("w5", ["shot-reference"])?.id).toBe(reference.id);
+});
+
+it("single-shot checks keep all storyboard context and do not report completed videos as failed", async () => {
+  const project = await fixture(3);
+  await (await import("@/lib/visual-styles/store")).ensureProjectVisualStyle(project.id);
+  const { mutateProject, getProject } = await import("@/lib/server/projects");
+  const { run } = await import("@/lib/server/db");
+  const { enqueueVideoShot, videoFrame, videoRenderProblems } = await import("@/lib/pipeline/video-generation");
+  const { timelineFor } = await import("@/lib/pipeline/artifacts");
+  const { shotGenerateStage } = await import("@/lib/pipeline/stages/shot-generate");
+  const { claim, succeed, projectJobs } = await import("@/lib/server/jobs");
+  const { beginGenerationRun } = await import("@/lib/providers/runs");
+  const { planPipeline } = await import("@/lib/pipeline/plan");
+  const { GET } = await import("@/app/api/projects/[id]/shots/status/route");
+  mutateProject(project.id, (doc) => ({ ...doc, lines: doc.lines.map((line, i) => ({ ...line, mood: ([undefined, "悬疑", "轻松"] as const)[i] })) }));
+  const chosen = await reference(project.id, true);
+  const frame = videoFrame(chosen.doc);
+  const assetId = "b".repeat(64);
+  run("INSERT OR IGNORE INTO assets (hash, kind, mime, ext, bytes, duration_ms, meta, created_at) VALUES (?, 'video', 'video/mp4', 'mp4', 1, 20000, '{}', 0)", assetId);
+  mocks.generate.mockResolvedValue({ assets: [assetId] });
+  for (const shot of chosen.doc.shots) {
+    const { job, attemptId } = enqueueVideoShot({ projectId: project.id, doc: chosen.doc, shot, frame });
+    beginGenerationRun({ projectId: project.id, jobId: job.id, providerId: "autodl", modelId: chosen.doc.settings.video.modelId, kind: "video", inputHash: (job.input as { requestHash: string }).requestHash,
+      params: { shotId: shot.id, attemptId, candidateIndex: 0, phase: "ready", taskId: `remote-${shot.id}`, costStatus: "unknown" } });
+    const active = claim("ready-worker", ["shot-generate"])!;
+    const result = await shotGenerateStage.run(active.input as never, context(active));
+    succeed(active.id, "ready-worker", result, 0, active.lockToken);
+  }
+  const current = getProject(project.id)!;
+  const timeline = timelineFor(current.doc, project.id, frame.aspect);
+  expect(videoGenerationSnapshot(current.doc, current.doc.shots[0], timeline, frame).hash).not.toBe(videoGenerationSnapshot({ ...current.doc, shots: [current.doc.shots[0]] }, current.doc.shots[0], timeline, frame).hash);
+  expect(videoRenderProblems(current.doc, timeline, frame)).toEqual([]);
+  const states = await (await GET(new Request("http://test"), { params: Promise.resolve({ id: project.id }) })).json();
+  expect(Object.values(states).map((state) => (state as { state: string }).state)).toEqual(["ready", "ready", "ready"]);
+  expect(planPipeline(project.id, current.doc, goal).steps.filter((step) => step.stage === "shot-generate")).toEqual([]);
+  const { POST } = await import("@/app/api/projects/[id]/shots/generate/route");
+  const before = projectJobs(project.id).length;
+  const batch = await POST(new Request("http://test", { method: "POST", body: JSON.stringify({ kind: "video" }) }), { params: Promise.resolve({ id: project.id }) });
+  expect(batch.status).toBe(409);
+  expect(projectJobs(project.id)).toHaveLength(before);
+  const failed = projectJobs(project.id).find((job) => job.stage === "shot-generate")!;
+  run("UPDATE jobs SET status = 'failed', error = 'old download error' WHERE id = ?", failed.id);
+  const recovered = await (await GET(new Request("http://test"), { params: Promise.resolve({ id: project.id }) })).json();
+  expect(recovered[(failed.input as { shotId: string }).shotId]).toMatchObject({ state: "ready", status: "succeeded", progress: 1, failed: 0, error: null });
 });
 
 it("status distinguishes an idle ready shot and stopped original polling from active work", async () => {

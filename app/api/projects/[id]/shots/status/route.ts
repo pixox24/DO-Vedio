@@ -99,21 +99,22 @@ export async function GET(req: Request, ctx: RouteContext<"/api/projects/[id]/sh
         const input = latest?.input as { attemptId?: string; requestHash?: string } | undefined;
         const entry = out[shot.id] ?? { status: latest?.status ?? "queued", progress: latest?.progress ?? 0, message: latest?.message ?? "", error: latest?.error ?? null, total: latest ? 1 : 0, done: 0, failed: 0, running: 0 };
         const activeVideo = latest?.stage === "shot-generate" && input?.requestHash === snapshot.hash && ["queued", "running"].includes(latest.status);
+        const problems = videoRenderProblems(doc, timeline, frame, [shot]);
         let state: string;
         if (videoPlanNeedsSync(shot)) state = "waiting-plan";
         else if (!timing.ready) state = "waiting-tts";
         else if (!reference.usable) state = reference.kind === "failed" || reference.kind === "canceled" ? reference.kind : "waiting-reference";
         else if (!doc.settings.video.autoContinue && !sourceImageConfirmed(doc, shot, sourceFrame)) state = "waiting-confirmation";
+        else if (activeVideo) state = latest?.status === "queued" ? "queued" : ["submitting", "polling", "downloading"].includes(original?.params.phase ?? "") ? original!.params.phase : original?.params.taskId ? "polling" : "submitting";
+        else if (!problems.length) state = "ready";
         else if (original?.params.phase === "submission-unknown") state = "submission-unknown";
         else if (latest?.status === "failed" && input?.requestHash === snapshot.hash) state = "failed";
         else if (latest?.status === "canceled" && input?.requestHash === snapshot.hash) state = "canceled";
-        else if (activeVideo) state = latest?.status === "queued" ? "queued" : original?.params.phase ?? "submitting";
-        else if (!videoRenderProblems({ ...doc, shots: [shot] }, timeline, frame).length) state = "ready";
         else if (original?.params.phase === "failed") state = "failed";
         else if (original?.params.phase === "canceled") state = "canceled";
         else if (original) state = "failed";
         else state = shot.assetId ? "stale" : "ready-to-generate";
-        out[shot.id] = { ...entry, state, error: state === "failed" ? reference.error ?? latest?.error ?? null : null, snapshotHash: sourceImageSnapshot(doc, shot, sourceFrame).hash,
+        out[shot.id] = { ...entry, ...(state === "ready" ? { status: "succeeded", progress: 1, done: Math.max(1, entry.total), total: Math.max(1, entry.total), failed: 0, running: 0, message: "" } : {}), state, error: state === "failed" ? reference.error ?? latest?.error ?? original?.error ?? problems[0] ?? null : null, snapshotHash: sourceImageSnapshot(doc, shot, sourceFrame).hash,
           attemptId: original?.params.attemptId ?? (input?.requestHash === snapshot.hash ? input.attemptId : undefined),
           providerTaskId: original?.params.taskId, sourceImageAssetId: shot.sourceImageAssetId,
           costStatus: original?.params.costStatus ?? "unknown", targetDurationMs: timing.targetDurationMs, requestDurationSeconds: timing.requestDurationSeconds,

@@ -110,9 +110,10 @@ export function startLoop(opts: LoopOptions) {
   async function loop() {
     while (!stopping) {
       const running = runningCounts();
-      // 只领取还有空闲并发的步骤；运行中计数来自数据库，多个 Worker 也能共同限流
-      const free = [...stages.values()].filter((s) => (running[s.name] ?? 0) < limit(s)).map((s) => s.name);
-      const job = free.length ? claim(workerId, free) : undefined;
+      // 镜头图片、视频在 claim 事务内分别限流，避免长时间轮询的视频占满图片槽位。
+      const free = [...stages.values()].filter((s) => s.name === "shot-generate" || (running[s.name] ?? 0) < limit(s)).map((s) => s.name);
+      const shotStage = stages.get("shot-generate");
+      const job = free.length ? claim(workerId, free, shotStage ? limit(shotStage) : 20) : undefined;
       if (job) {
         const stage = stages.get(job.stage)!;
         void execute(job, stage);

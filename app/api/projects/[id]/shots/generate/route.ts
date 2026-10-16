@@ -35,7 +35,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/projects/[id]/s
       let skipped = 0;
       let reason = "没有需要生成的视频镜头";
       for (const shot of targetShots) for (const frame of frames) {
-        if (shot.locked || !videoRenderProblems({ ...project.doc, shots: [shot] }, timelineFor(project.doc, id, frame.aspect), frame).length) { skipped++; continue; }
+        if (shot.locked || !videoRenderProblems(project.doc, timelineFor(project.doc, id, frame.aspect), frame, [shot]).length) { skipped++; continue; }
         try {
           const result = enqueueVideoShot({ projectId: id, doc: project.doc, shot, frame, candidateCount: input.candidateCount, batchId });
           if (result.reused) skipped++; else jobs.push(result.job);

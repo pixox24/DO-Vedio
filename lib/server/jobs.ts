@@ -147,8 +147,10 @@ function waitingReferenceShotIds(): string[] {
 }
 
 /** 原子领取一个可执行的任务 */
-export function claim(workerId: string, stages: string[]): Job | undefined {
+export function claim(workerId: string, stages: string[], shotImageConcurrency = 20): Job | undefined {
   if (stages.length === 0) return undefined;
+  const configuredVideoConcurrency = Number(process.env.WORKER_VIDEO_CONCURRENCY);
+  const videoConcurrency = Number.isSafeInteger(configuredVideoConcurrency) && configuredVideoConcurrency > 0 ? configuredVideoConcurrency : 40;
   return tx(() => {
     const now = Date.now();
     const lockToken = randomUUID();
@@ -158,7 +160,9 @@ export function claim(workerId: string, stages: string[]): Job | undefined {
        WHERE id = (
           SELECT id FROM jobs WHERE status = 'queued' AND run_after <= ? AND stage IN (${stages.map(() => "?").join(",")})
           AND (stage != 'shot-generate' OR COALESCE(json_extract(input, '$.kind'), '') != 'video'
-            OR (SELECT COUNT(*) FROM jobs active WHERE active.stage = 'shot-generate' AND active.status = 'running' AND json_extract(active.input, '$.kind') = 'video') < 2)
+            OR (SELECT COUNT(*) FROM jobs active WHERE active.stage = 'shot-generate' AND active.status = 'running' AND json_extract(active.input, '$.kind') = 'video') < ?)
+          AND (stage != 'shot-generate' OR json_extract(input, '$.kind') = 'video'
+            OR (SELECT COUNT(*) FROM jobs active WHERE active.stage = 'shot-generate' AND active.status = 'running' AND COALESCE(json_extract(active.input, '$.kind'), '') != 'video') < ?)
           ${waiting.length ? `AND id NOT IN (${waiting.map(() => "?").join(",")})` : ""}
          ORDER BY priority, created_at LIMIT 1
        )
@@ -170,6 +174,8 @@ export function claim(workerId: string, stages: string[]): Job | undefined {
       now,
       now,
       ...stages,
+      videoConcurrency,
+      shotImageConcurrency,
       ...waiting,
     );
     return r && toJob(r, true);
