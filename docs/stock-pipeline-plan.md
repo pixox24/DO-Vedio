@@ -484,6 +484,38 @@ export const isStock = (pipeline: string) => pipeline === "stock";
 - 断言 `assets.meta` 里**没有** Pexels 下载 URL。
 - 重搜一次：新素材 ≠ 旧素材（游标生效），且快照哈希**不变**。
 
+**完成记录**
+
+新增 `lib/pipeline/stages/shot-stock.ts`（`shotStockStage` / `stockPrerequisite` / `enqueueStockShot`），注册进 `lib/pipeline/stages/index.ts`；`lib/pipeline/plan.ts` 加 stock 分支与键白名单；`lib/pipeline/video-generation.ts` 的门禁与候选判定改用 `snapshotFor`。
+
+| 落地项 | 关键点 |
+| --- | --- |
+| 前置检查分包 | `stockPrerequisite` 与 `videoPrerequisite` **并列**，不是继承：素材管线不需要参考图、标准图与视频模型。`videoPrerequisite` 保持 AI 视频专属（第一句就 `!isAiVideo` 返回） |
+| 写回 | 严格照抄 `runVideoShot` 的四步（重算快照哈希 → 合并候选 → `selectShotCandidate` → 补 width/height/generatedAt），只有一处不同：**显式重搜必须采用新素材**，不沿用 `selected` |
+| 双哈希 | 候选同时写 `promptHash` 与 `generationPromptHash`。只填一个会让 `variantFor` 落到兜底值 `"unknown"`，门禁永远报「视频缺失或已过期」且不报错、只卡住 |
+| 实测复检 | 来源声明的 `durationSec` 只是整数秒粗过滤；拿到文件后按 `videoPlayback(target - VIDEO_MAX_HOLD_MS)` 复检 ffprobe 实测时长，短了就换下一条 |
+| 下载预算 | 单镜最多下 `MAX_DOWNLOADS = 3` 条。免费额度 200 请求/小时，搜索与下载都算，不能「一直试到找到为止」；试满报 `PermanentError`，让用户改描述或换 AI 视频 |
+| 游标不进哈希 | `excludeAssetIds` 只走任务 input。候选池被 `MAX_CANDIDATES = 8` 截断后从文档推导的排除集会变，一旦进哈希就会把正在用的素材误判成过期 |
+| 游标按 assetId | assetId 是内容 sha256、下载后才知道，所以用 URL 缓存把「这条地址」映射回 assetId，避免为了跳过一条已试素材再下一遍 |
+| 密钥不落盘 | `download` 的 `meta` 按**白名单**重建（`source/stage/projectId/shotId/clipId/author/pageUrl/frame`），只存人可点的 `pageUrl`。`putStream` 会把 meta 永久写进 assets 表，而 Pexels 下载地址可能带签名 |
+| 缓存时机 | 两条缓存都在写回**成功之后**才落：写回被并发编辑挡掉时不能留下「已经定过」的假记录 |
+| 编排 | 一镜一步，键是 `stock:<快照哈希>`；`mediaStage` / `mediaKey` 白名单、`maxAttempts: 1`、`activeMedia` 与 `advance` 的 `referenceSettled` 都纳入 `shot-stock`；`produce` 的自动采用仍只对 `isAiVideo` 生效 |
+| 画幅策略 | 与 AI 视频同一套口径：`shared` 只搜一次（另一画幅走 `sourceAspect` 复用），`per-output` 每个画幅各搜一次——素材方向不同，硬裁会把两侧切掉 |
+
+**验收证据**
+
+- 新增 `tests/video-stock-pipeline.test.ts`（9 例，只打桩 Pexels 检索与 ffprobe，其余全走真实代码）：
+  1. 三镜跑通：`plan.currentKeys` 含三个 `stock:` 键 → 逐镜检索 → 写回 → `videoRenderProblems` 返回 `[]` → 排得出 render（`waiting` 为空）→ 再排一次不重复提交。
+  2. 门禁时长：手工把 `duration_ms` 改成 100 → 精确报 `镜头 s1 视频时长不足或尚未探测`，且 render 步骤消失。
+  3. 候选双哈希：`promptHash === generationPromptHash === 快照哈希`，`assetVariants[aspect].promptHash` 同值。
+  4. 来源声称 10s、实测 1.2s 的素材**确实下下来了**（断言其 asset 的 `duration_ms`）但被拒，采用下一条。
+  5. 全部候选都太短时抛「都比镜头短」，文档不动且快照缓存**未写入**。
+  6. `assets.meta` 只留 `pageUrl`，序列化后不含 `videos.pexels.com`，也没有 `url` 字段。
+  7. 带游标重搜：`requestHash` 与重搜前逐位相同、`excludeAssetIds` 含旧素材、新素材 ≠ 旧素材、快照哈希不变、旧候选仍在历史里。
+  8. 已对上的素材让 `produce` 不再排也不入队 `shot-stock`，且一次检索都没打。
+  9. 下载期间检索词被改动 → 抛「素材输入已变化」，文档保持用户改后的值；任务取消后同样不写回。
+- `npm run typecheck` 通过；`eslint .` 0 error 0 warning；全量 `npx vitest run --maxWorkers=4 --testTimeout=20000` = **131 文件 / 1065 测试全绿**（Phase 2 基线 130 / 1056）。
+
 ### Phase 4 — 前端
 
 1. `settings-panel.tsx`：第三个选项 + stock 设置块 + Key 状态

@@ -3,6 +3,7 @@ import { outputSpecForRequest, outputSpecsFor, type GenerationFrame } from "../c
 import { playbackAssetId, selectShotCandidate } from "../core/shot-asset";
 import type { Aspect, ProjectDoc, Shot } from "../core/types";
 import { isAiVideo, isVideoForm, missingVideoStandards, sourceImageConfirmed, sourceImageSnapshot, sourceImageStale, videoGenerationSnapshot, videoShotTiming, videoPlayback } from "../core/video";
+import { snapshotFor } from "../core/stock";
 import type { Timeline } from "../core/timeline";
 import { findMediaRecoveryRun, findOriginalMediaAttempt } from "../providers/runs";
 import { listProviderProfiles } from "../providers/registry";
@@ -51,7 +52,8 @@ export function videoRenderProblems(doc: ProjectDoc, timeline: Timeline, frame: 
     if (videoPlanNeedsSync(shot)) return [`镜头 ${shot.id} 等待中文镜头要求同步`];
     const variant = shot.assetVariants[frame.aspect];
     const origin = variant?.source === "shared" && variant.sourceAspect ? videoFrame(doc, outputSpecForRequest(doc.settings, undefined, variant.sourceAspect)) : frame;
-    const snapshot = videoGenerationSnapshot(doc, shot, timeline, origin);
+    // 按管线分发：AI 视频比的是生成指纹，素材比的是检索输入指纹。骨架完全一样。
+    const snapshot = snapshotFor(doc, shot, timeline, origin);
     const assetId = playbackAssetId(shot, frame.aspect);
     const hash = variant ? variant.promptHash : shot.assetPromptHash;
     if (!assetId || hash !== snapshot.hash) return [`镜头 ${shot.id} 的 ${frame.aspect} 视频缺失或已过期`];
@@ -62,7 +64,7 @@ export function videoRenderProblems(doc: ProjectDoc, timeline: Timeline, frame: 
 }
 
 export function usableVideoCandidate(doc: ProjectDoc, shot: Shot, timeline: Timeline, frame: GenerationFrame) {
-  const snapshot = videoGenerationSnapshot(doc, shot, timeline, frame);
+  const snapshot = snapshotFor(doc, shot, timeline, frame);
   return shot.candidates.find((candidate) => {
     if (candidate.kind !== "video" || candidate.promptHash !== snapshot.hash || candidate.generationPromptHash !== snapshot.hash || (videoAssetFraming(doc) === "per-output" && candidate.frame?.aspect !== frame.aspect)) return false;
     const asset = getAsset(candidate.assetId);

@@ -16,5 +16,6 @@ import { subtitleTranslateStage } from "./subtitle-translate";
 import { viralStage } from "../viral/dispatcher";
 
 import { shotReferenceStage } from "./shot-reference";
+import { shotStockStage } from "./shot-stock";
 
-export const allStages = [echoStage, annotateStage, voiceDirectionStage, ttsStage, ttsBlockStage, storyboardStage, subtitleTranslateStage, musicStage, renderStage, shotGenerateStage, shotReferenceStage, stylePreviewStage, castStage, characterSheetStage, sceneReferenceStage, viralStage] as Stage<never, unknown>[];
+export const allStages = [echoStage, annotateStage, voiceDirectionStage, ttsStage, ttsBlockStage, storyboardStage, subtitleTranslateStage, musicStage, renderStage, shotGenerateStage, shotReferenceStage, shotStockStage, stylePreviewStage, castStage, characterSheetStage, sceneReferenceStage, viralStage] as Stage<never, unknown>[];
