@@ -153,7 +153,9 @@ const fresh = assets.map((asset, candidateIndex) => ({
 | `lib/providers/stock/types.ts` | 来源层的公共类型与接口 | `StockClip`、`StockFile`、`StockSearchOptions`、`StockSource` |
 | `lib/providers/stock/pexels.ts` | Pexels 实现，纯 HTTP，读服务端 `PEXELS_API_KEY` | `searchVideos(query, opts)`、`pickFile(clip, frame)` |
 | `lib/providers/stock/index.ts` | 来源注册表与统一入口 | `stockSources`、`searchStock(query, opts)`、`stockConfigured()` |
-| `lib/core/stock.ts` | 纯函数：检索词、快照、过期判定、画幅 | `stockQuery(shot)`、`stockFrame(doc)`、`stockSnapshot(...)`、`stockAssetStale(...)`、`stockExclusions(shot)` |
+| `lib/core/stock.ts` | 纯函数：检索词、快照、过期判定、画幅 | `stockQuery(shot)`、`effectiveStockQuery(shot)`、`stockFrame(doc)`、`stockSnapshot(...)`、`snapshotFor(...)`、`stockAssetStale(...)`、`stockExclusions(shot)`、`stockMinDurationSec(...)` |
+| `lib/pipeline/stock-cache.ts` | 两层缓存：按快照哈希复用素材、按 URL 哈希复用下载 | `cachedStockAsset` / `rememberStockAsset` / `cachedStockFile` / `rememberStockFile` |
+| `scripts/stock-probe.ts` | 真打 Pexels 的探测脚本（`npm run stock:probe`） | 检索、`pickFile`、失败分层、`size=medium` 与 `min_duration` 单位核实 |
 | `lib/pipeline/stages/shot-stock.ts` | 新 stage，骨架照 `shot-reference.ts` | `shotStockStage`、`enqueueStockShot(...)`、`stockPrerequisite(...)` |
 | `app/api/projects/[id]/shots/[shotId]/stock/route.ts` | 「重新搜索素材」入口 | `POST` |
 | `app/api/stock/route.ts` | Key 状态 + 测试连接（设置面板用） | `GET`、`POST` |
@@ -441,6 +443,32 @@ export const isStock = (pipeline: string) => pipeline === "stock";
 - 同一 query 连打两次，第二次命中缓存、不产生网络请求。
 - 空结果**不写缓存**（断言 `cacheHas` 为 false）。
 - 无 Key 时 `stockConfigured()` 为 false，路由返回 `configured: false`。
+
+**完成记录**
+
+新增 `lib/providers/stock/{types,pexels,index}.ts`、`lib/core/stock.ts`、`lib/pipeline/stock-cache.ts`、`app/api/stock/route.ts`、`scripts/stock-probe.ts`（`npm run stock:probe`）。
+
+| 落地项 | 关键点 |
+| --- | --- |
+| 来源接口 | `StockSource` 只回答「素材从哪来」：不碰 shot、不碰快照、不碰任务系统。接本地素材库只是再加一个实现 |
+| 请求构造 | `orientation` / `min_duration` / `size=medium` / `per_page`（上限 80）全在服务端过滤；`min_duration` **向上取整**，宁可少拿也不能拿回一条比镜头短的 |
+| 失败分层 | 401/403 → `PermanentError`；429 → `PexelsError(status 429, retryAfterMs)`；其余 HTTP → `PexelsError(status)` 交给 `isRetryable`；非 JSON → 不挂状态码（网关偶发 HTML 错误页要允许重试）；网络错误 → `networkError`；**AbortError 原样抛出**，否则取消会被当成网络抖动而重试 |
+| 响应解析 | 逐条容错：字段缺失/档位缺 link 的条目丢掉，不让一条坏数据毁掉整次检索；但**缺 `videos` 列表要报错**，不静默返回空数组 |
+| `pickFile` | mp4 → 宽高都不小于目标 → 方向一致 → 面积最小；同面积按 id 取，保证同一素材每次选到同一档 |
+| `stockSnapshot` | 哈希只含检索词、方向、时长下限、目标时长、覆盖句文本与配音、seed。**`excludeAssetIds` 与候选都不进哈希** |
+| `snapshotFor` | 按管线分发，门禁与编排不再各写一份 `isAiVideo ? :` |
+| 缓存层 | 独立成 `lib/pipeline/stock-cache.ts`（原计划把它放在 stage 里，但 Phase 2 的验收要断言缓存行为，放在这里才可独立验证）。两层：按快照哈希复用「这一镜定了哪条素材」、按 URL 哈希复用「这个文件下过了」。**没有「缓存空结果」的入口**；命中要求 `getAsset` 仍在库 |
+| 密钥不落盘 | 缓存键是 URL 的哈希、值是 `assetId`，带签名的下载地址既不做键也不做值；素材 `meta` 只放人可点的 `pageUrl` |
+| 独立路由 | `/api/stock` 只做 Key 状态与连通性测试，**没有**把 Pexels 加进 `providerKinds` / `builtinModels` |
+
+**验收证据**
+
+- `npm run stock:probe` 真打 Pexels，**11 项全通过**：竖屏 `nature` + `min_duration=6` 返回 15 条且全部 ≥6s、全部 `height>width`；15/15 条都有合格档且宽高 ≥1080×1920、面积最小；横屏同理；无效 Key 抛 `PermanentError`。
+  - 顺带核实了两个不能靠猜的假设：**`min_duration` 的单位确实是秒**；**`size=medium` 不会筛掉竖屏结果**（无 size 15 条 / 有 size 15 条），所以保留该参数。
+- 缓存三条不变量各有独立测试（`lib/pipeline/stock-cache.test.ts` 6 例）：命中复用、空结果不写缓存、素材被 GC 后视为未命中、URL 缓存跨镜头复用、签名地址不以明文进库。
+- `lib/core/stock.test.ts` 14 例：**候选与游标变化后快照哈希逐位不变**（§4.5 的反向断言）、检索词/方向/时长下限/覆盖句变化后哈希必变、规则派生检索词可复现、`snapshotFor` 分发正确。
+- `lib/providers/stock/pexels.test.ts` 19 例 + `index.test.ts` 4 例 + `tests/stock-api.test.ts` 7 例。
+- `npm run typecheck` 通过；全量测试 **129 文件 / 1050 测试全绿**（含缓存测试后 130 文件 / 1056 测试）。
 
 ### Phase 3 — stage 与编排
 
