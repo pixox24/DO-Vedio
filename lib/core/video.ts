@@ -1,4 +1,4 @@
-import { anchorText, characterReferenceIds, lookAt, sheetSourceHash } from "./cast";
+import { anchorText, currentCharacterReferenceIds, lookAt } from "./cast";
 import { quickHash } from "./hash";
 import { compileShotPrompt, shotCharacters } from "./prompt-compiler";
 import { sceneSourceHash } from "./scenes";
@@ -39,10 +39,7 @@ export function videoShotTiming(doc: ProjectDoc, shot: Shot, timeline: Timeline)
 export function videoReferenceIds(doc: ProjectDoc, shot: Shot): string[] {
   const scene = doc.scenes.find((item) => item.id === shot.sceneId);
   const sceneStale = scene?.referenceSourceHash && scene.referenceSourceHash !== sceneSourceHash(scene, doc.visualStyle);
-  const perCharacter = shotCharacters(doc, shot).map((card) => {
-    const stale = card.sheet.sourceHash && card.sheet.sourceHash !== sheetSourceHash(card, doc.visualStyle);
-    return stale ? card.referenceAssetIds : characterReferenceIds(card);
-  });
+  const perCharacter = shotCharacters(doc, shot).map((card) => currentCharacterReferenceIds(card, doc.visualStyle));
   const characterIds: string[] = [];
   for (let index = 0; perCharacter.some((refs) => refs[index]); index++) {
     for (const refs of perCharacter) if (refs[index]) characterIds.push(refs[index]);
@@ -56,8 +53,7 @@ export function missingVideoStandards(doc: ProjectDoc, shot: Shot): { kind: "cha
   const missing: { kind: "character" | "scene"; id: string }[] = [];
   for (const card of shotCharacters(doc, shot)) {
     if (card.kind === "group" || card.presentation !== "full") continue;
-    const stale = card.sheet.sourceHash && card.sheet.sourceHash !== sheetSourceHash(card, doc.visualStyle);
-    const refs = stale ? card.referenceAssetIds : characterReferenceIds(card);
+    const refs = currentCharacterReferenceIds(card, doc.visualStyle);
     if (!refs.length) missing.push({ kind: "character", id: card.id });
   }
   const scene = doc.scenes.find((item) => item.id === shot.sceneId);

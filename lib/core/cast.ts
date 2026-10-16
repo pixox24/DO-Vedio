@@ -279,6 +279,12 @@ export function characterReferenceIds(card: CharacterCard): string[] {
   return [...new Set([...card.referenceAssetIds, card.sheet.portraitAssetId, ...card.sheet.turnaroundAssetIds].filter((x): x is string => !!x))];
 }
 
+/** 当前有效的已采用标准图；上传图不随生成定妆的指纹过期。 */
+export function currentCharacterReferenceIds(card: CharacterCard, style: VisualStyle | null): string[] {
+  const stale = card.sheet.sourceHash && card.sheet.sourceHash !== sheetSourceHash(card, style);
+  return stale ? card.referenceAssetIds : characterReferenceIds(card);
+}
+
 /** 定妆指纹：外貌字段或画面风格变了，定妆就过期 */
 export function sheetSourceHash(card: CharacterCard, style: VisualStyle | null) {
   return quickHash({ anchor: anchorText(card, card.looks[0]), style: style && { ...style, id: undefined, name: undefined, description: undefined, suits: undefined } });

@@ -39,6 +39,16 @@ export const changeKindOrder: ChangeKind[] = ["feature", "improvement", "fix", "
 
 export const changelog: ChangeEntry[] = [
   {
+    version: "0.87.2",
+    date: "2026-10-15",
+    title: "停止后继续制作，补齐未完成标准图",
+    summary: "继续制作会恢复已停止的自动标准图任务并复用有效结果；参考图进度区分实际生成、等待标准图和等待继续。",
+    items: [
+      { kind: "fix", title: "恢复停止的标准图任务", detail: "主动继续时补回已取消的角色和场景标准图，已有有效图片与正在执行的任务直接复用；生成失败仍回到对应模块处理，避免反复自动重试。" },
+      { kind: "improvement", title: "状态与费用提示更准确", detail: "没有任务执行时不再显示参考图生成中；继续前显示待补齐标准图数量，并提示重新生成可能再次计费。" },
+    ],
+  },
+  {
     version: "0.87.1",
     date: "2026-10-15",
     title: "镜头参考图严格等待关联标准图",

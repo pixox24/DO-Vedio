@@ -74,6 +74,19 @@ describe("自动立绘的判定", () => {
     expect(autoPortraitPlan(stale, "p1")).toEqual([]);
   });
 
+  it("视频只补缺失或过期的已采用标准图，保留上传图，不把候选当成已采用", async () => {
+    const { needsAutoPortrait } = await import("./auto-portrait");
+    const doc = docWith([], { settings: { ...emptyDoc().settings, autoPortrait: true, visualPipeline: "video" } });
+    const current = card({ sheet: sheet({ sourceHash: sheetSourceHash(card(), doc.visualStyle), candidates: ["candidate"] }) });
+    expect(needsAutoPortrait(current, doc)).toBe(true);
+    current.sheet.portraitAssetId = "adopted";
+    expect(needsAutoPortrait(current, doc)).toBe(false);
+    current.hair = "长发";
+    expect(needsAutoPortrait(current, doc)).toBe(true);
+    current.referenceAssetIds = ["uploaded"];
+    expect(needsAutoPortrait(current, doc)).toBe(false);
+  });
+
   it("没有可用的生图模型就不排任务，避免必然失败", async () => {
     const { autoPortraitPlan } = await import("./auto-portrait");
     const doc = docWith([card()], { settings: { ...emptyDoc().settings, autoPortrait: true } });

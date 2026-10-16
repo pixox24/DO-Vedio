@@ -50,6 +50,47 @@ async function reference(projectId: string, confirm = false) {
 }
 function context(job: import("@/lib/core/types").Job) { return { job, signal: new AbortController().signal, current: () => true, progress: vi.fn(), spend: () => 0, log: vi.fn() }; }
 
+it("start → stop → continue restores canceled standards, reuses adopted/active results, and leaves failures for explicit handling", async () => {
+  const project = await fixture();
+  const { characterCardSchema, sceneCardSchema } = await import("@/lib/core/types");
+  const { mutateProject } = await import("@/lib/server/projects");
+  const { projectJobs } = await import("@/lib/server/jobs");
+  const { produce } = await import("@/lib/pipeline/plan");
+  const { run } = await import("@/lib/server/db");
+  const { POST } = await import("@/app/api/projects/[id]/produce/route");
+  mutateProject(project.id, (doc) => ({ ...doc,
+    settings: { ...doc.settings, autoPortrait: true },
+    characters: ["c0", "c1"].map((id) => characterCardSchema.parse({ id, name: id })),
+    scenes: [sceneCardSchema.parse({ id: "scene0", name: "河岸", description: "河岸" })],
+    shots: doc.shots.map((shot) => ({ ...shot, characterIds: ["c0", "c1"], sceneId: "scene0" })),
+  }));
+  const request = (action: "start" | "stop") => POST(new Request("http://test", { method: "POST", body: JSON.stringify({ action, goal }) }), { params: Promise.resolve({ id: project.id }) });
+  const standards = () => projectJobs(project.id).filter((job) => job.stage === "character-sheet" || job.stage === "scene-reference");
+  expect((await request("start")).status).toBe(200);
+  const firstIds = standards().map((job) => job.id);
+  expect(firstIds).toHaveLength(3);
+  await request("start");
+  expect(standards().map((job) => job.id)).toEqual(firstIds);
+  expect((await request("stop")).status).toBe(200);
+  expect(standards().every((job) => job.status === "canceled")).toBe(true);
+  produce(project.id, goal);
+  expect(standards()).toHaveLength(3); // 自动推进不能恢复已停止任务。
+  mutateProject(project.id, (doc) => ({ ...doc, characters: doc.characters.map((card) => card.id === "c0" ? { ...card, referenceAssetIds: ["adopted-upload"] } : card) }));
+  expect((await request("start")).status).toBe(200);
+  const resumed = standards().filter((job) => job.status === "queued");
+  expect(resumed).toHaveLength(2);
+  expect(resumed.map((job) => job.stage).sort()).toEqual(["character-sheet", "scene-reference"]);
+  expect(resumed.every((job) => !firstIds.includes(job.id))).toBe(true);
+  expect(projectJobs(project.id).some((job) => job.stage === "shot-reference")).toBe(false);
+  const resumedIds = standards().map((job) => job.id);
+  for (const job of resumed) run("UPDATE jobs SET status = 'failed', error = 'Model not found' WHERE id = ?", job.id);
+  await request("start");
+  expect(standards().map((job) => job.id)).toEqual(resumedIds);
+  expect(standards().some((job) => job.status === "queued" || job.status === "running")).toBe(false);
+  expect(projectJobs(project.id).some((job) => job.stage === "shot-reference")).toBe(false);
+  expect(mocks.generate).not.toHaveBeenCalled();
+});
+
 it.each(["character", "scene"] as const)("failed %s standard blocks submission and worker execution, then adoption resumes the same goal", async (kind) => {
   const project = await fixture();
   const { characterCardSchema, sceneCardSchema } = await import("@/lib/core/types");

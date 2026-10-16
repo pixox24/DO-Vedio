@@ -35,6 +35,7 @@ export type ReferenceStatus = {
   kind: "plan" | "queued" | "running" | "standard" | "failed" | "canceled" | "missing" | "stale" | "ready";
   label: string;
   usable: boolean;
+  standardState?: "active" | "failed" | "canceled" | "missing";
   error?: string;
   modelId?: string;
 };
@@ -51,9 +52,12 @@ export function shotReferenceStatus(doc: ProjectDoc, shot: Shot, frame: Generati
       return dependency.kind === "scene" ? job.stage === "scene-reference" && input?.sceneId === dependency.id
         : job.stage === "character-sheet" && input?.kind === "portrait" && input.characterId === dependency.id;
     }).sort((a, b) => b.createdAt - a.createdAt)[0]);
-    const failed = latest.some((job) => job?.status === "failed" || job?.status === "canceled");
+    const failed = latest.some((job) => job?.status === "failed");
     const active = latest.some((job) => job?.status === "queued" || job?.status === "running");
-    return { kind: "standard", label: failed ? "前置标准图需处理" : active ? "等待角色和场景标准图" : "待补齐角色和场景标准图", usable: false };
+    const canceled = latest.some((job) => job?.status === "canceled");
+    const standardState = active ? "active" : failed ? "failed" : canceled ? "canceled" : "missing";
+    const label = active ? "等待角色和场景标准图" : failed ? "前置标准图需处理" : canceled && doc.settings.autoPortrait ? "标准图已停止，待继续制作" : "待补齐角色和场景标准图";
+    return { kind: "standard", standardState, label, usable: false };
   }
   const references = jobs.filter((job) => job.stage === "shot-reference" && (job.input as { shotId?: string } | null)?.shotId === shot.id).sort((a, b) => b.createdAt - a.createdAt);
   const active = references.find((job) => job.status === "queued" || job.status === "running");

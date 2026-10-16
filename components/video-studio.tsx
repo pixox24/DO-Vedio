@@ -556,8 +556,27 @@ export function VideoStudio({ id }: { id: string }) {
   const references = referenceShots.map((shot) => shotReferenceStatus(doc, shot, outputSpecs[0], studioJobs));
   const referenceDone = references.filter((reference) => reference.usable).length;
   const referenceFailed = references.some((reference) => reference.kind === "failed");
-  const referenceActive = references.some((reference) => ["queued", "running", "standard"].includes(reference.kind));
+  const referenceActive = references.some((reference) => reference.kind === "queued" || reference.kind === "running");
+  const standardActive = references.some((reference) => reference.standardState === "active");
+  const standardFailed = references.some((reference) => reference.standardState === "failed");
+  const referenceStopped = references.some((reference) => reference.kind === "canceled" || (doc.settings.autoPortrait && reference.standardState === "canceled"));
+  const standardMissing = references.some((reference) => reference.kind === "standard");
   const pendingConfirmation = referenceShots.filter((shot, index) => references[index].usable && !shot.locked && !sourceImageConfirmed(doc, shot, outputSpecs[0])).length;
+  const referenceMessage = referenceActive ? "生成中"
+    : standardActive ? "等待标准图"
+    : referenceFailed ? "需处理 · 查看分镜"
+    : standardFailed ? "前置标准图需处理"
+    : referenceStopped ? "已停止 · 待继续制作"
+    : standardMissing ? "前置标准图待补齐"
+    : pendingConfirmation && !doc.settings.video.autoContinue ? `待确认 ${pendingConfirmation} 镜`
+    : referenceDone < referenceShots.length ? "待生成 · 查看分镜" : "参考图已齐";
+  const standardsToSubmit = (plan?.plan.steps ?? []).filter((step) => {
+    if (step.stage !== "character-sheet" && step.stage !== "scene-reference") return false;
+    const latest = studioJobs.filter((job) => job.key === step.key).sort((a, b) => b.createdAt - a.createdAt)[0];
+    return !latest || !["queued", "running", "failed"].includes(latest.status);
+  });
+  const resumesStandards = standardsToSubmit.some((step) => studioJobs.some((job) => job.key === step.key && job.status === "canceled"));
+  const standardDisclosure = standardsToSubmit.length ? `将补齐 ${standardsToSubmit.length} 张标准图，图片费用另由服务商收取。${resumesStandards ? "已停止的请求仍可能计费，重新生成可能再次计费。" : ""}` : undefined;
   const outputAspects = outputSpecs.map((spec) => spec.aspect);
   const listedRenders = visibleRenders(renders, timelineHashes);
   const readiness = outputReadiness(outputAspects, listedRenders, timelineHashes);
@@ -637,7 +656,7 @@ export function VideoStudio({ id }: { id: string }) {
 
       {hasScript && (
         <>
-          {!setupConfirmed && <SetupConfirm doc={doc} costYuan={plan ? plan.plan.costYuan : null} onOpen={changePanel} onConfirm={confirmSetup} />}
+          {!setupConfirmed && <SetupConfirm doc={doc} costYuan={plan ? plan.plan.costYuan : null} standardDisclosure={standardDisclosure} onOpen={changePanel} onConfirm={confirmSetup} />}
 
           {setupConfirmed && (
             <div id="production-actions" className="panel relative">
@@ -667,6 +686,7 @@ export function VideoStudio({ id }: { id: string }) {
                   <span className="text-text-muted">已花费 <span className="tabular-nums text-text-secondary">¥{spend.toFixed(2)}</span></span>
                 </div>
               </div>
+              {!running && standardDisclosure && <p className="relative px-4 pb-3 text-xs text-text-faint sm:px-5">{standardDisclosure}</p>}
               <div className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-hairline bg-white/[0.015] px-4 py-2.5 text-xs sm:px-5">
                 <span className="flex items-center gap-2 text-text-faint">
                   当前预览
@@ -691,7 +711,7 @@ export function VideoStudio({ id }: { id: string }) {
             hints={stepHints(doc, studioJobs, plan?.plan.steps.some((step) => step.stage === "storyboard" && !step.key.startsWith("video-plan:")) ?? false, timeline)}
             currentKeys={currentKeys}
             confirm={confirm}
-            stageViews={doc.settings.visualPipeline === "video" && referenceShots.length ? { "shot-reference": { done: referenceDone, total: referenceShots.length, tone: referenceFailed ? "failed" : referenceActive ? "active" : referenceDone < referenceShots.length || pendingConfirmation > 0 ? "hold" : "done", message: referenceFailed ? "需处理 · 查看分镜" : referenceActive ? "生成中" : pendingConfirmation && !doc.settings.video.autoContinue ? `待确认 ${pendingConfirmation} 镜` : referenceDone < referenceShots.length ? "待生成 · 查看分镜" : "参考图已齐" } } : undefined}
+            stageViews={doc.settings.visualPipeline === "video" && referenceShots.length ? { "shot-reference": { done: referenceDone, total: referenceShots.length, tone: referenceActive || standardActive ? "active" : referenceFailed || standardFailed ? "failed" : referenceDone < referenceShots.length || pendingConfirmation > 0 ? "hold" : "done", message: referenceMessage } } : undefined}
             onOpenStage={doc.settings.visualPipeline === "video" ? () => openReferencePanel("storyboard", "reference-feedback") : undefined}
           />
           {blocked && <div className="flex flex-wrap items-center gap-3 text-xs text-text-secondary"><p>已暂停：{blockedMessage}</p>{doc.settings.visualPipeline === "video" && panel !== "storyboard" && <button className="btn btn-text btn-sm" onClick={() => openReferencePanel("storyboard", "reference-feedback")}>查看待处理镜头</button>}</div>}
@@ -858,7 +878,7 @@ function useVoiceLabel(voice: VoiceSettings) {
   return name ?? voice.voiceId;
 }
 
-function SetupConfirm({ doc, costYuan, onOpen, onConfirm }: { doc: ProjectDoc; costYuan: number | null; onOpen: (panel: Panel) => void; onConfirm: () => void }) {
+function SetupConfirm({ doc, costYuan, standardDisclosure, onOpen, onConfirm }: { doc: ProjectDoc; costYuan: number | null; standardDisclosure?: string; onOpen: (panel: Panel) => void; onConfirm: () => void }) {
   const voiceName = useVoiceLabel(doc.settings.voice);
   const facts = setupFacts(doc, voiceName);
   const [sealed, setSealed] = useState(false);
@@ -889,6 +909,7 @@ function SetupConfirm({ doc, costYuan, onOpen, onConfirm }: { doc: ProjectDoc; c
             {doc.settings.visualPipeline === "video" && " 预估仅包含已知费用；镜头参考图与视频另由服务商收费，当前价格未知。"}
             {doc.settings.visualPipeline === "video" && doc.settings.video.autoContinue && " 自动连续已开启：参考图成功后会继续提交视频请求，停止本地等待不能撤销云端接单。"}
           </p>
+          {standardDisclosure && <p className="mt-2 text-xs text-text-faint">{standardDisclosure}</p>}
         </div>
         <div className="relative shrink-0">
           {sealed && <span aria-hidden className="pointer-events-none absolute inset-0 animate-seal-ring rounded-full border border-accent" />}

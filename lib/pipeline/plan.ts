@@ -379,8 +379,8 @@ export function produce(projectId: string, goal: Goal, opts: { dryRun?: boolean;
   const enqueued: Job[] = [];
   for (const s of plan.steps) {
     const last = latestJobByKey(s.key, projectId);
-    // 自动推进时不重提失败过的任务（避免反复扣费）；用户主动点开始时重试
-    if (last && (last.status === "failed" || last.status === "canceled") && (!opts.retryFailed || isAutoPortraitInput(s.input))) continue;
+    // 仅主动继续可恢复已取消任务；失败的自动标准图仍须在角色/场景中处理，避免反复扣费。
+    if (last && (last.status === "failed" || last.status === "canceled") && (!opts.retryFailed || (isAutoPortraitInput(s.input) && last.status === "failed"))) continue;
     const input = opts.goalId && typeof s.input === "object" && s.input !== null
       ? { ...(s.input as Record<string, unknown>), goalId: opts.goalId }
       : s.input;

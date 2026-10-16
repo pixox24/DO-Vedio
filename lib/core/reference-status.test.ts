@@ -51,9 +51,13 @@ describe("reference feedback", () => {
     shot.sceneId = "scene0";
     doc.scenes = [sceneCardSchema.parse({ id: "scene0" })];
     const scene = { ...job, stage: "scene-reference", input: { sceneId: "scene0" }, status: "running" as const };
-    expect(shotReferenceStatus(doc, shot, frame, [scene])).toMatchObject({ kind: "standard", label: "等待角色和场景标准图" });
-    expect(shotReferenceStatus(doc, shot, frame, [{ ...scene, status: "failed" }])).toMatchObject({ kind: "standard", label: "前置标准图需处理", usable: false });
-    expect(shotReferenceStatus(doc, shot, frame, [{ ...scene, input: { sceneId: "unrelated" } }])).toMatchObject({ kind: "standard", label: "待补齐角色和场景标准图" });
+    expect(shotReferenceStatus(doc, shot, frame, [scene])).toMatchObject({ kind: "standard", standardState: "active", label: "等待角色和场景标准图" });
+    expect(shotReferenceStatus(doc, shot, frame, [{ ...scene, status: "failed" }])).toMatchObject({ kind: "standard", standardState: "failed", label: "前置标准图需处理", usable: false });
+    doc.settings.autoPortrait = true;
+    expect(shotReferenceStatus(doc, shot, frame, [{ ...scene, status: "canceled" }])).toMatchObject({ kind: "standard", standardState: "canceled", label: "标准图已停止，待继续制作", usable: false });
+    doc.settings.autoPortrait = false;
+    expect(shotReferenceStatus(doc, shot, frame, [{ ...scene, status: "canceled" }]).label).toBe("待补齐角色和场景标准图");
+    expect(shotReferenceStatus(doc, shot, frame, [{ ...scene, input: { sceneId: "unrelated" } }])).toMatchObject({ kind: "standard", standardState: "missing", label: "待补齐角色和场景标准图" });
     doc.scenes[0].referenceAssetIds = ["adopted-scene"];
     shot.sourceImageAssetId = "ready";
     expect(shotReferenceStatus(doc, shot, frame, [{ ...scene, status: "failed" }])).toMatchObject({ kind: "ready", usable: true });
