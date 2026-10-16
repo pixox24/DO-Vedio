@@ -322,7 +322,7 @@ export const isStock = (pipeline: string) => pipeline === "stock";
 | `lib/core/types.ts:231` | `shotSchema` 加 `stockQuery: z.string().optional()` | 字段被 schema 剥掉，检索词丢失 |
 | `lib/core/video.ts:52` | `missingVideoStandards` 用 `isAiVideo()` 包住 | stock 被要求先出标准图 |
 | `lib/core/timeline.ts:379` | `videoPipeline = isVideoForm(...)` | **视频镜头被叠加图片运镜**，且转场不强制 cut |
-| `lib/core/preset.ts:121,184` | 管线名映射加 stock（「视频素材」） | 预设变更摘要显示错误 |
+| `lib/core/preset.ts:121,184` | 管线名映射加 stock（「视频素材」）；video 组一并套用 `stock` 检索参数，摘要同步列出 | 预设变更摘要显示错误、检索参数套不上 |
 | `lib/prompts.ts:575` | `StoryboardPayload.visualPipeline` 加 `"stock"` | 类型不过 |
 | `lib/prompts.ts:592` | 分发到 `videoStoryboardPrompt` | 产出图片分镜，没有 `videoPlan`，检索词无从派生 |
 | `lib/prompts.ts:650` | `videoStoryboardPrompt` 加 stock 分支：要求 `stockQuery`（1–3 词、纯英文、**必须含主体**），并放宽「禁止 real/stock 素材卡」那句（stock 模式就是要真实素材） | 检索质量差 / schema 拒绝 |
@@ -341,7 +341,7 @@ export const isStock = (pipeline: string) => pipeline === "stock";
 | `lib/pipeline/plan.ts:387` | `maxAttempts: 1` 的 stage 白名单加 `"shot-stock"` | 429 之外的重试语义不一致 |
 | `lib/pipeline/plan.ts:442` | `activeMedia` 的 stage 列表加 `"shot-stock"` | 有 stock 任务在跑时误判为「已无活跃媒体」，提前收掉目标 |
 | `lib/pipeline/plan.ts:460` | `advance` 的 `referenceSettled` 加 `job.stage === "shot-stock"` | 目标被 blocked 后 stock 完成也不推进 |
-| `lib/pipeline/video-plan-sync.ts:32,51,96` | 用 `isVideoForm`；stock 模式下 `planSchema` 加可选 `stockQuery`，写回时一并更新 | 改了中文描述，检索词与素材都不更新 |
+| `lib/pipeline/video-plan-sync.ts:32,51,96` | 用 `isVideoForm`；stock 模式改用独立的 `stockPlanSchema`（`stockQuery` **必填**），写回时一并更新 `shot.stockQuery` | 改了中文描述，检索词与素材都不更新 |
 | `lib/pipeline/auto-portrait.ts:52` | 用 `isAiVideo` | 白排一堆没用的自动立绘 |
 | `lib/pipeline/stages/storyboard.ts:107` | `staleRanges` 用 `isVideoForm`，stock 额外要求 `!!shot.stockQuery` | 缺检索词时不重做分镜 |
 | `lib/pipeline/stages/storyboard.ts:260` | `const video = isVideoForm(...)`；新增 `const stock = isStock(...)` | 分镜走图片分支 |
@@ -409,6 +409,26 @@ export const isStock = (pipeline: string) => pipeline === "stock";
 
 **验收**：切到 stock 后重做分镜，每个未锁镜头都有非空英文 `stockQuery`；`videoGenerationSnapshot` 的哈希与改动前**逐位一致**（对同一 doc + frame 断言相等）——这是「已有 AI 视频不失效」的证明。
 **回滚**：新字段可选、新枚举值未被任何 stage 使用，回滚安全。
+
+**完成记录**（commit：见分支 `feat/stock-pipeline`）
+
+| 落地项 | 实际位置 | 备注 |
+| --- | --- | --- |
+| 枚举与设置 | `types.ts` `visualPipeline` 加 `"stock"`、`stockSettingsSchema`、`shotSchema.stockQuery` | `stockSettingsSchema` 无 `.strict()`，旧文档解析后自动补默认值 |
+| 检索词契约 | `storyboard.ts` `stockQueryField`（`/^[a-z]+(?: [a-z]+){1,3}$/`，2–4 词）+ `videoPlanSync.ts` `stockQuerySchema` | 两处同口径：分镜产出与描述同步都必须在打远端前拦住中文/长句 |
+| 双 schema | `storyboard.ts` `videoShotFields` 抽出 → `videoDraftSchema` / `stockDraftSchema` / `draftSchemaFor(stock)` | `DraftEntry` 的 `stockQuery` 可选，`toVideoShots` 用 `...(entry?.stockQuery ? {...} : {})` 透传，video 管线不产生该字段 |
+| 分镜过期判定 | `storyboard.ts` `staleRanges` 增加 stock 分支 | 有镜头缺 `stockQuery` 时整段重做；`plan.ts` `shotReadyForPipeline` 同步加条件 |
+| 描述同步 | `videoPlanSync.ts` 一次调用同时产出 4 项执行计划 + `stockQuery`，分落 `videoPlan` / `shot.stockQuery` | stock 模式 `maxRetries: 1`；缓存命中但缺检索词按未命中处理；漏写检索词直接抛错，不静默写回 |
+| 并发保护 | `storyboard.ts` `semanticShots` 纳入 `stockQuery` | 生成期间有人改了检索词，该范围不覆盖（并发编辑优先） |
+| 预设 | `preset.ts` `pipelineLabels` / `orientationLabels`、video 组一并套用 `stock`、摘要新增「素材最短时长 / 素材方向」 | 摘要与实际应用同一套分组，维持「摘要说会变、实际没变」的既有不变量 |
+| 仓库卫生 | `.gitignore` 忽略 `/Video-asset-library/` 与 `/.workbuddy-ai/` | 前者是用户自备媒体，后者是本地工作数据 |
+
+**验收证据**：
+
+- 新增 `tests/video-stock-sync.test.ts`（6 例）：缺检索词按整段过期、AI 视频管线不受该条件影响、同步一次写回计划与检索词、AI 视频模式不索要也不写回检索词、模型漏写/写坏检索词时任务失败、保存后自动排队。
+- `lib/core/video.test.ts` 新增「素材检索词与 AI 视频快照解耦」5 例：补 `stockQuery` 后哈希逐位不变、整项目切到 stock 后哈希不变（同时确认改 `videoPlan` 仍会让哈希变化）、schema 保留该字段、>15s 拆分两半共用同一检索词、检索参数默认值与越界拒绝。
+- `lib/core/preset.test.ts` 新增 3 例：video 组一并套用检索参数且摘要一致、未勾选该组时不碰、旧预设补默认值。
+- `npm run typecheck` 通过；全量 `npx vitest run --maxWorkers=4 --testTimeout=20000` = **125 文件 / 1006 测试全绿**。
 
 ### Phase 2 — 来源层与缓存
 

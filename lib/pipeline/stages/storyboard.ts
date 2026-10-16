@@ -12,7 +12,7 @@ import { anchorText, lookAt } from "../../core/cast";
 import { MAX_SHOT_CHARACTERS } from "../../core/prompt-compiler";
 import { videoDescriptionHash } from "../../core/video-plan";
 import { sanitizeVideoPlan } from "../../core/video-prompt-compiler";
-import { isVideoForm } from "../../core/video";
+import { isStock, isVideoForm } from "../../core/video";
 import { characterRoleLabels, motions, presentationLabels, shotSizeLabels, shotSizes, type Card, type Line, type ProjectDoc, type Shot } from "../../core/types";
 import { generateJson } from "../../llm";
 import { storyboardPrompt, type StoryboardPayload } from "../../prompts";
@@ -53,7 +53,15 @@ export const draftSchema = z.object({
     }).strict().refine((shot) => shot.mode !== "motion" || !!shot.focusText, "文字镜头必须提炼 focusText"),
   ),
 });
-export const videoDraftSchema = z.object({ shots: z.array(z.object({
+/**
+ * 检索词契约：小写英文 2–4 个词。在打远端之前就校验，
+ * 不让「模型给了个中文长句」这种情况走到来源层再兜底。
+ */
+const stockQueryField = z.string().trim().min(3).max(60)
+  .refine((value) => /^[a-z]+(?: [a-z]+){1,3}$/.test(value), "检索词必须是小写英文，2–4 个词");
+
+/** 视频与素材两条管线共用的镜头字段；差别只在素材管线多一个必填的 stockQuery。 */
+const videoShotFields = {
   lineId: z.string(), char: z.number().int().min(0).optional(), intent: z.string(),
   kind: z.literal("placeholder"), mode: z.literal("generate"), shotSize: z.enum(shotSizes),
   description: z.string(), motion: z.literal("none"), importance: z.number().int().min(1).max(3),
@@ -62,9 +70,20 @@ export const videoDraftSchema = z.object({ shots: z.array(z.object({
     .refine((plan) => Object.values(sanitizeVideoPlan(plan)).every((value) => /[a-z]/i.test(value) && !/[\u3400-\u9fff\uf900-\ufaff]/.test(value)), "视频执行计划必须使用英文"),
   characters: z.array(z.string()).optional(), sceneId: z.string().optional(),
   focusText: z.object({ text: z.string().trim().min(1).refine((value) => focusVisualWidth(value.replace(/\s+/g, "")) <= 8), emphasis: z.string().optional(), support: z.string().refine((value) => focusVisualWidth(value.replace(/\s+/g, "")) <= 8).optional() }).optional(),
-}).strict()).min(1) });
+};
 
-export function toVideoShots(draft: z.infer<typeof videoDraftSchema>["shots"], lines: Line[], characterIds: Set<string>, sceneIds: Set<string>): Shot[] {
+export const videoDraftSchema = z.object({ shots: z.array(z.object(videoShotFields).strict()).min(1) });
+/** 素材管线的每一镜都必须给出检索词：它是检索与缓存键的一部分，缺了就搜不出东西。 */
+export const stockDraftSchema = z.object({ shots: z.array(z.object({ ...videoShotFields, stockQuery: stockQueryField }).strict()).min(1) });
+
+/** 草稿 schema 按画面管线分发。stock 的检索词必填，video 不产出该字段。 */
+export const draftSchemaFor = (stock: boolean) => stock ? stockDraftSchema : videoDraftSchema;
+
+type StockDraftShot = z.infer<typeof stockDraftSchema>["shots"][number];
+/** stockQuery 可选：视频管线不产出检索词，素材管线必须产出。 */
+type DraftEntry = Omit<StockDraftShot, "stockQuery"> & { stockQuery?: string };
+
+export function toVideoShots(draft: DraftEntry[], lines: Line[], characterIds: Set<string>, sceneIds: Set<string>): Shot[] {
   const byAnchor = new Map(draft.map((entry) => [`${entry.lineId}:${entry.char ?? 0}`, entry]));
   return toShots(draft, lines, characterIds, sceneIds).map((shot) => {
     const entry = byAnchor.get(`${shot.at.lineId}:${shot.at.char}`) ?? draft.find((item) => item.lineId === shot.at.lineId);
@@ -74,6 +93,7 @@ export function toVideoShots(draft: z.infer<typeof videoDraftSchema>["shots"], l
       ...focus, support: focus.support && focusNumbersMatchSource(focus.support, caption) ? focus.support : undefined, layoutMode: "auto" as const,
     } : undefined;
     return { ...shot, kind: "video", mode: "generate", motion: "none", groupId: entry?.groupId, videoPlan: entry?.videoPlan && sanitizeVideoPlan(entry.videoPlan), videoPlanDescriptionHash: videoDescriptionHash(shot.description),
+      ...(entry?.stockQuery ? { stockQuery: entry.stockQuery } : {}),
       focusText };
   });
 }
@@ -106,6 +126,8 @@ export function rangeMatchesCurrent(source: Line[], current: Line[], range: { fr
 export function staleRanges(doc: ProjectDoc): { from: number; to: number }[] {
   if (doc.shots.length === 0) return doc.lines.length ? [{ from: 0, to: doc.lines.length - 1 }] : [];
   if (isVideoForm(doc.settings.visualPipeline) && doc.shots.some((shot) => !shot.locked && !shot.videoPlan)) return doc.lines.length ? [{ from: 0, to: doc.lines.length - 1 }] : [];
+  // 素材管线多一个必填检索词：缺了就搜不出素材，同样按过期处理让分镜补齐。
+  if (isStock(doc.settings.visualPipeline) && doc.shots.some((shot) => !shot.locked && !shot.stockQuery)) return doc.lines.length ? [{ from: 0, to: doc.lines.length - 1 }] : [];
   const { shots, stale } = repairShots(doc.shots, doc.lines, doc.lines);
   const order = new Map(doc.lines.map((l, k) => [l.id, k]));
   const sorted = sortShots(shots, doc.lines);
@@ -259,6 +281,8 @@ export const storyboardStage = defineStage<StoryboardInput, { shots: number; llm
     // 章节与大纲一一对应时带上本章要点
     const points = doc.sections.length === doc.segments.length ? doc.sections.map((x) => x.points) : [];
     const video = isVideoForm(doc.settings.visualPipeline);
+    const stock = isStock(doc.settings.visualPipeline);
+    const draftSchemaForRun = draftSchemaFor(stock);
     const cast = castForStoryboard(doc);
     const castIds = new Set(cast.map((c) => c.id));
 
@@ -286,7 +310,7 @@ export const storyboardStage = defineStage<StoryboardInput, { shots: number; llm
       }
       const payload: StoryboardPayload = {
         title: doc.brief.title,
-        visualPipeline: video ? "video" : undefined,
+        visualPipeline: video ? (stock ? "stock" : "video") : undefined,
         visualStyle: video ? JSON.stringify(doc.visualStyle) : undefined,
         brief: { summary: doc.brief.summary, audience: doc.brief.audience, perspective: doc.brief.perspective },
         style: template && { name: template.name, description: template.description, tone: template.tone },
@@ -310,7 +334,12 @@ export const storyboardStage = defineStage<StoryboardInput, { shots: number; llm
         const prompt = storyboardPrompt(payload);
         const generation = beginGenerationRun({ projectId: input.projectId, jobId: ctx.job.id, providerId: input.modelId === "claude" ? "anthropic" : input.modelId, modelId: input.modelId, kind: "text", inputHash: key, params: { stage: "storyboard", lineCount: slice.length, range: [r.from, r.to] } });
         try {
-          const raw = await generateJson(input.modelId, video ? videoDraftSchema : draftSchema, prompt, ctx.signal, video ? 0 : 2, video ? { maxOutputTokens: 8192 } : undefined);
+          // 素材管线多一个必填检索词：给模型一次改格式的机会，而不是直接切小范围重来。
+          const raw = stock
+            ? await generateJson(input.modelId, stockDraftSchema, prompt, ctx.signal, 1, { maxOutputTokens: 8192 })
+            : video
+              ? await generateJson(input.modelId, videoDraftSchema, prompt, ctx.signal, 0, { maxOutputTokens: 8192 })
+              : await generateJson(input.modelId, draftSchema, prompt, ctx.signal, 2);
           if (!ctx.current()) throw ctx.signal.reason ?? new DOMException("任务已取消", "AbortError");
           draft = raw.shots;
           cachePut(key, "storyboard", draft);
@@ -335,7 +364,7 @@ export const storyboardStage = defineStage<StoryboardInput, { shots: number; llm
         }
       }
       if (!ctx.current()) throw ctx.signal.reason ?? new DOMException("任务已取消", "AbortError");
-      const shots = video ? toVideoShots(videoDraftSchema.parse({ shots: draft }).shots, slice, castIds, new Set(doc.scenes.map((scene) => scene.id))) : toShots(draft, slice, castIds, new Set(doc.scenes.map((scene) => scene.id)));
+      const shots = video ? toVideoShots(draftSchemaForRun.parse({ shots: draft }).shots, slice, castIds, new Set(doc.scenes.map((scene) => scene.id))) : toShots(draft, slice, castIds, new Set(doc.scenes.map((scene) => scene.id)));
       // 保证范围的第一句有镜头
       if (!shots.some((s) => s.at.lineId === slice[0].id && s.at.char === 0)) shots.unshift(video && shots[0] ? { ...shots[0], id: randomUUID(), at: { lineId: slice[0].id, char: 0 } } : blankShot(randomUUID(), slice[0].id));
       fresh.push(...shots);
@@ -358,7 +387,7 @@ export const storyboardStage = defineStage<StoryboardInput, { shots: number; llm
         if (video) {
           const ids = new Set(doc.lines.slice(r.from, r.to + 1).map((line) => line.id));
           const semanticShots = (source: ProjectDoc) => source.shots.filter((shot) => ids.has(shot.at.lineId)).map((shot) => ({
-            id: shot.id, at: shot.at, description: shot.description, plan: shot.videoPlan, descriptionHash: shot.videoPlanDescriptionHash,
+            id: shot.id, at: shot.at, description: shot.description, plan: shot.videoPlan, descriptionHash: shot.videoPlanDescriptionHash, stockQuery: shot.stockQuery,
             characters: shot.characterIds, scene: shot.sceneId, locked: shot.locked, shotSize: shot.shotSize, focusText: shot.focusText,
           }));
           if (quickHash(semanticShots(doc)) !== quickHash(semanticShots(cur))) return;

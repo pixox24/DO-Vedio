@@ -231,6 +231,12 @@ export const shotSchema = z.object({
   videoPlan: videoPlanSchema.optional(),
   /** Chinese description used to produce videoPlan; a mismatch blocks generation until synced. */
   videoPlanDescriptionHash: z.string().optional(),
+  /**
+   * 素材管线的英文检索词（1–3 个词，必须含主体）。
+   * 与分镜同一次调用产出，独立于 videoPlan：`videoGenerationSnapshot` 只哈希
+   * videoPlan 和条件性 description，所以新增本字段**不会让已有 AI 视频产物失效**。
+   */
+  stockQuery: z.string().optional(),
   kind: z.enum(shotKinds),
   /** 导演意图：观众此刻应该看到或感受到什么 */
   intent: z.string().optional(),
@@ -522,9 +528,32 @@ export const videoSettingsSchema = z.object({
 });
 export type VideoSettings = z.infer<typeof videoSettingsSchema>;
 
+/**
+ * 素材管线（Pexels 等库存源）的检索参数。
+ * 这些是「怎么搜」的策略，不是素材本身；素材从哪来由 `lib/providers/stock/` 决定。
+ */
+export const stockSettingsSchema = z.object({
+  /** 每次检索向来源请求多少条候选 */
+  perPage: z.number().int().min(1).max(80).default(15),
+  /**
+   * 素材最短时长下限（秒）。实际过滤条件取它与「镜头时长」的较大者：
+   * 素材短于镜头会让 `videoPlayback` 的 videoDurationReady 为假，直接卡住渲染。
+   */
+  minDurationSec: z.number().int().min(1).max(600).default(3),
+  /** auto 按输出画幅决定方向；强制某一方向会接受 cover 裁切 */
+  orientation: z.enum(["auto", "landscape", "portrait"]).default("auto"),
+  /**
+   * 每次检索入库几条候选。默认 1（自动采用第一条，省额度）。
+   * 调高会复用分镜面板已有的候选切换机制，代价是每镜多下载几条。
+   */
+  maxCandidates: z.number().int().min(1).max(10).default(1),
+});
+export type StockSettings = z.infer<typeof stockSettingsSchema>;
+
 export const settingsSchema = z.object({
-  visualPipeline: z.enum(["image", "video"]).default("image"),
+  visualPipeline: z.enum(["image", "video", "stock"]).default("image"),
   video: videoSettingsSchema.default(videoSettingsSchema.parse({})),
+  stock: stockSettingsSchema.default(stockSettingsSchema.parse({})),
   aspects: z.array(z.enum(aspects)).min(1).default(["16:9"]),
   outputSpecIds: z.array(z.enum(outputSpecIds)).min(1).optional(),
   previewAspect: z.enum(aspects).optional(),

@@ -4,7 +4,7 @@ import { acceptsFreeVoiceInstruction } from "../core/types";
 import { stampShots } from "../core/shots";
 import { renderMatches, type TimelineHashes } from "../core/output-flow";
 import { animationHash, contentHash, timelineHash } from "../core/timeline";
-import type { Aspect, Job, ProjectDoc } from "../core/types";
+import type { Aspect, Job, ProjectDoc, Shot } from "../core/types";
 import { outputSpecForRequest } from "../core/output-spec";
 import { cacheDelete, cacheGet, cacheHas, cacheMany, projectSpend } from "../server/cache";
 import { all, get, run } from "../server/db";
@@ -22,7 +22,7 @@ import type { Quality } from "./render";
 import { staleRanges } from "./stages/storyboard";
 import { autoPortraitPlan, autoScenePlan, isAutoPortraitInput } from "./auto-portrait";
 import { castSourceHash } from "../core/cast";
-import { isAiVideo, isVideoForm, missingVideoStandards, sourceImageStale, videoGenerationSnapshot } from "../core/video";
+import { isAiVideo, isStock, isVideoForm, missingVideoStandards, sourceImageStale, videoGenerationSnapshot } from "../core/video";
 import { videoPlanNeedsSync } from "../core/video-plan";
 import { videoPlanSyncStep } from "./video-plan-sync";
 import { referenceJobKey, videoAttempt, videoFrame, videoPrerequisite, videoRenderProblems, videoModelAvailable, videoAssetFraming, adoptReadyVideoCandidates, usableVideoCandidate } from "./video-generation";
@@ -46,6 +46,14 @@ export type Plan = { steps: PlanStep[]; currentKeys: string[]; waiting: string[]
 
 export { syncLines } from "../core/sync";
 import { syncLines } from "../core/sync";
+
+/**
+ * 一镜是否是「当前画面管线可用的视频分镜」。
+ * 素材管线额外要求检索词：没有它检索无从下手，缺了就等于这一镜没准备好。
+ */
+function shotReadyForPipeline(doc: ProjectDoc, shot: Shot) {
+  return shot.kind === "video" && !!shot.videoPlan && (!isStock(doc.settings.visualPipeline) || !!shot.stockQuery);
+}
 
 export function textModelId(doc: ProjectDoc) {
   return pickTextModelId([doc.settings.modelId, doc.modelId], listTextModels());
@@ -166,9 +174,9 @@ export function planPipeline(projectId: string, doc: ProjectDoc, goal: Goal): Pl
   // 4) 分镜（配音齐了才做，因为节奏依赖真实时长）
   const storyboardSig = JSON.stringify(doc.lines.map((line) => line.id + line.text)) + JSON.stringify(doc.shots.map((shot) => shot.id + shot.sourceHash + shot.locked)) + JSON.stringify(doc.settings.visualPipeline ?? "image");
   const storyboardJobKey = `storyboard:${projectId}:${hashStr(storyboardSig)}`;
-  let shotsReady = doc.shots.length > 0 && staleRanges(doc).length === 0 && (!isVideoForm(doc.settings.visualPipeline) || doc.shots.every((shot) => shot.kind === "video" && !!shot.videoPlan));
+  let shotsReady = doc.shots.length > 0 && staleRanges(doc).length === 0 && (!isVideoForm(doc.settings.visualPipeline) || doc.shots.every((shot) => shotReadyForPipeline(doc, shot)));
   if (voiced && !castReady && !shotsReady) waiting.push("等待识别角色和场景");
-  const lockedNonVideo = isVideoForm(doc.settings.visualPipeline) && doc.shots.some((shot) => shot.locked && (shot.kind !== "video" || !shot.videoPlan));
+  const lockedNonVideo = isVideoForm(doc.settings.visualPipeline) && doc.shots.some((shot) => shot.locked && !shotReadyForPipeline(doc, shot));
   if (lockedNonVideo) waiting.push("锁定镜头还不是视频分镜，请解锁并重新导演");
   if (voiced && castReady && !shotsReady && modelId && !(lockedNonVideo && staleRanges(doc).length === 0)) {
     const mode = doc.shots.length === 0 ? "full" : "stale";
@@ -184,7 +192,7 @@ export function planPipeline(projectId: string, doc: ProjectDoc, goal: Goal): Pl
   }
   if (voiced && !modelId) {
     waiting.push("没有可用文本模型，请在模型中心配置并启用");
-    shotsReady = doc.shots.length > 0 && (!isVideoForm(doc.settings.visualPipeline) || doc.shots.every((shot) => shot.kind === "video" && !!shot.videoPlan));
+    shotsReady = doc.shots.length > 0 && (!isVideoForm(doc.settings.visualPipeline) || doc.shots.every((shot) => shotReadyForPipeline(doc, shot)));
   }
   if (!shotsReady && voiced) waiting.push("等待分镜");
 

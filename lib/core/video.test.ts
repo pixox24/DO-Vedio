@@ -208,3 +208,62 @@ describe("pipeline form helpers", () => {
     }
   });
 });
+
+/**
+ * 素材管线的检索词是**独立字段**，不是 `videoPlan` 的一部分。
+ *
+ * 这条契约值钱的地方：`videoGenerationSnapshot` 是「已有 AI 视频是否过期」的唯一判据，
+ * 一旦 `stockQuery` 混进它的哈希，用户切到素材管线就会把自己付过费的 AI 视频全部判为过期。
+ */
+describe("素材检索词与 AI 视频快照解耦", () => {
+  it("给所有镜头补上 stockQuery，AI 视频快照哈希逐位不变", () => {
+    const { doc, art } = fixture();
+    const timeline = buildTimeline(doc, art, "16:9");
+    const before = doc.shots.map((shot) => videoGenerationSnapshot(doc, shot, timeline, frame).hash);
+    const withQuery = { ...doc, shots: doc.shots.map((shot) => ({ ...shot, stockQuery: "woman standing by window" })) };
+    expect(before.every((hash) => typeof hash === "string" && hash.length > 0)).toBe(true);
+    expect(withQuery.shots.map((shot) => videoGenerationSnapshot(withQuery, shot, timeline, frame).hash)).toEqual(before);
+  });
+
+  it("把整个项目切到素材管线，同一镜头的 AI 视频快照哈希也不变", () => {
+    const { doc, art } = fixture();
+    const timeline = buildTimeline(doc, art, "16:9");
+    const shot = { ...doc.shots[0], stockQuery: "woman standing by window" };
+    const before = videoGenerationSnapshot(doc, shot, timeline, frame).hash;
+    const stock = { ...doc, settings: { ...doc.settings, visualPipeline: "stock" as const } };
+    expect(videoGenerationSnapshot(stock, shot, timeline, frame).hash).toBe(before);
+    // 反过来，改了执行计划仍然必须让快照失效——否则这条契约就成了「什么都不过期」。
+    expect(videoGenerationSnapshot(stock, { ...shot, videoPlan: { ...shot.videoPlan!, action: "She walks away." } }, timeline, frame).hash).not.toBe(before);
+  });
+
+  it("镜头 schema 保留 stockQuery，老镜头没有该字段也合法", () => {
+    const { doc } = fixture();
+    const parsed = projectDocSchema.parse({ ...doc, shots: [{ ...doc.shots[0], stockQuery: "woman standing by window" }] });
+    expect(parsed.shots[0].stockQuery).toBe("woman standing by window");
+    expect(projectDocSchema.parse(doc).shots[0].stockQuery).toBeUndefined();
+  });
+
+  it("超长镜头拆成两半时两半共用同一个检索词，由游标错开取到同一素材族的不同片段", () => {
+    const { doc, art } = fixture([24000]);
+    doc.shots[0] = { ...doc.shots[0], stockQuery: "woman standing by window" };
+    const original = buildTimeline(doc, art, "16:9");
+    const times = new Map(layoutLines(doc.lines, art).lines.map((item) => [item.id, item]));
+    let id = 0;
+    const split = normalizeVideoShots(doc.shots, doc.lines, times, original.durationMs, () => `split${++id}`);
+    expect(split.length).toBeGreaterThan(1);
+    expect(split.map((shot) => shot.stockQuery)).toEqual(split.map(() => "woman standing by window"));
+  });
+
+  it("素材检索参数有默认值，越界取值被 schema 拒绝", () => {
+    const doc = emptyDoc();
+    expect(doc.settings.stock).toEqual({ perPage: 15, minDurationSec: 3, orientation: "auto", maxCandidates: 1 });
+    const older = projectDocSchema.parse({ ...doc, settings: { ...doc.settings, stock: undefined } });
+    expect(older.settings.stock).toEqual({ perPage: 15, minDurationSec: 3, orientation: "auto", maxCandidates: 1 });
+    const stock = (patch: Record<string, unknown>) => () => projectDocSchema.parse({ ...doc, settings: { ...doc.settings, stock: { ...doc.settings.stock, ...patch } } });
+    expect(stock({ perPage: 0 })).toThrow();
+    expect(stock({ perPage: 81 })).toThrow();
+    expect(stock({ minDurationSec: 0 })).toThrow();
+    expect(stock({ maxCandidates: 11 })).toThrow();
+    expect(stock({ orientation: "square" })).toThrow();
+  });
+});
