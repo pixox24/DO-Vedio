@@ -524,6 +524,28 @@ export const isStock = (pipeline: string) => pipeline === "stock";
 
 **验收**：切到 stock 后进度条出现「检索素材」且不出现「参考图」；分镜面板能改 `stockQuery`、能点重搜并看到新素材；设置面板显示 Key 已配置。
 
+**完成记录**
+
+设置面板加第三个选项与 stock 块；制作页的步骤生成与提示提成纯函数 `lib/core/studio-steps.ts`；分镜面板走 stock 形态；新增单镜重搜路由与镜头状态接口的 stock 分支。
+
+| 落地项 | 关键点 |
+| --- | --- |
+| 步骤条形状 | `produceSteps` 的第二参数从 `video: boolean` 改成**管线本身**。boolean 会把 stock 塞进 AI 视频那两步，进度条上永远有两个不会动的格子 |
+| 逻辑出 JSX | `produceSteps` / `stepHints` 移到 `lib/core/studio-steps.ts`。这两件事只取决于 doc 与 jobs，放在组件里既测不到，也容易被顺手塞进 DOM 状态 |
+| 提示口径 | stock 的「待检索素材」按 `snapshotFor` 的哈希判，与 `videoRenderProblems` 同源。口径分家的话按钮会显示「已就绪」而门禁一直卡住 |
+| 素材来源状态 | Pexels 是**检索源不是生成式服务商**，不在 `providerKinds` 里，因此 `/api/providers` 查不到；单独一条 `/api/stock` 只报 Key 配置与一次连通性 |
+| 分镜面板 | 复用同一套 `VideoState` 词表但换一套 `stockLabels`（没有参考图可确认、没有「提交给服务商」这一步）；参考图区、标准图、确认点整块隐藏；`refStale` 恒 false |
+| 重搜入口 | 「重新搜索素材」打 `POST /shots/[shotId]/stock`；游标由服务端从镜头候选推导，前端不传 |
+| 状态接口 | `shots/status` 加 stock 分支：`waiting-plan`（缺检索词）→ `downloading` → `ready` / `stale`。只认 `requestHash` 对得上的那条任务，改过词之后旧任务不顶上来 |
+| 死旋钮 | `stock.orientation` 与 `stock.maxCandidates` 声明了但**没有任何代码读**（方向由画幅定、`pickFile` 按画幅过滤）。与其在 UI 上摆两个假旋钮，本轮从 schema 与摘要里删掉 |
+
+**验收证据**
+
+- 新增 `lib/core/studio-steps.test.ts`（12 例）：三条管线的步骤表（`stock` 有 `shot-stock`、无 `shot-reference`/`shot-generate`）；媒体步骤恒在「分镜」与「渲染」之间；stock 提示的四种形态（等分镜 / 待补检索词 / 待检索素材 / 完成）；**改检索词后已落库的素材必须重新报缺**（提示与门禁同源）；锁定镜头不计入；非 stock 管线不冒出 `shot-stock` 提示。时间轴用 `buildTimeline` + 内存 `Artifacts` 现造，不碰 DB。
+- 新增 `app/api/projects/[id]/shots/[shotId]/stock/route.test.ts`（7 例）：正常排队并返回快照指纹；同指纹重复提交复用任务不重复扣额度；**重搜把已有素材放进排除集而快照哈希不变**；锁定 / 缺检索词 / 非素材管线 / 缺 Key 全部在**排队前**被 409 拦下（断言一条任务都没进队列）；缺 Key 的提示可操作；404；只读接口报出检索词、指纹与拦截原因。
+- 新增 `app/api/projects/[id]/shots/status/route.test.ts`（4 例）：缺检索词 → `waiting-plan`；素材对上快照 → `ready` 且带回 `targetDurationMs`；改检索词 → `stale`；排队中 → `downloading`，而指纹不符的旧任务不算当前状态。
+- `npm run typecheck` 通过；`eslint .` 0 error 0 warning；全量 `npx vitest run --maxWorkers=4 --testTimeout=20000` = **134 文件 / 1088 测试全绿**（Phase 3 基线 131 / 1065）。
+
 ### Phase 5 — 收口
 
 1. 端到端跑一部 5 分钟片子（≥60 镜），记录：检索请求数、缓存命中率、`PermanentError` 次数、成片时长与素材时长的差值分布

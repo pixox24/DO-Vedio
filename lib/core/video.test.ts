@@ -256,14 +256,15 @@ describe("素材检索词与 AI 视频快照解耦", () => {
 
   it("素材检索参数有默认值，越界取值被 schema 拒绝", () => {
     const doc = emptyDoc();
-    expect(doc.settings.stock).toEqual({ perPage: 15, minDurationSec: 3, orientation: "auto", maxCandidates: 1 });
+    expect(doc.settings.stock).toEqual({ perPage: 15, minDurationSec: 3 });
     const older = projectDocSchema.parse({ ...doc, settings: { ...doc.settings, stock: undefined } });
-    expect(older.settings.stock).toEqual({ perPage: 15, minDurationSec: 3, orientation: "auto", maxCandidates: 1 });
+    expect(older.settings.stock).toEqual({ perPage: 15, minDurationSec: 3 });
     const stock = (patch: Record<string, unknown>) => () => projectDocSchema.parse({ ...doc, settings: { ...doc.settings, stock: { ...doc.settings.stock, ...patch } } });
     expect(stock({ perPage: 0 })).toThrow();
     expect(stock({ perPage: 81 })).toThrow();
     expect(stock({ minDurationSec: 0 })).toThrow();
-    expect(stock({ maxCandidates: 11 })).toThrow();
-    expect(stock({ orientation: "square" })).toThrow();
+    // 旧文档里可能留着已下线的键：schema 不 strict，静默剥掉而不是让整份文档解析失败。
+    const legacy = projectDocSchema.parse({ ...doc, settings: { ...doc.settings, stock: { ...doc.settings.stock, orientation: "portrait", maxCandidates: 3 } } });
+    expect(legacy.settings.stock).toEqual({ perPage: 15, minDurationSec: 3 });
   });
 });

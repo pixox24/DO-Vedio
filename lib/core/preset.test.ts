@@ -218,30 +218,30 @@ describe("制作预设：画面管线含视频素材", () => {
   it("勾选画面管线时同时套用素材检索参数，摘要与实际一致", () => {
     const preset = sourceDoc();
     preset.settings.visualPipeline = "stock";
-    preset.settings.stock = { ...preset.settings.stock, minDurationSec: 8, orientation: "portrait" };
+    preset.settings.stock = { ...preset.settings.stock, minDurationSec: 8, perPage: 20 };
     const payload = payloadOf(preset);
     const changes = describePresetChanges(emptyDoc(), payload, videoOnly);
     const summary = changes.flatMap((item) => item.changes).join(" ");
     expect(summary).toContain("画面管线 图片 → 视频素材");
     expect(summary).toContain("素材最短时长 3s → 8s");
-    expect(summary).toContain("素材方向 跟随画幅 → 竖屏");
+    expect(summary).toContain("每次检索条数 15 → 20");
 
     const applied = applyPresetToDoc(emptyDoc(), payload, videoOnly).doc;
     expect(applied.settings.visualPipeline).toBe("stock");
-    expect(applied.settings.stock).toEqual({ perPage: 15, minDurationSec: 8, orientation: "portrait", maxCandidates: 1 });
+    expect(applied.settings.stock).toEqual({ perPage: 20, minDurationSec: 8 });
   });
 
   it("未勾选画面管线组时不碰 visualPipeline 与检索参数", () => {
     const preset = sourceDoc();
     preset.settings.visualPipeline = "stock";
-    preset.settings.stock = { ...preset.settings.stock, minDurationSec: 8, orientation: "portrait" };
+    preset.settings.stock = { ...preset.settings.stock, minDurationSec: 8, perPage: 20 };
     const applied = applyPresetToDoc(emptyDoc(), payloadOf(preset), { groups: ["output"] }).doc;
     expect(applied.settings.visualPipeline).toBe("image");
-    expect(applied.settings.stock).toEqual({ perPage: 15, minDurationSec: 3, orientation: "auto", maxCandidates: 1 });
+    expect(applied.settings.stock).toEqual({ perPage: 15, minDurationSec: 3 });
   });
 
   it("旧预设没有 stock 段时补默认值，不报错", () => {
     const payload = presetPayloadSchema.parse({ settings: {}, visualStyle: null });
-    expect(payload.settings.stock).toEqual({ perPage: 15, minDurationSec: 3, orientation: "auto", maxCandidates: 1 });
+    expect(payload.settings.stock).toEqual({ perPage: 15, minDurationSec: 3 });
   });
 });

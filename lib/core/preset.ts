@@ -78,7 +78,6 @@ const voiceKey = (voice: Settings["voice"]) => `${voice.provider}::${voice.model
 
 /** 画面管线的中文名。摘要文案与设置面板共用一套口径，避免同一枚举出现两种叫法。 */
 const pipelineLabels: Record<Settings["visualPipeline"], string> = { image: "图片", video: "AI 视频", stock: "视频素材" };
-const orientationLabels: Record<Settings["stock"]["orientation"], string> = { auto: "跟随画幅", landscape: "横屏", portrait: "竖屏" };
 
 /** 按勾选的组把预设应用到文档；返回新文档与降级警告，不改动未勾选的组 */
 export function applyPresetToDoc(
@@ -191,7 +190,7 @@ export function describePresetChanges(
     if (doc.settings.video.resolution !== next.video.resolution) changes.push(`生成分辨率 ${doc.settings.video.resolution} → ${next.video.resolution}`);
     if (doc.settings.video.autoContinue !== next.video.autoContinue) changes.push(`自动连续 ${onOff(doc.settings.video.autoContinue)} → ${onOff(next.video.autoContinue)}`);
     if (doc.settings.stock.minDurationSec !== next.stock.minDurationSec) changes.push(`素材最短时长 ${doc.settings.stock.minDurationSec}s → ${next.stock.minDurationSec}s`);
-    if (doc.settings.stock.orientation !== next.stock.orientation) changes.push(`素材方向 ${orientationLabels[doc.settings.stock.orientation]} → ${orientationLabels[next.stock.orientation]}`);
+    if (doc.settings.stock.perPage !== next.stock.perPage) changes.push(`每次检索条数 ${doc.settings.stock.perPage} → ${next.stock.perPage}`);
     if (changes.length) out.push({ group: "video", label: presetGroupMeta.video.label, changes });
   }
 

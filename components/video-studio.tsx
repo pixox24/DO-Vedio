@@ -19,13 +19,12 @@ import { useFinalCatchUp, type CatchUpResponse } from "@/components/studio/use-f
 import { postJson, useProject, useProjectEvents, useVoiceChange } from "@/lib/client";
 import { isCatchUpInput } from "@/lib/core/catch-up";
 import { applyLiveTimeline, presentationSignature, timelineStructureKey } from "@/lib/core/live-timeline";
-import { subtitleTranslateUnits } from "@/lib/core/subtitle/translate-plan";
 import type { MusicSource, Timeline } from "@/lib/core/timeline";
 import { isTtsStage } from "@/lib/core/keys";
 import { outputReadiness, renderBadge, visibleRenders, type ExportFile } from "@/lib/core/output-flow";
-import { storyboardImageHint, voiceDirectionHint, type StepHint } from "@/lib/core/step-status";
+import { produceSteps, stepHints } from "@/lib/core/studio-steps";
 import { mediaUrl, type Aspect, type ProjectDoc, type VoiceSettings } from "@/lib/core/types";
-import { isAiVideo, isVideoForm, sourceImageConfirmed, videoAssetStale } from "@/lib/core/video";
+import { isAiVideo, isStock, isVideoForm, sourceImageConfirmed } from "@/lib/core/video";
 import { shotReferenceStatus } from "@/lib/core/reference-status";
 import { outputSpecsFor } from "@/lib/core/output-spec";
 import { subtitlePresetMeta } from "@/lib/core/subtitle/presets";
@@ -40,45 +39,6 @@ import { useProjectShortcuts } from "@/lib/shortcuts";
  */
 
 const Preview = dynamic(() => import("@/components/video-preview").then((m) => m.VideoPreview), { ssr: false, loading: () => <div className="aspect-[16/9] animate-pulse rounded-2xl bg-white/[0.03]" /> });
-
-const steps = [
-  { stage: "annotate", label: "断句标注" },
-  { stage: "voice-direction", label: "配音口吻", indeterminate: true },
-  { stage: "tts", stages: ["tts", "tts-block"], label: "配音" },
-  { stage: "cast", label: "识别角色和场景", indeterminate: true },
-  { stage: "storyboard", label: "分镜", indeterminate: true },
-  { stage: "render", label: "渲染" },
-];
-
-function produceSteps(bilingual: boolean, video = false) {
-  const renderAt = steps.findIndex((step) => step.stage === "render");
-  return [...steps.slice(0, renderAt), ...(video ? [{ stage: "shot-reference", label: "参考图" }, { stage: "shot-generate", label: "视频" }] : []), ...(bilingual ? [{ stage: "subtitle-translate", label: "翻译" }] : []), ...steps.slice(renderAt)];
-}
-
-function stepHints(doc: ProjectDoc, jobs: { stage: string; status: string }[], storyboardPending: boolean, timeline: Timeline | null): Record<string, StepHint> {
-  const hints: Record<string, StepHint> = {};
-  const voice = voiceDirectionHint(doc.settings.voice, jobs.some((job) => job.stage === "voice-direction" && job.status === "succeeded"));
-  if (voice) hints["voice-direction"] = voice;
-  if (isVideoForm(doc.settings.visualPipeline) && storyboardPending) {
-    hints["shot-reference"] = { tone: "hold", message: "等待视频分镜" };
-    hints["shot-generate"] = { tone: "hold", message: "等待视频分镜" };
-  } else if (isAiVideo(doc.settings.visualPipeline) && doc.shots.length) {
-    const frame = outputSpecsFor(doc.settings)[0];
-    const videoShots = doc.shots.filter((shot) => shot.kind === "video" && !!shot.videoPlan);
-    const pending = videoShots.filter((shot) => !shot.locked && !sourceImageConfirmed(doc, shot, frame));
-    if (pending.length && !doc.settings.video.autoContinue) hints["shot-reference"] = { tone: "hold", message: `待生成或确认参考图 · ${pending.length} 镜` };
-    else if (!pending.length) hints["shot-reference"] = { tone: "done" };
-    const missing = videoShots.filter((shot) => !shot.locked && (!shot.assetId || !timeline || videoAssetStale(doc, shot, timeline, frame)));
-    hints["shot-generate"] = missing.length ? { tone: "hold", message: `待生成视频 · ${missing.length} 镜` } : { tone: "done" };
-  }
-  if (!storyboardPending && !isVideoForm(doc.settings.visualPipeline)) {
-    const generating = jobs.some((job) => job.stage === "shot-generate" && (job.status === "queued" || job.status === "running"));
-    const image = storyboardImageHint(doc, generating);
-    if (image) hints.storyboard = image;
-  }
-  if (doc.settings.subtitle.bilingual && subtitleTranslateUnits(doc.lines).length === 0) hints["subtitle-translate"] = { tone: "done", message: "已齐" };
-  return hints;
-}
 
 type Render = { id: string; aspect: Aspect; quality: string; timelineHash: string; contentHash?: string; animationHash?: string; videoHash: string; srtHash: string | null; durationMs: number; loudness: number | null; createdAt: number; outputVersion?: number; origin?: "manual" | "catch-up" };
 type TimelineHashes = { contentHash: string; animationHash: string; timelineHash: string };
@@ -549,7 +509,7 @@ export function VideoStudio({ id }: { id: string }) {
     : studioJobs;
   const legacyActiveJobs = currentJobs.filter((job) => !currentKeys.has(job.key) && (job.status === "queued" || job.status === "running"));
   const catchUpActive = jobList.some((job) => isCatchUpInput(job.input) && (job.status === "queued" || job.status === "running"));
-  const running = currentJobs.some((j) => !isCatchUpInput(j.input) && currentKeys.has(j.key) && (j.status === "queued" || j.status === "running") && (!currentGoalId || jobBelongsToGoal(j, currentGoalId) || ["shot-reference", "shot-generate"].includes(j.stage) || j.key.startsWith("video-plan:")));
+  const running = currentJobs.some((j) => !isCatchUpInput(j.input) && currentKeys.has(j.key) && (j.status === "queued" || j.status === "running") && (!currentGoalId || jobBelongsToGoal(j, currentGoalId) || ["shot-reference", "shot-generate", "shot-stock"].includes(j.stage) || j.key.startsWith("video-plan:")));
   const blocked = plan?.goal?.blocked;
   const blockedMessage = !isVideoForm(doc.settings.visualPipeline) ? blocked : blocked?.startsWith("有任务失败") ? "请处理对应模块中的问题后继续制作。" : blocked?.startsWith("镜头 ") ? "部分镜头尚未完成，请在分镜模块查看处理。" : blocked;
   const referenceShots = doc.shots.filter((shot) => shot.kind === "video" && !!shot.videoPlan);
@@ -706,15 +666,15 @@ export function VideoStudio({ id }: { id: string }) {
           />
           {legacyActiveJobs.length > 0 && <p className="rounded-xl border border-amber-300/20 bg-amber-300/[0.04] px-4 py-2 text-xs text-amber-100/75">仍有 {legacyActiveJobs.length} 个旧版本或独立任务在运行；停止当前制作不会取消它们。</p>}
           <JobStrip
-            steps={produceSteps(doc.settings.subtitle.bilingual, isVideoForm(doc.settings.visualPipeline))}
+            steps={produceSteps(doc.settings.subtitle.bilingual, doc.settings.visualPipeline)}
             jobs={currentJobs}
             hints={stepHints(doc, studioJobs, plan?.plan.steps.some((step) => step.stage === "storyboard" && !step.key.startsWith("video-plan:")) ?? false, timeline)}
             currentKeys={currentKeys}
             confirm={confirm}
             stageViews={isAiVideo(doc.settings.visualPipeline) && referenceShots.length ? { "shot-reference": { done: referenceDone, total: referenceShots.length, tone: referenceActive || standardActive ? "active" : referenceFailed || standardFailed ? "failed" : referenceDone < referenceShots.length || pendingConfirmation > 0 ? "hold" : "done", message: referenceMessage } } : undefined}
-            onOpenStage={isAiVideo(doc.settings.visualPipeline) ? () => openReferencePanel("storyboard", "reference-feedback") : undefined}
+            onOpenStage={isAiVideo(doc.settings.visualPipeline) ? () => openReferencePanel("storyboard", "reference-feedback") : isStock(doc.settings.visualPipeline) ? () => changePanel("storyboard") : undefined}
           />
-          {blocked && <div className="flex flex-wrap items-center gap-3 text-xs text-text-secondary"><p>已暂停：{blockedMessage}</p>{isAiVideo(doc.settings.visualPipeline) && panel !== "storyboard" && <button className="btn btn-text btn-sm" onClick={() => openReferencePanel("storyboard", "reference-feedback")}>查看待处理镜头</button>}</div>}
+          {blocked && <div className="flex flex-wrap items-center gap-3 text-xs text-text-secondary"><p>已暂停：{blockedMessage}</p>{isAiVideo(doc.settings.visualPipeline) && panel !== "storyboard" && <button className="btn btn-text btn-sm" onClick={() => openReferencePanel("storyboard", "reference-feedback")}>查看待处理镜头</button>}{isStock(doc.settings.visualPipeline) && panel !== "storyboard" && <button className="btn btn-text btn-sm" onClick={() => changePanel("storyboard")}>查看待处理镜头</button>}</div>}
           {!running && !blocked && plan && <p className="text-xs text-text-muted">{[...new Set(plan.plan.waiting.filter((message) => !isVideoForm(doc.settings.visualPipeline) || !message.startsWith("镜头 ")))].slice(0, 2).join(" · ")}</p>}
 
           {/*
@@ -857,6 +817,10 @@ function setupFacts(doc: ProjectDoc, voiceName: string): SetupFact[] {
     { label: "画面驱动", value: `AI 视频 · ${doc.settings.video.resolution}`, panel: "settings" },
     { label: "制作方式", value: doc.settings.video.autoContinue ? "自动制作" : "整批审图后继续", panel: "settings" },
   );
+  if (isStock(doc.settings.visualPipeline)) facts.splice(3, 0,
+    { label: "画面驱动", value: `视频素材 · ${doc.settings.stock.minDurationSec}s 起`, panel: "settings" },
+    { label: "素材来源", value: "Pexels · 按检索词自动采用", panel: "settings" },
+  );
   return facts;
 }
 
@@ -904,11 +868,11 @@ function SetupConfirm({ doc, costYuan, standardDisclosure, onOpen, onConfirm }: 
         <div className="min-w-0">
           <h2 id="setup-confirm-title" className="text-sm font-medium text-text">开工确认</h2>
           <p className="mt-1 text-2xs text-text-faint">
-            {/* 视频形态（含素材管线）确认后一次做到成片；素材管线的文案在后续阶段区分。 */}
-            {isVideoForm(doc.settings.visualPipeline) ? "确认一次后自动完成配音、分镜、参考图、视频和合成；整批审图模式会在参考图完成后等待一次确认。" : "确认后开始断句、配音和分镜。成片需要再点生成。"}任一项设置变动都会让确认失效，需要重新确认。
+            {isStock(doc.settings.visualPipeline) ? "确认一次后自动完成配音、分镜、素材检索和合成；每个镜头按自己的检索词找一条够长的真实视频。" : isVideoForm(doc.settings.visualPipeline) ? "确认一次后自动完成配音、分镜、参考图、视频和合成；整批审图模式会在参考图完成后等待一次确认。" : "确认后开始断句、配音和分镜。成片需要再点生成。"}任一项设置变动都会让确认失效，需要重新确认。
             {doc.settings.autoPortrait && " 已开启自动标准图：识别后会为每个需要立绘的角色、每个缺少标准图的场景各生成一张，图片费用以服务商账单为准，不计入上面的预估。"}
             {isAiVideo(doc.settings.visualPipeline) && " 预估仅包含已知费用；镜头参考图与视频另由服务商收费，当前价格未知。"}
             {isAiVideo(doc.settings.visualPipeline) && doc.settings.video.autoContinue && " 自动连续已开启：参考图成功后会继续提交视频请求，停止本地等待不能撤销云端接单。"}
+            {isStock(doc.settings.visualPipeline) && " 素材检索不产生服务商费用，但受 Pexels 免费额度限制（200 请求/小时，搜索与下载都算）；额度用尽会暂停，可稍后继续制作。"}
           </p>
           {standardDisclosure && <p className="mt-2 text-xs text-text-faint">{standardDisclosure}</p>}
         </div>

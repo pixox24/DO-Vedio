@@ -7,13 +7,14 @@ import Link from "next/link";
 import { Select, Switch } from "@/components/ui";
 import { type ProjectDoc } from "@/lib/core/types";
 import { outputSpecIdForAspect } from "@/lib/core/output-spec";
-import { isAiVideo } from "@/lib/core/video";
+import { isAiVideo, isStock } from "@/lib/core/video";
 import { useFeedback } from "@/components/feedback";
 import { PresetSection } from "@/components/preset-dialog";
 import type { ProjectStore } from "./shared";
 import { DisclosureRow, SettingGroup, SettingRow } from "./setting-rows";
 
 type VoiceCatalog = { providers: { id: string; models: { id: string; voices: { id: string }[] }[] }[] };
+type StockStatus = { configured: boolean; provider: string; label: string; hint?: string };
 
 export function SettingsPanel({ store }: { store: ProjectStore }) {
   const doc = store.doc;
@@ -21,8 +22,18 @@ export function SettingsPanel({ store }: { store: ProjectStore }) {
   const [mediaModels, setMediaModels] = useState<{ id: string; label: string; kind: string }[]>([]);
   const [outputMore, setOutputMore] = useState(false);
   const [publishMore, setPublishMore] = useState(false);
+  const [stockStatus, setStockStatus] = useState<StockStatus | null>(null);
+  const [stockTest, setStockTest] = useState<{ state: "idle" | "testing" | "ok" | "error"; message?: string }>({ state: "idle" });
   const { confirm } = useFeedback();
   useEffect(() => { fetch("/api/voices").then((r) => r.json()).then(setCatalog).catch(() => setCatalog(null)); }, []);
+  // 素材来源不在 /api/providers 里：Pexels 是检索源不是生成式服务商，所以单独一条轻量路由。
+  const stockPipeline = isStock(doc?.settings.visualPipeline);
+  useEffect(() => {
+    if (!stockPipeline) return;
+    let alive = true;
+    fetch("/api/stock", { cache: "no-store" }).then((r) => r.json()).then((data: StockStatus) => { if (alive) setStockStatus(data); }).catch(() => { if (alive) setStockStatus(null); });
+    return () => { alive = false; };
+  }, [stockPipeline]);
   useEffect(() => {
     let alive = true;
     fetch("/api/providers", { cache: "no-store" }).then((r) => r.json()).then((data) => {
@@ -37,6 +48,17 @@ export function SettingsPanel({ store }: { store: ProjectStore }) {
     }
   }, [mediaModels, doc?.settings.visualPipeline, doc?.settings.video.referenceImageModelId, store]);
   if (!doc) return null;
+  /** 打一次真实检索。路由失败也返回 200 + ok:false，所以这里只认 `ok` 字段。 */
+  async function testStock() {
+    setStockTest({ state: "testing" });
+    try {
+      const response = await fetch("/api/stock", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+      const data = await response.json() as { ok?: boolean; message?: string; sample?: { durationSec?: number } };
+      setStockTest(data.ok ? { state: "ok", message: `连接成功，示例素材 ${data.sample?.durationSec ?? "—"} 秒` } : { state: "error", message: data.message || "连接失败" });
+    } catch (cause) {
+      setStockTest({ state: "error", message: cause instanceof Error ? cause.message : String(cause) });
+    }
+  }
   async function toggleAiLabel(enabled: boolean) {
     if (!enabled && !(await confirm({ title: "关闭 AI 生成标识？", message: "部分发布平台要求保留 AI 生成标识，请确认你仍要关闭。", confirmLabel: "关闭标识", tone: "danger", bullets: ["预计费用：不产生新的服务商费用。", "影响范围：后续导出的视频不再显示 AI 生成标识。", "可恢复：可以随时重新打开标识。"] }))) return;
     store.setDoc((d) => ({ ...d, settings: { ...d.settings, aiLabel: { ...d.settings.aiLabel, enabled } } }));
@@ -57,9 +79,30 @@ export function SettingsPanel({ store }: { store: ProjectStore }) {
         </SettingGroup>
 
         <SettingGroup title="画面驱动">
-          <Select aria-label="画面驱动管线" value={doc.settings.visualPipeline} onChange={(value) => store.setDoc((current) => ({ ...current, settings: { ...current.settings, visualPipeline: value as "image" | "video", video: { ...current.settings.video, referenceImageModelId: current.settings.video.referenceImageModelId || (isAiVideo(value) ? mediaModels.find((m) => m.kind === "image")?.id ?? "" : "") } } }))}>
-            <option value="image">图片驱动</option><option value="video">AI 视频驱动</option>
+          <Select aria-label="画面驱动管线" value={doc.settings.visualPipeline} onChange={(value) => store.setDoc((current) => ({ ...current, settings: { ...current.settings, visualPipeline: value as ProjectDoc["settings"]["visualPipeline"], video: { ...current.settings.video, referenceImageModelId: current.settings.video.referenceImageModelId || (isAiVideo(value) ? mediaModels.find((m) => m.kind === "image")?.id ?? "" : "") } } }))}>
+            <option value="image">图片驱动</option><option value="video">AI 视频驱动</option><option value="stock">视频素材（Pexels）</option>
           </Select>
+          {isStock(doc.settings.visualPipeline) && <div className="mt-3 space-y-3">
+            <div className="rounded-control border border-hairline bg-white/[0.02] px-3 py-2.5 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-text-secondary">素材来源 · {stockStatus?.label ?? "Pexels"}</span>
+                <span className={stockStatus?.configured ? "text-accent" : "text-warn"}>{stockStatus === null ? "正在检查…" : stockStatus.configured ? "Key 已配置" : "Key 未配置"}</span>
+              </div>
+              {stockStatus && !stockStatus.configured && <p className="mt-1.5 text-2xs leading-5 text-text-faint">{stockStatus.hint ?? "在 .env.local 配置 PEXELS_API_KEY 后重启后台。"}</p>}
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <button type="button" className="chip h-7 px-2.5 text-xs" disabled={!stockStatus?.configured || stockTest.state === "testing"} onClick={() => void testStock()}>{stockTest.state === "testing" ? "正在测试…" : "测试连接"}</button>
+                {stockTest.state === "ok" && <span className="text-2xs text-accent">{stockTest.message}</span>}
+                {stockTest.state === "error" && <span className="text-2xs text-danger">{stockTest.message}</span>}
+              </div>
+            </div>
+            <label className="block space-y-1 text-xs"><span>素材最短时长（秒）</span>
+              <input className="input h-8 w-24 py-1 text-right text-sm" type="number" min="1" max="600" aria-label="素材最短时长（秒）" value={doc.settings.stock.minDurationSec} onChange={(event) => store.setDoc((current) => ({ ...current, settings: { ...current.settings, stock: { ...current.settings.stock, minDurationSec: Math.min(600, Math.max(1, Math.round(Number(event.target.value) || 1))) } } }))} />
+            </label>
+            <label className="block space-y-1 text-xs"><span>每次检索取回条数</span>
+              <input className="input h-8 w-24 py-1 text-right text-sm" type="number" min="1" max="80" aria-label="每次检索取回条数" value={doc.settings.stock.perPage} onChange={(event) => store.setDoc((current) => ({ ...current, settings: { ...current.settings, stock: { ...current.settings.stock, perPage: Math.min(80, Math.max(1, Math.round(Number(event.target.value) || 1))) } } }))} />
+            </label>
+            <p className="text-2xs leading-5 text-text-faint">按每个镜头的检索词去 {stockStatus?.label ?? "Pexels"} 找真实视频，自动采用第一条够长、能填满画幅的素材。实际最短时长取这里与镜头时长的较大者；检索方向由输出画幅决定（竖屏素材塞进横屏会被裁掉两侧）。免费额度 200 请求/小时，搜索与下载都算。</p>
+          </div>}
           {isAiVideo(doc.settings.visualPipeline) && <div className="mt-3 space-y-3">
             <label className="block space-y-1 text-xs"><span>制作方式</span><Select aria-label="视频制作方式" value={doc.settings.video.autoContinue ? "auto" : "review"} onChange={(mode) => store.setDoc((current) => ({ ...current, settings: { ...current.settings, video: { ...current.settings.video, autoContinue: mode === "auto" } } }))}><option value="review">整批审图后继续（推荐）</option><option value="auto">自动制作</option></Select></label>
             <p className="text-2xs leading-5 text-text-faint">整批审图只需标记不满意的画面，其余一次确认。自动制作会在参考图完成后继续视频和合成；参考图与视频费用以服务商账单为准。</p>

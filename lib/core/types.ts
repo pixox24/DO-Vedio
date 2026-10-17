@@ -540,13 +540,6 @@ export const stockSettingsSchema = z.object({
    * 素材短于镜头会让 `videoPlayback` 的 videoDurationReady 为假，直接卡住渲染。
    */
   minDurationSec: z.number().int().min(1).max(600).default(3),
-  /** auto 按输出画幅决定方向；强制某一方向会接受 cover 裁切 */
-  orientation: z.enum(["auto", "landscape", "portrait"]).default("auto"),
-  /**
-   * 每次检索入库几条候选。默认 1（自动采用第一条，省额度）。
-   * 调高会复用分镜面板已有的候选切换机制，代价是每镜多下载几条。
-   */
-  maxCandidates: z.number().int().min(1).max(10).default(1),
 });
 export type StockSettings = z.infer<typeof stockSettingsSchema>;
 
