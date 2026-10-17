@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { evenChars } from "./align";
 import type { TtsResult } from "./keys";
 import { blankShot } from "./shots";
-import { effectiveStockQuery, snapshotFor, stockAssetStale, stockExclusions, stockFrame, stockMinDurationSec, stockOrientation, stockQuery, stockSnapshot } from "./stock";
+import { effectiveStockQuery, snapshotFor, stockAssetStale, stockExclusions, stockFrame, stockMaxDurationSec, stockMinDurationSec, stockOrientation, stockQuery, stockSnapshot, STOCK_DURATION_SLACK_SEC } from "./stock";
 import { buildTimeline, type Artifacts } from "./timeline";
 import { emptyDoc, type Line, type Shot } from "./types";
 import { videoGenerationSnapshot, videoShotTiming } from "./video";
@@ -80,6 +80,20 @@ describe("素材画幅与时长下限", () => {
     doc.settings.stock.minDurationSec = 30;
     expect(stockMinDurationSec(doc, timing.targetDurationMs)).toBe(30);
   });
+
+  it("时长上限恒等于下限加余量：两秒的镜头不能拖回两分钟的长片", () => {
+    const { doc, art } = fixture([3000]);
+    const timeline = buildTimeline(doc, art, "16:9");
+    const timing = videoShotTiming(doc, doc.shots[0], timeline);
+    const min = stockMinDurationSec(doc, timing.targetDurationMs);
+    // 端到端实测曾检索回一条 120 秒、232MB 的素材并撞上下载体积上限。
+    expect(stockMaxDurationSec(doc, timing.targetDurationMs)).toBe(min + STOCK_DURATION_SLACK_SEC);
+    expect(stockMaxDurationSec(doc, timing.targetDurationMs)).toBeGreaterThanOrEqual(min);
+
+    // 用户把下限抬到 30 秒时上限也跟着抬，区间永不倒挂。
+    doc.settings.stock.minDurationSec = 30;
+    expect(stockMaxDurationSec(doc, timing.targetDurationMs)).toBe(30 + STOCK_DURATION_SLACK_SEC);
+  });
 });
 
 describe("素材快照", () => {
@@ -121,12 +135,13 @@ describe("素材快照", () => {
     expect(stockSnapshot(doc, { ...withCandidates, candidates: [] }, timeline, frame).hash).toBe(base);
   });
 
-  it("快照里带上这次检索实际用的词与时长下限", () => {
+  it("快照里带上这次检索实际用的词与时长区间", () => {
     const { doc, art } = fixture([3000]);
     const timeline = buildTimeline(doc, art, "16:9");
     const snapshot = stockSnapshot(doc, doc.shots[0], timeline, frame);
     expect(snapshot.query).toBe("woman walking street");
     expect(snapshot.minDurationSec).toBe(Math.ceil(snapshot.timing.targetDurationMs / 1000));
+    expect(snapshot.maxDurationSec).toBe(snapshot.minDurationSec + STOCK_DURATION_SLACK_SEC);
   });
 });
 

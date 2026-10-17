@@ -29,6 +29,11 @@ export type StockSearchOptions = {
   /** 不传表示两个方向都能用（本项目只有 16:9 / 9:16，所以总会传） */
   orientation?: "landscape" | "portrait";
   minDurationSec?: number;
+  /**
+   * 时长上限（秒）。**不是可选项**：只设下限时，两秒的镜头会检索回两分钟的片子，
+   * 单文件动辄两三百 MB，下载额度与磁盘都吃不消。
+   */
+  maxDurationSec?: number;
   perPage?: number;
 };
 

@@ -230,12 +230,60 @@ it("素材管线：找不到够长的素材时报错，不写回也不留缓存"
   const frame = stockFrame(project.doc);
   const { enqueueStockShot } = await import("@/lib/pipeline/stages/shot-stock");
   const queued = enqueueStockShot(project.id, project.doc, project.doc.shots[0], frame);
-  await expect(shotStockStage.run(queued.job.input as never, context(queued.job))).rejects.toThrow("都比镜头短");
+  await expect(shotStockStage.run(queued.job.input as never, context(queued.job))).rejects.toThrow("都不合适");
 
   const doc = getProject(project.id)!.doc;
   expect(doc.shots[0].assetId).toBeUndefined();
   expect(doc.shots[0].candidates).toEqual([]);
   // 空结果/失败都不缓存，否则用户改完描述还得手动清。
+  expect(cachedStockAsset(stockSnapshot(doc, doc.shots[0], timelineFor(doc, project.id, frame.aspect), frame).hash)).toBeUndefined();
+});
+
+it("素材管线：单条素材超体积上限时换下一条，而不是把整镜判死", async () => {
+  const project = await fixture(1);
+  const fetchMock = serveDownloads();
+  const { getProject } = await import("@/lib/server/projects");
+  const { getAsset } = await import("@/lib/server/media");
+  const { cachedStockFile } = await import("@/lib/pipeline/stock-cache");
+
+  mocks.search.mockResolvedValue([clipFor("huge", { id: 1 }), clipFor("fine", { id: 2 })]);
+  // 第一条声明 300MB：被 content-length 预检直接挡下，不用真的搬 300MB。
+  fetchMock.mockImplementationOnce(async () => new Response(new Uint8Array(0), {
+    status: 200, headers: { "content-length": String(300 * 1024 * 1024) },
+  }));
+
+  const frame = stockFrame(project.doc);
+  const { result } = await runStockShot(project.id, project.doc, project.doc.shots[0], frame);
+
+  // 第二条正常入库并被采用——超大的那条只是被跳过。
+  expect(result.assetId).toBe(hashOf(nonce, downloadUrl("fine")));
+  expect(getProject(project.id)!.doc.shots[0].assetId).toBe(result.assetId);
+  expect(getAsset(result.assetId)?.kind).toBe("video");
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+  // 超大的那条没有 URL 缓存：它从未成功入库，缓存反而会让重搜把它当「已试过」跳过。
+  expect(cachedStockFile("pexels", downloadUrl("huge"))).toBeUndefined();
+});
+
+it("素材管线：所有素材都超体积上限时报错并说明原因", async () => {
+  const project = await fixture(1);
+  const fetchMock = serveDownloads();
+  const { shotStockStage } = await import("@/lib/pipeline/stages/shot-stock");
+  const { getProject } = await import("@/lib/server/projects");
+  const { cachedStockAsset } = await import("@/lib/pipeline/stock-cache");
+  const { timelineFor } = await import("@/lib/pipeline/artifacts");
+
+  mocks.search.mockResolvedValue([clipFor("huge-a", { id: 1 }), clipFor("huge-b", { id: 2 })]);
+  fetchMock.mockImplementation(async () => new Response(new Uint8Array(0), {
+    status: 200, headers: { "content-length": String(300 * 1024 * 1024) },
+  }));
+
+  const frame = stockFrame(project.doc);
+  const { enqueueStockShot } = await import("@/lib/pipeline/stages/shot-stock");
+  const queued = enqueueStockShot(project.id, project.doc, project.doc.shots[0], frame);
+  await expect(shotStockStage.run(queued.job.input as never, context(queued.job))).rejects.toThrow("超过 200MB");
+
+  const doc = getProject(project.id)!.doc;
+  expect(doc.shots[0].assetId).toBeUndefined();
   expect(cachedStockAsset(stockSnapshot(doc, doc.shots[0], timelineFor(doc, project.id, frame.aspect), frame).hash)).toBeUndefined();
 });
 

@@ -93,7 +93,10 @@ export async function searchVideos(query: string, opts: StockSearchOptions = {},
   url.searchParams.set("query", trimmed);
   if (opts.orientation) url.searchParams.set("orientation", opts.orientation);
   // 向上取整：min_duration 是下限，宁可少拿到几条，也不能拿回一条比镜头短的。
-  if (opts.minDurationSec) url.searchParams.set("min_duration", String(Math.max(1, Math.ceil(opts.minDurationSec))));
+  const minDuration = opts.minDurationSec ? Math.max(1, Math.ceil(opts.minDurationSec)) : undefined;
+  if (minDuration) url.searchParams.set("min_duration", String(minDuration));
+  // 上限必须不小于下限，否则 Pexels 会返回空列表——那就退化成「什么都没找到」了。
+  if (opts.maxDurationSec) url.searchParams.set("max_duration", String(Math.max(minDuration ?? 1, Math.ceil(opts.maxDurationSec))));
   // medium = 至少 Full HD。档位选「能填满画布的最小档」时，低于目标分辨率的档本来就用不上。
   url.searchParams.set("size", "medium");
   url.searchParams.set("per_page", String(Math.min(MAX_PER_PAGE, Math.max(1, Math.round(opts.perPage ?? 15)))));

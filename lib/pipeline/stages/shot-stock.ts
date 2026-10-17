@@ -66,6 +66,17 @@ export function stockPrerequisite(doc: ProjectDoc, shot: Shot, timeline: Timelin
 const downloadError = (message: string, status?: number) =>
   status === undefined ? new Error(message) : Object.assign(new Error(message), { status });
 
+/**
+ * 单条素材太大。这是「这一条不合适」，不是「这一个镜头没救了」——
+ * 早先直接抛 `PermanentError`，结果镜头永久失败，重跑还命中同一条，永远出不来。
+ */
+class OversizedStockFile extends Error {
+  constructor() {
+    super(`素材超过 ${Math.round(MAX_BYTES / 1024 / 1024)}MB 上限`);
+    this.name = "OversizedStockFile";
+  }
+}
+
 export const shotStockStage = defineStage<ShotStockInput, ShotStockResult>({
   name: "shot-stock",
   // Pexels 免费额度 200 请求/小时，搜索与下载都算，所以默认串行。
@@ -100,11 +111,18 @@ export const shotStockStage = defineStage<ShotStockInput, ShotStockResult>({
       inputHash: snapshot.hash, params: { stage: "shot-stock", shotId: shot.id, query: snapshot.query, orientation: stockOrientation(frame), minDurationSec: snapshot.minDurationSec, frame, excluded: excluded.size },
     });
     try {
-      const clips = await searchStock(snapshot.query, { orientation: stockOrientation(frame), minDurationSec: snapshot.minDurationSec, perPage: project.doc.settings.stock.perPage }, ctx.signal);
+      const clips = await searchStock(snapshot.query, {
+        orientation: stockOrientation(frame),
+        minDurationSec: snapshot.minDurationSec,
+        maxDurationSec: snapshot.maxDurationSec,
+        perPage: project.doc.settings.stock.perPage,
+      }, ctx.signal);
       if (!clips.length) throw new PermanentError(`没有找到「${snapshot.query}」的素材，请改镜头描述或改用 AI 视频`);
 
       let downloads = 0;
       let sawFile = false;
+      let tooShort = 0;
+      let tooLarge = 0;
       let picked: { assetId: string; clipId: number; author: string; pageUrl: string; url: string } | undefined;
       for (const clip of clips) {
         if (!ctx.current()) throw ctx.signal.reason ?? new DOMException("任务已取消", "AbortError");
@@ -117,17 +135,26 @@ export const shotStockStage = defineStage<ShotStockInput, ShotStockResult>({
         if (known && excluded.has(known)) continue;
         if (!known && downloads >= MAX_DOWNLOADS) break;
         if (!known) downloads += 1;
-        const assetId = known ?? await download(file.url, input, ctx, clip, frame);
+        let assetId: string;
+        try {
+          assetId = known ?? await download(file.url, input, ctx, clip, frame);
+        } catch (e) {
+          // 太大就换下一条，别把整镜判死。下载预算已经扣了，所以最多也就试满 MAX_DOWNLOADS 条。
+          if (e instanceof OversizedStockFile) { tooLarge += 1; continue; }
+          throw e;
+        }
         const asset = getAsset(assetId);
         // 实测时长复检：来源声明的 duration 是整数秒，实测可能短一点。短了会让
         // videoPlayback 的 videoDurationReady 为假，渲染被门禁直接卡住且不报错。
-        if (!asset || asset.kind !== "video" || !videoPlayback(snapshot.timing.targetDurationMs, { durationMs: asset.durationMs ?? 0 }).videoDurationReady) continue;
+        if (!asset || asset.kind !== "video" || !videoPlayback(snapshot.timing.targetDurationMs, { durationMs: asset.durationMs ?? 0 }).videoDurationReady) { tooShort += 1; continue; }
         picked = { assetId, clipId: clip.id, author: clip.author, pageUrl: clip.pageUrl, url: file.url };
         break;
       }
-      if (!picked) throw new PermanentError(sawFile
-        ? `找到的素材都比镜头短（已试 ${downloads} 条），请改用 AI 视频或调整镜头描述`
-        : "找到的素材分辨率不符合画幅要求，请改用 AI 视频");
+      if (!picked) {
+        if (!sawFile) throw new PermanentError("找到的素材分辨率不符合画幅要求，请改用 AI 视频");
+        const reasons = [tooLarge ? `${tooLarge} 条超过 ${Math.round(MAX_BYTES / 1024 / 1024)}MB` : "", tooShort ? `${tooShort} 条比镜头短` : ""].filter(Boolean);
+        throw new PermanentError(`找到的素材都不合适（已试 ${downloads} 条：${reasons.join("、")}），请改用 AI 视频或调整镜头描述`);
+      }
 
       if (!writeBack(input, ctx, frame, snapshot.hash, picked.assetId, excluded.size > 0)) throw new PermanentError("素材输入已变化，请重新搜索");
       // 两条缓存都在写回成功之后才落：写回被并发编辑挡掉时不能留下「已经定过」的假记录。
@@ -197,13 +224,13 @@ async function download(url: string, input: ShotStockInput, ctx: StageContext, c
   const declared = Number(response.headers.get("content-length"));
   if (Number.isFinite(declared) && declared > MAX_BYTES) {
     await response.body.cancel().catch(() => {});
-    throw new PermanentError("素材超过 200MB 上限，请改用 AI 视频");
+    throw new OversizedStockFile();
   }
   const asset = await putStream(response.body, MAX_BYTES, {
     ext: "mp4",
     meta: { source: "pexels", stage: "shot-stock", projectId: input.projectId, shotId: input.shotId, clipId: clip.id, author: clip.author, pageUrl: clip.pageUrl, frame },
   }).catch((e) => {
-    throw e instanceof Error && /上限/.test(e.message) ? new PermanentError("素材超过 200MB 上限，请改用 AI 视频") : e;
+    throw e instanceof Error && /上限/.test(e.message) ? new OversizedStockFile() : e;
   });
   if (asset.kind !== "video") throw new PermanentError("来源返回的文件不是视频，请改用 AI 视频");
   return asset.hash;

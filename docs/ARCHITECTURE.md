@@ -40,9 +40,9 @@
 | `app/` | Next.js 路由。15 个 `page.tsx` + **81 个 `api/*/route.ts`** | 页面组件都很薄，逻辑在 `components/` 和 `lib/` |
 | `components/` | 全部 UI。顶层 33 个 + `studio/`（制作页各面板）+ `viral/` | `workbench.tsx` 创作台、`video-studio.tsx` 制作页是两个大壳 |
 | `lib/core/` | **纯领域层，无 I/O**。文档类型、时间轴、分镜、角色、字幕、运镜、缓存键 | 73 个文件 + `subtitle/` 17 个，改动风险最高 |
-| `lib/pipeline/` | 任务编排。`stage.ts` 契约、`plan.ts` 自动推进、`runtime.ts` 自检、`stages/` 14 个步骤 | worker 的心脏 |
+| `lib/pipeline/` | 任务编排。`stage.ts` 契约、`plan.ts` 自动推进、`runtime.ts` 自检、`stages/` 16 个步骤 | worker 的心脏 |
 | `lib/server/` | 持久化与外部资源。db、迁移、队列、媒体、缓存、ffmpeg、GC、梗库、版本 | 唯一碰数据库的地方 |
-| `lib/providers/` | 模型服务商接入（`catalog` 模型清单 / `registry` / `custom` 加密存储 / 用量），子目录 `media/` `tts/` | ⚠️ 服务商**散落硬编码**，加一家远不止改这里，见第四节 |
+| `lib/providers/` | 模型服务商接入（`catalog` 模型清单 / `registry` / `custom` 加密存储 / 用量），子目录 `media/` `tts/` `stock/` | ⚠️ 服务商**散落硬编码**，加一家远不止改这里，见第四节 |
 | `lib/viral/` | 爆款复创领域逻辑（状态机、生成、审校、失效判定） | 配合 `lib/server/viral/` 存储、`lib/pipeline/viral/` 任务 |
 | `lib/humanize/` | 去 AI 味：规则库、检测器、改写验收 | 规则与提示词共用一份 |
 | `lib/aix/` | 外部 AIX 风格库适配（调色板、动效、模板映射） | 素材在 `vendor/aix-style-library/` |
@@ -69,6 +69,8 @@
 | 时间轴计算 | `lib/core/timeline.ts` —— **唯一派生点**，`buildTimeline(文档, 产物)` |
 | 分镜 / 镜头 | `lib/core/shots.ts` + `stages/storyboard.ts` + `components/studio/storyboard-panel.tsx` |
 | AI 视频管线 / 真实配音时长 / 参考与输出指纹 | `lib/core/video.ts` + `lib/core/types.ts`（`settings.visualPipeline/video`）；主时间线仍是 `timeline.ts`，`artifacts.ts` 读取已入库视频实测元数据 |
+| **三种画面管线的判定** | `lib/core/video.ts` 的 `isVideoForm`（画面是视频 = `video`\|`stock`）· `isAiVideo`（画面由生成模型产出 = 只有 `video`）· `isStock`。**新增分支一律用这三个帮手，不要再写 `visualPipeline === "video"`**；指纹按管线的分发走 `lib/core/stock.ts` 的 `snapshotFor` |
+| **视频素材（stock）管线** | `lib/providers/stock/`（来源层：`types` / `pexels` / `index`）+ `lib/core/stock.ts`（检索词、画幅方向、快照 `stockSnapshot`）+ `lib/pipeline/stock-cache.ts`（两层缓存）+ `stages/shot-stock.ts` + `app/api/stock/route.ts`（Key 状态与连通性）。镜头上的检索词是独立的 `shot.stockQuery`，**不进 `videoGenerationSnapshot` 的哈希** |
 | 视频导演 / 镜头静态参考 / H3 动作提示词 | `lib/prompts.ts` + `stages/storyboard.ts` + `lib/core/video-prompt-compiler.ts`；语义 `groupId` 仅用于 UI，镜头独立生成 |
 | 中文镜头要求 → 英文执行计划 | `lib/core/video-plan.ts`（同步标记、无声清理）+ `lib/pipeline/video-plan-sync.ts`（复用 storyboard 队列、指纹去重、预算与并发写回保护）；保存入口 `lib/server/projects.ts` + 项目 API |
 | 整批审图与标记重做 | `app/api/projects/[id]/shots/reference/route.ts`（提交的就绪子集原子确认，返回是否已有目标续跑）+ `components/studio/video-storyboard-panel.tsx`（过滤未就绪镜头、展示阻塞原因）；单镜 generate 可携带 `confirmHash` 确认当前图并只提交当前镜头，不唤醒整批目标 |
@@ -145,8 +147,10 @@ grep -rn '"dashscope"\|"google-gemini"\|dashscope\|google-gemini' lib app compon
 
 1. **创作线（文案）**：`app/page.tsx` → `components/home-composer.tsx` → `/projects/[id]` → `components/workbench.tsx` → 角度 → 大纲 → 逐章写稿 → 去 AI 味 → 发布素材。纯前端 + `/api/{angles,outline,section,rewrite,metadata}`。
 2. **制作线（视频）**：`/projects/[id]/video` → `components/video-studio.tsx` → 派发 jobs → worker 跑 stages → 预览 → 导出。
-   项目画面驱动默认 `image`；`video` 使用真实 TTS → 视频导演 → 镜头参考图 → 确认（或 `autoContinue`）→ 每镜独立视频。复用角色/场景分析、自动标准图、素材、候选和同一时间线；不提供 mixed。视频源分辨率与成片输出分辨率是两个设置。
-   ⚠️ **别把 `steps` 和 `allStages` 当镜像**：`lib/pipeline/stages/index.ts` 的 `allStages` 是**注册表**（16 项全量，决定调度）；`components/video-studio.tsx` 的 `steps` 只是**进度条显示项**（6 项子集，顺序与 `allStages` 不同，`produceSteps()` 按管线在 render 前插入参考图/视频，双语时再插入 `subtitle-translate`）。
+   项目画面驱动默认 `image`，共三种：`image`（图片）、`video`（AI 视频）、`stock`（视频素材）。
+   - `video`：真实 TTS → 视频导演 → 镜头参考图 → 确认（或 `autoContinue`）→ 每镜独立视频。复用角色/场景分析、自动标准图、素材、候选和同一时间线；不提供 mixed。视频源分辨率与成片输出分辨率是两个设置。
+   - `stock`：真实 TTS → 视频导演（一并产出 `shot.stockQuery`）→ 每镜按检索词去 Pexels 取一条真实视频。下游的渲染/门禁/恢复与 `video` 完全共用，不需要参考图、标准图与视频模型，也不产生服务商费用（受 Pexels 免费额度限制）。
+   ⚠️ **别把 `steps` 和 `allStages` 当镜像**：`lib/pipeline/stages/index.ts` 的 `allStages` 是**注册表**（17 项全量，决定调度）；进度条显示项是 `lib/core/studio-steps.ts` 的 `produceSteps()`（6 项基础步骤，按管线在 render 前插入不同媒体步骤：`video` 插参考图 + 视频、`stock` 只插「检索素材」，双语时再插入 `subtitle-translate`）。它是纯函数，**不放在组件里**，改形状请改这里并补 `studio-steps.test.ts`。
 3. **复创线（爆款）**：`/viral` → `components/viral/viral-workspace.tsx` → 任务跑在 `lib/pipeline/viral/` → 审校通过后**移交**到制作线（`lib/server/viral/handoff.ts`）。
 
 ## 六、约定与坑
@@ -160,6 +164,12 @@ grep -rn '"dashscope"\|"google-gemini"\|dashscope\|google-gemini' lib app compon
 - **视频中文编辑**：`videoPlanDescriptionHash` 记录英文计划对应的中文；旧文档首次实际编辑后才启用同步。待同步时参考图、视频与渲染均受阻；同步只替换计划并使旧产物过期，保留镜头 ID、锚点与历史素材。AutoDL 当前仍是参考图接口，提示词构图锚定不等于硬首帧 I2V。
 - **视频分镜响应**：`stages/storyboard.ts` 每次最多规划 6 句并显式请求 8192 输出 token，传递相邻镜头结束状态；JSON/结构校验失败时二分失败范围，单句仍失败则暂停。成功范围沿用现有缓存，失败记录在 `generation_runs.params` 保留结束原因、响应长度与用量，不保存完整响应。`plan.ts` 的分镜任务键区分图片/视频管线。
 - **AI 视频播放**：`remotion/shots/video.tsx` 同时服务预览与成片，强制静音、不循环、不叠图片运镜。时间线裁多余尾段，只允许不超过 100ms 的末帧保持；缺失/过期/过短视频须由生产与渲染门禁提示。
+- **素材管线（stock）的五条硬契约**（详见 `docs/archive/stock-pipeline-plan.md`）：
+  - **`shot.stockQuery` 绝不进 `videoGenerationSnapshot` 的哈希。** 改检索词不该让任何 AI 视频产物过期。同理，重搜游标 `excludeAssetIds` 也**只走任务 input**，不进 `stockSnapshot` 的哈希——候选池有截断，进了哈希会把正在用的素材误判成过期。
+  - **写回素材候选时 `promptHash` 与 `generationPromptHash` 都要等于快照哈希。** 只填一个会让变体指纹落到兜底值 `"unknown"`，门禁永远报「视频缺失或已过期」且不报错、只卡住。
+  - **来源声明的时长只做粗过滤，落库后按 ffprobe 实测时长复检。** Pexels 的 `duration` 是整数秒，实测可能短一点。
+  - **检索必须带时长区间，不是只带下限。** 上限由 `stockMaxDurationSec = 下限 + 15s` 派生并**进快照哈希**——只设 `min_duration` 时两秒的镜头会拖回 120 秒、232MB 的长片，直接撞上下载体积上限。单条素材超限只跳过该候选（`OversizedStockFile`），不把整镜判死。
+  - **下载地址不落盘。** `putStream` → `putFile` 会把 `meta` 永久写进 assets 表，而下载地址可能带签名。`download` 的 `meta` 按白名单重建，只存人可点的 `pageUrl`。
 - **迁移只增不改**：往 `migrations.ts` 末尾追加，id 递增（当前最大 22）。修改历史条目会让老库直接跳过——已执行记录在 `schema_migrations` 表。
 - **重试语义**：抛 `PermanentError`（`lib/pipeline/stage.ts`）表示不重试；其它错误只有 408/429/5xx 才重试。
 - **只读接口**：`lib/server/db.ts` 的 `all/get/run/tx` 是唯一的数据库入口，不要绕过它 new 连接。

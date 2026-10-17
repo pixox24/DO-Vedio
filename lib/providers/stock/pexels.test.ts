@@ -21,18 +21,35 @@ type FetchImpl = (url: RequestInfo | URL, init?: RequestInit) => Promise<Respons
 const mockFetch = (impl: FetchImpl) => vi.fn(impl);
 
 describe("Pexels 检索：请求构造", () => {
-  it("把方向、最短时长与每页条数都放到服务端过滤，省额度也省带宽", async () => {
+  it("把方向、时长区间与每页条数都放到服务端过滤，省额度也省带宽", async () => {
     const fetchImpl = mockFetch(async () => jsonResponse({ videos: [] }));
-    await searchVideos("woman walking", { orientation: "portrait", minDurationSec: 7.4, perPage: 9 }, undefined, { apiKey: "k", fetchImpl });
+    await searchVideos("woman walking", { orientation: "portrait", minDurationSec: 7.4, maxDurationSec: 18, perPage: 9 }, undefined, { apiKey: "k", fetchImpl });
     const url = fetchImpl.mock.calls[0][0] as URL;
     expect(url.origin + url.pathname).toBe("https://api.pexels.com/videos/search");
     expect(url.searchParams.get("query")).toBe("woman walking");
     expect(url.searchParams.get("orientation")).toBe("portrait");
     // Pexels 的 min_duration 只认整数秒：向上取整，宁可选到略长的素材
     expect(url.searchParams.get("min_duration")).toBe("8");
+    expect(url.searchParams.get("max_duration")).toBe("18");
     expect(url.searchParams.get("per_page")).toBe("9");
     expect(url.searchParams.get("size")).toBe("medium");
     expect(fetchImpl.mock.calls[0][1]).toMatchObject({ headers: { Authorization: "k" } });
+  });
+
+  it("时长上限被下限抬着走：区间倒挂会直接拿到空列表", async () => {
+    const fetchImpl = mockFetch(async () => jsonResponse({ videos: [] }));
+    await searchVideos("nature", { minDurationSec: 30, maxDurationSec: 12 }, undefined, { apiKey: "k", fetchImpl });
+    const url = fetchImpl.mock.calls[0][0] as URL;
+    expect(url.searchParams.get("min_duration")).toBe("30");
+    expect(url.searchParams.get("max_duration")).toBe("30");
+  });
+
+  it("不传时长区间时不带这两个参数", async () => {
+    const fetchImpl = mockFetch(async () => jsonResponse({ videos: [] }));
+    await searchVideos("nature", { perPage: 5 }, undefined, { apiKey: "k", fetchImpl });
+    const url = fetchImpl.mock.calls[0][0] as URL;
+    expect(url.searchParams.has("min_duration")).toBe(false);
+    expect(url.searchParams.has("max_duration")).toBe(false);
   });
 
   it("每页条数被上限夹住，不传方向时不带该参数", async () => {

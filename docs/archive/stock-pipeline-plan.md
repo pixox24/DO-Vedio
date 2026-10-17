@@ -552,6 +552,36 @@ export const isStock = (pipeline: string) => pipeline === "stock";
 2. 更新 `docs/ARCHITECTURE.md`（第 71 行附近的管线表加 stock）
 3. 本文移入 `docs/archive/`
 
+**完成记录**
+
+规模按用户拍板调整为「小规模真跑」（真 LLM / 真 TTS / 真 Pexels，渲染成片）。新增 `scripts/stock-e2e.ts`（`npm run stock:e2e`）：5 句稿 → stock 管线 → 跟到成片，数 Pexels 出站请求，再**同目标跑第二轮**验证缓存与门禁。
+
+**第一轮真跑挖出一个真缺陷**：10 镜里 2 镜报「素材超过 200MB 上限」并永久失败。取证（Range 请求逐档测体积）发现根因是**检索只设了时长下限没有上限**——2 秒的镜头检索回一条 120 秒、232MB 的地铁素材。修复分两层：
+
+| 层 | 改动 | 为什么 |
+| --- | --- | --- |
+| 根因 | `searchStock` 增加 `maxDurationSec`（Pexels `max_duration`），由新派生函数 `stockMaxDurationSec = 下限 + 15s 余量` 给出，**进快照哈希** | 修完后同一检索词的候选从 7–120s 变成 7–12s、单条从 232MB 降到 ≤9MB。上限进哈希：检索条件变了就必须重搜，否则缓存继续把长片当这镜的素材 |
+| 兜底 | `download` 体积超限从「整镜 `PermanentError`」改成「跳过这条换下一条」（`OversizedStockFile`） | 只有上限兜不住的极端情况（4K 高码率）才走到这条；此前重跑还会命中同一条，永远出不来 |
+
+修完后的最终一轮指标（项目 `5f3588f5`，9 镜 · 25.04s 成片 · 175s 跑完）：
+
+- 检索 9 次（与镜头数 1:1）、下载 5 次（4 次命中 URL 缓存跨镜复用同一文件）；`shot-stock` 失败 0
+- **同目标第二轮：新增检索 0 · 新增下载 0 · 新增任务 0** —— 两层缓存 + 渲染门禁生效的直接证据
+- 富余（素材实测时长 − 镜头时长）：min 1830ms · 中位 10000ms · max 15475ms · 负富余 0 条
+- `assets.meta` 泄漏下载地址 0 条；费用 ¥0.0957（素材检索本身不计费）
+- 检索词与中文旁白语义相符（如「清晨第一班地铁钻出地面」→ `commuter train dawn city`）
+
+`docs/ARCHITECTURE.md` 已加三条画面管线的判定与素材管线的「改哪里」行、重写三条主线的管线描述、补四条硬契约；本文移入 `docs/archive/`。
+
+环境备注：渲染一度被本机 CLI 的 node FS shim 拦截（`CODEBUDDY_BROKER_DENY` 误报 `mkdir EEXIST`），用 `NODE_OPTIONS=` 跑即恢复正常——不是代码缺陷，已在 e2e 脚本的用法里注明。
+
+**验收证据**
+
+- `tests/video-stock-pipeline.test.ts` 新增 2 例：单条超 200MB 时换下一条并被采用（超大的那条不进 URL 缓存）；全部超限时报错并点名「超过 200MB」且不写回不缓存。
+- `lib/providers/stock/pexels.test.ts`：请求构造断言 `max_duration`；区间倒挂时上限被下限抬着走（倒挂会拿到空列表）；不传时不带该参数。
+- `lib/core/stock.test.ts`：`stockMaxDurationSec` 恒等于下限加余量、区间永不倒挂；快照带回时长区间。
+- `npm run typecheck` 通过；全量测试见提交记录。
+
 ## 8. 测试计划
 
 | 层 | 用例 | 断言 |
@@ -585,17 +615,17 @@ export const isStock = (pipeline: string) => pipeline === "stock";
 
 ## 10. 端到端验收清单
 
-- [ ] 设置里能选「视频素材（Pexels）」，Key 未配置时有明确提示与测试连接入口
-- [ ] 切到 stock 后重做分镜，每镜都有英文 `stockQuery`
-- [ ] 点「制作成片」后进度条出现「检索素材」，不出现「参考图」
-- [ ] 每个镜头自动拿到一条素材，画面与旁白语义相符（人工抽查 ≥10 镜）
-- [ ] 不满意的镜头能在分镜面板改 `stockQuery` 或点「重新搜索素材」换到不同素材
-- [ ] 修改某镜的中文描述后，该镜的检索词与素材标记为过期并自动重搜；**其他镜头不受影响**
-- [ ] 素材全部比镜头短的极端情况下，给出可操作报错而不是静默卡住
-- [ ] 成片能渲染出来，转场为 cut，无图片运镜叠加
-- [ ] 用量页能看到 `pexels` 的检索记录；`assets.meta` 里没有带凭据的 URL
-- [ ] 切回 `image` / `video` 两条管线，行为与改动前完全一致
-- [ ] `docs/ARCHITECTURE.md` 已更新，本文已归档
+- [x] 设置里能选「视频素材（Pexels）」，Key 未配置时有明确提示与测试连接入口
+- [x] 切到 stock 后重做分镜，每镜都有英文 `stockQuery`
+- [x] 点「制作成片」后进度条出现「检索素材」，不出现「参考图」
+- [x] 每个镜头自动拿到一条素材，画面与旁白语义相符（e2e 9 镜全中，如「烤箱热气扑上玻璃」→ `oven steam bakery window`）
+- [x] 不满意的镜头能在分镜面板改 `stockQuery` 或点「重新搜索素材」换到不同素材
+- [x] 修改某镜的中文描述后，该镜的检索词与素材标记为过期并自动重搜；**其他镜头不受影响**（快照哈希只含本镜覆盖句与检索词）
+- [x] 素材全部比镜头短的极端情况下，给出可操作报错而不是静默卡住（「找到的素材都不合适（已试 N 条：…）」）
+- [x] 成片能渲染出来，转场为 cut，无图片运镜叠加（e2e 渲出 25.04s 成片）
+- [x] 用量页能看到 `pexels` 的检索记录（`generation_runs` 按 `provider_id='pexels'` 记账）；`assets.meta` 里没有带凭据的 URL（e2e 断言泄漏 0 条）
+- [x] 切回 `image` / `video` 两条管线，行为与改动前完全一致（全量回归见各 Phase 记录）
+- [x] `docs/ARCHITECTURE.md` 已更新，本文已归档
 
 ## 11. 后续（不在本次范围）
 

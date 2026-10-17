@@ -89,6 +89,23 @@ export function stockMinDurationSec(doc: ProjectDoc, targetDurationMs: number): 
 }
 
 /**
+ * 时长下限之外再留多少秒的余量作为上限。
+ *
+ * 端到端实测（`scripts/stock-e2e.ts`）里两秒的镜头曾检索回一条 120 秒、
+ * 232MB 的地铁素材并直接撞上下载体积上限。只设「不短于」是不够的：
+ * Pexels 的长素材占比很高，而它正是体积与下载额度的唯一变量。
+ */
+export const STOCK_DURATION_SLACK_SEC = 15;
+
+/**
+ * 检索时用的时长上限（秒）。**派生值，不是设置项**——它只有一个正确答案：
+ * 比下限多一点点余量，够 `pickFile` 与时长复检挑到东西，又不至于拖回一部长片。
+ */
+export function stockMaxDurationSec(doc: ProjectDoc, targetDurationMs: number): number {
+  return stockMinDurationSec(doc, targetDurationMs) + STOCK_DURATION_SLACK_SEC;
+}
+
+/**
  * 素材快照：与 `videoGenerationSnapshot` 同形（`{ hash, key, timing }`），只换哈希输入。
  *
  * 哈希输入**只含文档里稳定可复现的部分**：检索词、方向、时长下限、目标时长、
@@ -100,10 +117,13 @@ export function stockSnapshot(doc: ProjectDoc, shot: Shot, timeline: Timeline, f
   const lineIds = new Set(timing.coveredLineIds);
   const query = effectiveStockQuery(shot);
   const minDurationSec = stockMinDurationSec(doc, timing.targetDurationMs);
+  // 上限进哈希：它是检索条件的一部分，改了就必须重新检索，
+  // 否则缓存会把「有上限之前」搜回来的长片继续当成这一镜的素材。
+  const maxDurationSec = stockMaxDurationSec(doc, timing.targetDurationMs);
   const hash = quickHash({
     version: STOCK_SNAPSHOT_VERSION, pipeline: "stock",
     aspect: frame.aspect, orientation: stockOrientation(frame),
-    query, minDurationSec,
+    query, minDurationSec, maxDurationSec,
     targetDurationMs: timing.targetDurationMs, requestDurationSeconds: timing.requestDurationSeconds,
     seed: shot.seed,
     lines: doc.lines.filter((line) => lineIds.has(line.id)).map((line) => ({ id: line.id, text: line.text, spans: line.spans })),
@@ -113,7 +133,7 @@ export function stockSnapshot(doc: ProjectDoc, shot: Shot, timeline: Timeline, f
     })),
     missingTtsLineIds: timing.missingTtsLineIds,
   });
-  return { hash, key: `stock:${hash}`, timing, query, minDurationSec };
+  return { hash, key: `stock:${hash}`, timing, query, minDurationSec, maxDurationSec };
 }
 
 /**
