@@ -13,8 +13,10 @@ import { MAX_SHOT_CHARACTERS } from "../../core/prompt-compiler";
 import { videoDescriptionHash } from "../../core/video-plan";
 import { sanitizeVideoPlan } from "../../core/video-prompt-compiler";
 import { isStock, isVideoForm } from "../../core/video";
+import { normalizeStockQuery, stockQuery } from "../../core/stock";
 import { characterRoleLabels, motions, presentationLabels, shotSizeLabels, shotSizes, type Card, type Line, type ProjectDoc, type Shot } from "../../core/types";
 import { generateJson } from "../../llm";
+import { schemaMissSummary } from "../../schema-miss";
 import { storyboardPrompt, type StoryboardPayload } from "../../prompts";
 import { getTemplate } from "../../templates/store";
 import { cacheGet, cachePut } from "../../server/cache";
@@ -54,27 +56,32 @@ export const draftSchema = z.object({
   ),
 });
 /**
- * 检索词契约：小写英文 2–4 个词。在打远端之前就校验，
- * 不让「模型给了个中文长句」这种情况走到来源层再兜底。
+ * 检索词只挡真正的坏数据（空、离谱地长）。**词数与字符集不在这里判**——
+ * 那是检索质量偏好，交给 `normalizeStockQuery` 归一化，多写一个词不该让整段分镜作废。
  */
-const stockQueryField = z.string().trim().min(3).max(60)
-  .refine((value) => /^[a-z]+(?: [a-z]+){1,3}$/.test(value), "检索词必须是小写英文，2–4 个词");
+const stockQueryField = z.string().trim().min(1).max(120);
 
-/** 视频与素材两条管线共用的镜头字段；差别只在素材管线多一个必填的 stockQuery。 */
+/**
+ * 视频与素材两条管线共用的镜头字段；差别只在素材管线多一个必填的 stockQuery。
+ *
+ * **视频/素材这两条 schema 不要加 `.strict()`**：模型多写一个 `importanceNote` 之类的
+ * 字段，整段 6 句就会被判废、二分、最后硬停。Zod 默认剥掉未知字段，正是我们要的。
+ * 图像管线的 `draftSchema` 仍保留 `.strict()`——那里拒绝旧 `card` 字段是刻意的迁移契约。
+ */
 const videoShotFields = {
   lineId: z.string(), char: z.number().int().min(0).optional(), intent: z.string(),
   kind: z.literal("placeholder"), mode: z.literal("generate"), shotSize: z.enum(shotSizes),
   description: z.string(), motion: z.literal("none"), importance: z.number().int().min(1).max(3),
   groupId: z.string().trim().min(1),
-  videoPlan: z.object({ startState: z.string().trim().min(1), action: z.string().trim().min(1), camera: z.string().trim().min(1), endState: z.string().trim().min(1) }).strict()
+  videoPlan: z.object({ startState: z.string().trim().min(1), action: z.string().trim().min(1), camera: z.string().trim().min(1), endState: z.string().trim().min(1) })
     .refine((plan) => Object.values(sanitizeVideoPlan(plan)).every((value) => /[a-z]/i.test(value) && !/[\u3400-\u9fff\uf900-\ufaff]/.test(value)), "视频执行计划必须使用英文"),
   characters: z.array(z.string()).optional(), sceneId: z.string().optional(),
   focusText: z.object({ text: z.string().trim().min(1).refine((value) => focusVisualWidth(value.replace(/\s+/g, "")) <= 8), emphasis: z.string().optional(), support: z.string().refine((value) => focusVisualWidth(value.replace(/\s+/g, "")) <= 8).optional() }).optional(),
 };
 
-export const videoDraftSchema = z.object({ shots: z.array(z.object(videoShotFields).strict()).min(1) });
+export const videoDraftSchema = z.object({ shots: z.array(z.object(videoShotFields)).min(1) });
 /** 素材管线的每一镜都必须给出检索词：它是检索与缓存键的一部分，缺了就搜不出东西。 */
-export const stockDraftSchema = z.object({ shots: z.array(z.object({ ...videoShotFields, stockQuery: stockQueryField }).strict()).min(1) });
+export const stockDraftSchema = z.object({ shots: z.array(z.object({ ...videoShotFields, stockQuery: stockQueryField })).min(1) });
 
 /** 草稿 schema 按画面管线分发。stock 的检索词必填，video 不产出该字段。 */
 export const draftSchemaFor = (stock: boolean) => stock ? stockDraftSchema : videoDraftSchema;
@@ -92,8 +99,16 @@ export function toVideoShots(draft: DraftEntry[], lines: Line[], characterIds: S
     const focusText = focus && focusNumbersMatchSource(focus.text, caption) ? {
       ...focus, support: focus.support && focusNumbersMatchSource(focus.support, caption) ? focus.support : undefined, layoutMode: "auto" as const,
     } : undefined;
-    return { ...shot, kind: "video", mode: "generate", motion: "none", groupId: entry?.groupId, videoPlan: entry?.videoPlan && sanitizeVideoPlan(entry.videoPlan), videoPlanDescriptionHash: videoDescriptionHash(shot.description),
-      ...(entry?.stockQuery ? { stockQuery: entry.stockQuery } : {}),
+    const videoPlan = entry?.videoPlan && sanitizeVideoPlan(entry.videoPlan);
+    // 检索词：先归一化模型给的值（多写的词截掉）；归一化后为空（比如只写了中文）
+    // 就退到按执行计划派生的规则词。**绝不在这里抛错**——一个措辞不合规的检索词
+    // 不该让整段分镜作废。video 管线不产出该字段，`entry.stockQuery` 为 undefined
+    // 时什么都不写。
+    const stockQueryValue = entry?.stockQuery === undefined
+      ? ""
+      : normalizeStockQuery(entry.stockQuery) || stockQuery({ ...shot, videoPlan });
+    return { ...shot, kind: "video", mode: "generate", motion: "none", groupId: entry?.groupId, videoPlan, videoPlanDescriptionHash: videoDescriptionHash(shot.description),
+      ...(stockQueryValue ? { stockQuery: stockQueryValue } : {}),
       focusText };
   });
 }
@@ -351,14 +366,20 @@ export const storyboardStage = defineStage<StoryboardInput, { shots: number; llm
           failGenerationRun(generation, e, ctx.signal.aborted);
           if (video && NoObjectGeneratedError.isInstance(e) && ctx.current()) {
             const canSplit = r.from < r.to;
-            noteGenerationRun(generation.id, { finishReason: e.finishReason, responseChars: e.text?.length ?? 0, usage: e.usage, recovery: canSplit ? "split-range" : "stopped" });
+            const issues = schemaMissSummary(e);
+            noteGenerationRun(generation.id, { finishReason: e.finishReason, responseChars: e.text?.length ?? 0, usage: e.usage, recovery: canSplit ? "split-range" : "stopped", ...(issues ? { schemaIssues: issues } : {}) });
             if (canSplit) {
               cachePut(`${key}:split`, "storyboard", { split: true });
               splitRange();
               ctx.log(`视频分镜第 ${r.from + 1}–${r.to + 1} 句响应无法解析，缩小范围继续（${e.finishReason ?? "unknown"}）。`);
               continue;
             }
-            throw new PermanentError(`第 ${r.from + 1} 句视频分镜${e.finishReason === "length" ? "输出达到长度上限" : "返回的 JSON 格式不正确"}，已停止自动重试。请切换文本模型后重新生成成片。`);
+            // 归因要说清楚是「被截断」还是「哪个字段不合规」：笼统说「JSON 格式不正确」
+            // 会把运维引向换模型，而真正的原因可能只是一个字段越界。
+            const reason = e.finishReason === "length"
+              ? "输出达到长度上限"
+              : issues ? `字段不符合要求（${issues.slice(0, 120)}）` : "返回的 JSON 格式不正确";
+            throw new PermanentError(`第 ${r.from + 1} 句视频分镜${reason}，已停止自动重试。可换用其它文本模型后重新生成成片。`);
           }
           throw e;
         }

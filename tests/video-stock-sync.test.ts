@@ -72,7 +72,8 @@ it("改了中文描述后同步：执行计划与检索词在同一次调用里�
   expect(await syncVideoShotPlan({ projectId: project.id, modelId: "deepseek", shotId: "shot" }, context())).toEqual({ shots: 1, llmCalls: 1 });
 
   const shot = getProject(project.id)!.doc.shots[0];
-  expect(shot.stockQuery).toBe("woman standing by window");
+  // 归一化会剔掉虚词（"by"），主体与动作都还在。
+  expect(shot.stockQuery).toBe("woman standing window");
   expect(shot.videoPlan).toEqual(plan);
   expect(shot.videoPlanDescriptionHash).toBe(videoDescriptionHash(shot.description));
   expect(videoPlanNeedsSync(shot)).toBe(false);
@@ -93,18 +94,23 @@ it("AI 视频模式的同一次调用不索要检索词，写回也不产生该�
   expect(getProject(project.id)!.doc.shots[0].stockQuery).toBeUndefined();
 });
 
-it("模型漏掉或写坏检索词时同步任务失败，绝不静默写回一个搜不出素材的镜头", async () => {
+it("模型漏掉检索词时同步失败；写坏（中文）时退到按执行计划派生的英文词", async () => {
   const project = await fixture();
   const { syncVideoShotPlan } = await import("@/lib/pipeline/video-plan-sync");
   const { getProject } = await import("@/lib/server/projects");
 
+  // 完全没有该字段：模型没按契约输出，重试是唯一正确的反应。
   llm.generateJson.mockResolvedValueOnce(plan);
   await expect(syncVideoShotPlan({ projectId: project.id, modelId: "deepseek", shotId: "shot" }, context())).rejects.toThrow();
   expect(getProject(project.id)!.doc.shots[0].stockQuery).toBeUndefined();
 
+  // 写了中文：不写回一个搜不出素材的值，也不让整次同步失败——
+  // 英文执行计划已经在手，按它派生的检索词是确定可用的。
   llm.generateJson.mockResolvedValueOnce({ ...plan, stockQuery: "女人 站在 窗边" });
-  await expect(syncVideoShotPlan({ projectId: project.id, modelId: "deepseek", shotId: "shot" }, context())).rejects.toThrow();
-  expect(getProject(project.id)!.doc.shots[0].stockQuery).toBeUndefined();
+  expect(await syncVideoShotPlan({ projectId: project.id, modelId: "deepseek", shotId: "shot" }, context())).toEqual({ shots: 1, llmCalls: 1 });
+  const written = getProject(project.id)!.doc.shots[0].stockQuery!;
+  expect(written).toMatch(/^[a-z]+(?: [a-z]+)*$/);
+  expect(written).not.toMatch(/[\u3400-\u9fff]/);
 });
 
 it("保存后自动排队：素材管线也走同一条同步链路，不会被静默跳过", async () => {

@@ -50,6 +50,28 @@ export function effectiveStockQuery(shot: Shot): string {
   return shot.stockQuery?.trim() || stockQuery(shot);
 }
 
+/** 检索词最多几个词。超过的部分对检索没有增益，只会稀释主体词。 */
+export const STOCK_QUERY_MAX_WORDS = 4;
+
+/**
+ * 把**模型给的**检索词收敛成来源层能用的形状：小写、去标点数字、最多 4 个词。
+ *
+ * 早先这条规则写成 Zod 硬校验（`/^[a-z]+(?: [a-z]+){1,3}$/`），代价是
+ * 模型多写一个词就让整段 6 句的分镜作废、二分重试、最后整条管线硬停。
+ * 「2–4 个词」是检索**质量偏好**，不是正确性要求：5 个词照样能搜出素材，
+ * 严重性完全不匹配。所以改成确定性归一化——多写的截掉，剩下的交给检索。
+ *
+ * 只用于模型输出。用户手填的词（`effectiveStockQuery`）原样尊重，不做静默改写。
+ */
+export function normalizeStockQuery(raw: string | undefined): string {
+  const words = (raw ?? "")
+    .toLowerCase()
+    .replace(/[^a-z\s]+/g, " ")
+    .split(/\s+/)
+    .filter((word) => word.length > 1 && !stockStopwords.has(word));
+  return words.slice(0, STOCK_QUERY_MAX_WORDS).join(" ");
+}
+
 /** 素材的输出画幅。与 `videoFrame` 同理：默认取第一个输出规格。 */
 export function stockFrame(doc: ProjectDoc, frame?: GenerationFrame): GenerationFrame {
   return frame ?? outputSpecsFor(doc.settings)[0];

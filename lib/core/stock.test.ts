@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { evenChars } from "./align";
 import type { TtsResult } from "./keys";
 import { blankShot } from "./shots";
-import { effectiveStockQuery, snapshotFor, stockAssetStale, stockExclusions, stockFrame, stockMaxDurationSec, stockMinDurationSec, stockOrientation, stockQuery, stockSnapshot, STOCK_DURATION_SLACK_SEC } from "./stock";
+import { effectiveStockQuery, normalizeStockQuery, snapshotFor, stockAssetStale, stockExclusions, stockFrame, stockMaxDurationSec, stockMinDurationSec, stockOrientation, stockQuery, stockSnapshot, STOCK_DURATION_SLACK_SEC } from "./stock";
 import { buildTimeline, type Artifacts } from "./timeline";
 import { emptyDoc, type Line, type Shot } from "./types";
 import { videoGenerationSnapshot, videoShotTiming } from "./video";
@@ -54,6 +54,18 @@ describe("素材检索词", () => {
     const { doc } = fixture();
     const bare = { ...doc.shots[0], stockQuery: undefined, videoPlan: undefined };
     expect(stockQuery(bare)).toBe("abstract background");
+  });
+
+  it("模型给的检索词按契约归一化，而不是让整段分镜失败", () => {
+    // 真实事故：模型写了 5 个词，旧的硬校验让 6 句的分镜整段作废、二分到单句仍失败。
+    expect(normalizeStockQuery("man holding phone dark room")).toBe("man holding phone dark");
+    expect(normalizeStockQuery("Woman,  Filming/Selfie!")).toBe("woman filming selfie");
+    expect(normalizeStockQuery("city   at night")).toBe("city night");
+    expect(normalizeStockQuery("2am street lights")).toBe("am street lights");
+    // 归一化后为空：调用方据此退到规则派生词，而不是写入空检索词。
+    expect(normalizeStockQuery("深夜里的焦虑情绪")).toBe("");
+    expect(normalizeStockQuery("   ")).toBe("");
+    expect(normalizeStockQuery(undefined)).toBe("");
   });
 });
 

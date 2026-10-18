@@ -6,6 +6,7 @@ import type { ProjectDoc, Shot, VideoPlan } from "../core/types";
 import { videoDescriptionHash, videoPlanNeedsSync, videoPlanSyncFingerprint } from "../core/video-plan";
 import { sanitizeVideoPlan } from "../core/video-prompt-compiler";
 import { isStock, isVideoForm } from "../core/video";
+import { normalizeStockQuery, stockQuery } from "../core/stock";
 import { generateJson } from "../llm";
 import { listTextModels } from "../providers/registry";
 import { beginGenerationRun, failGenerationRun, finishGenerationRun } from "../providers/runs";
@@ -17,15 +18,20 @@ import { estimateLlmCost } from "./pricing";
 import { PermanentError, type StageContext } from "./stage";
 
 const english = z.string().trim().min(1).refine((value) => /[a-z]/i.test(value) && !/[\u3400-\u9fff\uf900-\ufaff]/.test(value), "视频执行计划必须使用英文");
-const planSchema = z.object({ startState: english, action: english, camera: english, endState: english }).strict();
+/** 不 strict：模型多给的字段剥掉就好，不能因此让整次同步失败。 */
+const planSchema = z.object({ startState: english, action: english, camera: english, endState: english });
 
 /**
  * 素材检索词与执行计划是同一次翻译的产物，但落在**不同字段**上：
  * `videoPlan` 进 `videoGenerationSnapshot` 的哈希（改了就让已有 AI 视频失效），
  * `shot.stockQuery` 不进（只服务素材检索，改它不该动任何已产出的视频）。
  */
-const stockQuerySchema = z.string().trim().min(3).max(60).refine((value) => /^[a-z]+(?: [a-z]+){1,3}$/.test(value), "检索词必须是小写英文，2–4 个词");
-const stockPlanSchema = z.object({ startState: english, action: english, camera: english, endState: english, stockQuery: stockQuerySchema }).strict();
+/**
+ * 检索词只挡真正的坏数据（空、离谱地长）；词数与字符集由 `normalizeStockQuery`
+ * 归一化。把「2–4 个词」当硬校验会让一次多写一个词的同义词同步整体失败。
+ */
+const stockQuerySchema = z.string().trim().min(1).max(120);
+const stockPlanSchema = z.object({ startState: english, action: english, camera: english, endState: english, stockQuery: stockQuerySchema });
 /** 缓存值：stock 模式多带一个检索词，仍然是同一次 LLM 调用的结果。 */
 type SyncedPlan = VideoPlan & { stockQuery?: string };
 
@@ -117,7 +123,10 @@ export async function syncVideoShotPlan(input: { projectId: string; modelId: str
   }
   if (!ctx.current()) throw ctx.signal.reason ?? new DOMException("任务已取消", "AbortError");
   const syncedPlan = planSchema.parse(sanitizeVideoPlan(plan));
-  const syncedStockQuery = stock ? stockQuerySchema.parse(plan.stockQuery) : undefined;
+  // 与分镜同一个口径：归一化模型给的检索词，空值退到按新计划派生的规则词。
+  const syncedStockQuery = stock
+    ? normalizeStockQuery(stockQuerySchema.parse(plan.stockQuery)) || stockQuery({ ...shot, videoPlan: syncedPlan })
+    : undefined;
   let updated = false;
   mutateProject(input.projectId, (current) => {
     const currentShot = current.shots.find((item) => item.id === shot.id);

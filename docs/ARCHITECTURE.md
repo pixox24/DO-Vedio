@@ -162,7 +162,8 @@ grep -rn '"dashscope"\|"google-gemini"\|dashscope\|google-gemini' lib app compon
 - **缓存键**：`lib/core/keys.ts`。改提示词或参数会改变缓存命中，通常是对的（旧产物不该被复用）。
 - **AI 视频恢复**：`attemptId` 表示一次生成尝试，跨 job/goal 恢复保留原值。已保存远端 taskId 时仅查询/下载；提交已开始但没有 taskId 时为未决，禁止自动重提。停止仅中断本地等待，不能表示云端取消或未收费。
 - **视频中文编辑**：`videoPlanDescriptionHash` 记录英文计划对应的中文；旧文档首次实际编辑后才启用同步。待同步时参考图、视频与渲染均受阻；同步只替换计划并使旧产物过期，保留镜头 ID、锚点与历史素材。AutoDL 当前仍是参考图接口，提示词构图锚定不等于硬首帧 I2V。
-- **视频分镜响应**：`stages/storyboard.ts` 每次最多规划 6 句并显式请求 8192 输出 token，传递相邻镜头结束状态；JSON/结构校验失败时二分失败范围，单句仍失败则暂停。成功范围沿用现有缓存，失败记录在 `generation_runs.params` 保留结束原因、响应长度与用量，不保存完整响应。`plan.ts` 的分镜任务键区分图片/视频管线。
+- **视频分镜响应**：`stages/storyboard.ts` 每次最多规划 6 句并显式请求 8192 输出 token，传递相邻镜头结束状态；JSON/结构校验失败时二分失败范围，单句仍失败则暂停。成功范围沿用现有缓存，失败记录在 `generation_runs.params` 保留结束原因、`schemaIssues`（哪个字段不合规）、响应长度与用量，不保存完整响应。`plan.ts` 的分镜任务键区分图片/视频管线。
+- **模型输出的「措辞偏好」不做硬校验**：像「检索词 2–4 个词」这类规则是检索**质量偏好**，不是正确性要求。写成 Zod `.refine` 的代价是模型多写一个词就让整段 6 句分镜作废、二分重试、最后整条管线硬停（真实事故）。正确做法是 `normalizeStockQuery` 那样**确定性归一化**（多写的截掉、脏字符去掉），归一化后为空再退到规则派生词；schema 只挡空值和离谱长度。同理，视频/素材的分镜与同步 schema **不要 `.strict()`**——模型多写一个 `importanceNote` 会把整段判废，默认剥掉未知字段才是对的（图像管线的 `draftSchema` 例外：拒绝旧 `card` 字段是刻意的迁移契约）。排查结构化输出失败：`npm run storyboard:probe <projectId> <from> <to> [modelId]`（只读复现，打印原始响应与 zod 字段路径），真实运行时用 `DEBUG_LLM_JSON=1` 把原始响应打进日志。
 - **AI 视频播放**：`remotion/shots/video.tsx` 同时服务预览与成片，强制静音、不循环、不叠图片运镜。时间线裁多余尾段，只允许不超过 100ms 的末帧保持；缺失/过期/过短视频须由生产与渲染门禁提示。
 - **素材管线（stock）的五条硬契约**（详见 `docs/archive/stock-pipeline-plan.md`）：
   - **`shot.stockQuery` 绝不进 `videoGenerationSnapshot` 的哈希。** 改检索词不该让任何 AI 视频产物过期。同理，重搜游标 `excludeAssetIds` 也**只走任务 input**，不进 `stockSnapshot` 的哈希——候选池有截断，进了哈希会把正在用的素材误判成过期。

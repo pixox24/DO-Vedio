@@ -22,7 +22,8 @@
     "stock:probe": "node --import tsx scripts/stock-probe.ts",
     "animation:probe": "node --import tsx scripts/animation-probe.ts",
     "animation:eval": "node --import tsx scripts/animation-eval.ts",
-    "stock:e2e": "node --import tsx scripts/stock-e2e.ts"
+    "stock:e2e": "node --import tsx scripts/stock-e2e.ts",
+    "storyboard:probe": "node --import tsx scripts/storyboard-probe.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.62",
