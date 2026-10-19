@@ -1,5 +1,6 @@
 import { castSourceHash, currentCharacterReferenceIds, sheetSourceHash } from "../core/cast";
 import { needsAutoScene, sceneSourceHash } from "../core/scenes";
+import { isAiVideo } from "../core/video";
 import type { CharacterCard, Job, ProjectDoc } from "../core/types";
 import { all } from "../server/db";
 import { enqueue, latestJobByKey } from "../server/jobs";
@@ -49,7 +50,7 @@ export function autoPortraitKey(projectId: string, characterId: string, sourceHa
 export function needsAutoPortrait(card: CharacterCard, doc: ProjectDoc): boolean {
   if (!doc.settings.autoPortrait) return false;
   if (card.absent || card.locked || card.kind === "group" || card.presentation !== "full") return false;
-  if (doc.settings.visualPipeline === "video") return currentCharacterReferenceIds(card, doc.visualStyle).length === 0;
+  if (isAiVideo(doc.settings.visualPipeline)) return currentCharacterReferenceIds(card, doc.visualStyle).length === 0;
   return card.sheet.sourceHash !== sheetSourceHash(card, doc.visualStyle);
 }
 

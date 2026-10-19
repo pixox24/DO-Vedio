@@ -7,7 +7,8 @@ import { jobAction } from "@/lib/client";
 import { useFeedback } from "@/components/feedback";
 import { mediaUrl, type Job, type Shot, type VideoPlan } from "@/lib/core/types";
 import type { Timeline } from "@/lib/core/timeline";
-import { sourceImageConfirmed, sourceImageStale, videoGenerationSnapshot, videoShotTiming } from "@/lib/core/video";
+import { isStock, sourceImageConfirmed, sourceImageStale, videoShotTiming } from "@/lib/core/video";
+import { snapshotFor } from "@/lib/core/stock";
 import { outputSpecsFor, previewSpecFor } from "@/lib/core/output-spec";
 import { videoDescriptionHash, videoPlanNeedsSync } from "@/lib/core/video-plan";
 import { groupReferenceStatuses, shotReferenceStatus } from "@/lib/core/reference-status";
@@ -21,6 +22,11 @@ import styles from "./video-storyboard.module.css";
 type VideoState = "ready-to-generate" | "waiting-plan" | "waiting-tts" | "waiting-reference" | "waiting-confirmation" | "queued" | "submitting" | "submission-unknown" | "polling" | "downloading" | "ready" | "stale" | "failed" | "canceled";
 type VideoStatus = { state?: VideoState; status?: string; progress?: number; message?: string; error?: string | null; snapshotHash?: string; attemptId?: string; providerTaskId?: string; sourceImageAssetId?: string; costStatus?: "unknown" | "estimated" | "verified"; targetDurationMs?: number; requestDurationSeconds?: number };
 const labels: Record<VideoState, string> = { "ready-to-generate": "参考已确认 · 可以生成视频", "waiting-plan": "镜头要求待同步", "waiting-tts": "等待真实配音", "waiting-reference": "等待参考图", "waiting-confirmation": "待确认画面", queued: "视频等待生成", submitting: "正在提交视频", "submission-unknown": "提交结果未决 · 展开核实", polling: "视频生成中", downloading: "正在保存视频", ready: "视频已就绪", stale: "视频需要更新", failed: "生成失败 · 展开处理", canceled: "本地等待已停止" };
+/**
+ * 素材管线复用同一套 `VideoState` 词表，但每个词的含义不同：
+ * 没有参考图要确认，也没有「提交给服务商」这一步，只有检索与下载。
+ */
+const stockLabels: Record<VideoState, string> = { ...labels, "ready-to-generate": "待检索素材", "waiting-plan": "等待素材检索词", "waiting-confirmation": "待检索素材", queued: "素材等待检索", submitting: "正在检索素材", polling: "正在检索素材", downloading: "正在检索素材", ready: "素材已就绪", stale: "素材需要更新", failed: "检索失败 · 展开处理", canceled: "检索已停止" };
 const activeStates = new Set<VideoState>(["queued", "submitting", "polling", "downloading"]);
 const planFields: [keyof VideoPlan, string][] = [["startState", "起始画面（英文）"], ["action", "人物与环境动作（英文）"], ["camera", "镜头运动（英文）"], ["endState", "结束画面（英文）"]];
 
@@ -76,6 +82,7 @@ export function VideoStoryboardPanel({ id, store, timeline, jobs, onSeek, wide, 
     return () => { document.removeEventListener("keydown", escape); document.removeEventListener("visibilitychange", visibility); stopShotPreview(playback); };
   }, [closeDetail]);
   const doc = store.doc;
+  const stock = isStock(doc?.settings.visualPipeline);
   const specs = doc ? outputSpecsFor(doc.settings) : [];
   const sourceFrame = specs[0];
   const perOutput = doc?.settings.assetFraming === "per-output";
@@ -166,6 +173,15 @@ export function VideoStoryboardPanel({ id, store, timeline, jobs, onSeek, wide, 
   async function redoMarked() {
     if (await request("review", "reference", { shotIds: marked.map((shot) => shot.id) })) setExcluded([]);
   }
+  /**
+   * 单镜重搜。服务端会带上「已试素材」游标，所以一定换一条新的；
+   * 游标只走任务 input、不进快照哈希，因此重搜前后这一镜的指纹不变。
+   */
+  async function research(shot: Shot) {
+    if (!(await confirm({ title: "重新搜索这个镜头的素材？", message: "会跳过这个镜头已经试过的素材，重新检索并采用一条新的。不产生服务商费用，但会占用 Pexels 免费额度（200 请求/小时）。", confirmLabel: "重新搜索" }))) return;
+    const result = await request(shot.id, `${encodeURIComponent(shot.id)}/stock`, {});
+    if (result) toast(result.reused ? "已有正在进行的检索，继续等待即可。" : "已开始重新搜索素材。", "success");
+  }
   async function generateReferences(shots: Shot[], retry: boolean) {
     shots = shots.filter(canGenerateReference);
     if (!shots.length || busy.references) return;
@@ -181,7 +197,7 @@ export function VideoStoryboardPanel({ id, store, timeline, jobs, onSeek, wide, 
     });
   }
   function matchesActiveJob(job: Job, shot: Shot) {
-    if (!["shot-generate", "shot-reference", "storyboard"].includes(job.stage) || !["queued", "running"].includes(job.status) || typeof job.input !== "object" || job.input === null) return false;
+    if (!["shot-generate", "shot-reference", "shot-stock", "storyboard"].includes(job.stage) || !["queued", "running"].includes(job.status) || typeof job.input !== "object" || job.input === null) return false;
     const input = job.input as { shotId?: string; outputSpecId?: string; frame?: { aspect?: string } };
     return input.shotId === shot.id && (job.stage !== "shot-generate" || (input.outputSpecId ? input.outputSpecId === outputSpecId : input.frame?.aspect ? input.frame.aspect === outputFrame?.aspect : outputFrame?.id === sourceFrame?.id));
   }
@@ -203,13 +219,17 @@ export function VideoStoryboardPanel({ id, store, timeline, jobs, onSeek, wide, 
     const running = (!!state && activeStates.has(state)) || !!activeJob;
     const outputAssetId = shot.kind !== "video" ? undefined : perOutput ? shot.assetVariants[outputFrame!.aspect]?.assetId : shot.assetVariants[sourceFrame!.aspect]?.assetId ?? shot.assetId;
     const outputHash = shot.assetVariants[outputFrame!.aspect]?.promptHash ?? shot.assetPromptHash;
-    const staleVideo = !!outputAssetId && (pendingPlan || (!!timeline && outputHash !== videoGenerationSnapshot(doc!, shot, timeline, outputFrame!).hash));
-    const refStale = sourceImageStale(doc!, shot, sourceFrame!);
+    // 指纹按管线分发：素材比的是检索输入，AI 视频比的是生成输入。
+    const outputSnapshotHash = timeline ? snapshotFor(doc!, shot, timeline, outputFrame!).hash : undefined;
+    const staleVideo = !!outputAssetId && (pendingPlan || (!!outputSnapshotHash && outputHash !== outputSnapshotHash));
+    const refStale = stock ? false : sourceImageStale(doc!, shot, sourceFrame!);
     const reference = referenceStatuses.get(shot.id)!;
     const label = errors[shot.id] ? "操作失败 · 展开处理" : activeJob?.stage === "storyboard" ? activeJob.status === "queued" ? "镜头要求等待同步" : "正在同步镜头要求"
+      : activeJob?.stage === "shot-stock" ? activeJob.status === "queued" ? "素材等待检索" : "正在检索素材"
       : activeJob?.stage === "shot-reference" ? activeJob.status === "queued" ? "参考图等待生成" : "参考图生成中" : pendingPlan ? labels["waiting-plan"]
+        : stock ? (state === "ready" && running ? "正在检索素材" : state === "ready" && staleVideo ? "素材需要更新" : state ? stockLabels[state as VideoState] : "正在读取状态")
         : !reference.usable ? reference.label : state === "failed" ? "视频生成失败 · 展开处理" : state === "ready" && running ? "正在保存视频" : state === "ready" && staleVideo ? "视频需要更新" : state ? labels[state] : "正在读取状态";
-    const needsReview = !doc!.settings.video.autoContinue && reference.usable && !shot.locked && !sourceImageConfirmed(doc!, shot, sourceFrame!);
+    const needsReview = !stock && !doc!.settings.video.autoContinue && reference.usable && !shot.locked && !sourceImageConfirmed(doc!, shot, sourceFrame!);
     const activity: ShotCardStatus["activity"] = activeJob?.status === "queued" || (!activeJob && state === "queued") ? undefined
       : activeJob?.stage === "storyboard" ? "plan" : activeJob?.stage === "shot-reference" ? "image"
         : running ? "video" : undefined;
@@ -229,7 +249,9 @@ export function VideoStoryboardPanel({ id, store, timeline, jobs, onSeek, wide, 
     const isOpen = expanded === shot.id;
     const failed = !!errors[shot.id] || referenceStatuses.get(shot.id)?.kind === "failed" || state === "failed";
     const warning = staleVideo || refStale || ["stale", "submission-unknown", "canceled", "waiting-plan"].includes(state ?? "");
-    const mediaLabel = outputAssetId ? staleVideo ? "上次视频" : "视频" : shot.sourceImageAssetId ? refStale ? "上次参考图" : "参考图" : undefined;
+    const mediaLabel = stock
+      ? outputAssetId ? (staleVideo ? "上次素材" : "素材") : undefined
+      : outputAssetId ? (staleVideo ? "上次视频" : "视频") : shot.sourceImageAssetId ? (refStale ? "上次参考图" : "参考图") : undefined;
     const ready = state === "ready" && !staleVideo && !!outputAssetId && !activeJob;
     const cardStatus: ShotCardStatus = { label, activity, ready, tone: failed ? "danger" : activity ? "working" : warning ? "warning" : ready ? "success" : "neutral" };
     return <VideoShotCard key={`${outputSpecId}:${shot.id}`} shot={shot} index={index} frame={outputFrame!} timeline={timeline} timed={timed} caption={timed?.caption || doc!.lines.find((line) => line.id === shot.at.lineId)?.text || "暂无覆盖句子"} assetId={outputAssetId} mediaLabel={mediaLabel} status={cardStatus} isOpen={isOpen} hovered={hovered === shot.id} ownerRef={playback}
@@ -259,14 +281,22 @@ export function VideoStoryboardPanel({ id, store, timeline, jobs, onSeek, wide, 
           <p className="text-xs text-text-secondary">{label}</p>
           <label className="block space-y-1.5 text-xs"><span>镜头要求（中文）</span><AutoTextarea className="input min-h-24 text-xs" disabled={shot.locked || busy[shot.id] || (running && activeJob?.stage !== "storyboard")} value={shot.description} onChange={(event) => update(shot.id, { description: event.target.value, videoPlanDescriptionHash: shot.videoPlanDescriptionHash ?? videoDescriptionHash(shot.description), sourceImageConfirmedHash: undefined })} onBlur={() => void store.flush()} placeholder="描述希望看到的构图和动作" /></label>
           <p className="text-2xs text-text-muted">{videoPlanNeedsSync(shot) ? "镜头要求已修改，等待执行计划同步后更新画面。" : "修改后自动保存并同步执行计划。"}</p>
+          {stock && <>
+            <label className="block space-y-1.5 text-xs"><span>素材检索词（英文，2–4 个词）</span>
+              <input className="input h-9 text-xs" disabled={shot.locked || busy[shot.id] || running} value={shot.stockQuery ?? ""} placeholder="例如：woman standing by window" onChange={(event) => update(shot.id, { stockQuery: event.target.value })} onBlur={() => { const normalized = (shot.stockQuery ?? "").trim().toLowerCase(); if (normalized !== shot.stockQuery) update(shot.id, { stockQuery: normalized }); void store.flush(); }} />
+            </label>
+            <p className="text-2xs text-text-muted">{shot.stockQuery ? "小写英文、必须含画面主体。改了词，这一镜的素材就会过期，点「重新搜索素材」立刻换一条。" : "缺少检索词，这一镜排不出检索任务；请补一个或重做分镜。"}</p>
+          </>}
           <div className="flex flex-wrap gap-2">
-            <button type="button" className="chip" disabled={disabled || !canGenerateReference(shot)} onClick={() => void generateReferences([shot], referenceStatuses.get(shot.id)?.kind === "failed")}>{referenceStatuses.get(shot.id)?.kind === "failed" ? "重试参考图" : shot.sourceImageAssetId ? "重做参考图" : "生成参考图"}</button>
-            {referenceStatuses.get(shot.id)?.kind === "standard" && <button type="button" className="btn btn-text btn-sm" onClick={() => onStandards?.()}>查看角色和场景</button>}
-            {canResume ? <><button type="button" className="chip" disabled={disabled || !!blocker} onClick={() => void generate(shot, "resume")}>恢复原任务</button><button type="button" className="chip" disabled={disabled || !!blocker} onClick={() => void generate(shot, "regenerate")}>付费重新生成</button></> : <button type="button" className="chip" disabled={disabled || !!blocker} onClick={() => void generate(shot, operation)}>{busy[shot.id] && <Spinner className="size-3" />}{!doc!.settings.video.autoContinue && !sourceImageConfirmed(doc!, shot, sourceFrame!) ? "确认此图并生成视频" : outputAssetId ? "重新生成视频" : "生成视频"}</button>}
+            {stock ? <button type="button" className="chip" disabled={disabled || !shot.stockQuery} onClick={() => void research(shot)}>{busy[shot.id] && <Spinner className="size-3" />}重新搜索素材</button> : <>
+              <button type="button" className="chip" disabled={disabled || !canGenerateReference(shot)} onClick={() => void generateReferences([shot], referenceStatuses.get(shot.id)?.kind === "failed")}>{referenceStatuses.get(shot.id)?.kind === "failed" ? "重试参考图" : shot.sourceImageAssetId ? "重做参考图" : "生成参考图"}</button>
+              {referenceStatuses.get(shot.id)?.kind === "standard" && <button type="button" className="btn btn-text btn-sm" onClick={() => onStandards?.()}>查看角色和场景</button>}
+              {canResume ? <><button type="button" className="chip" disabled={disabled || !!blocker} onClick={() => void generate(shot, "resume")}>恢复原任务</button><button type="button" className="chip" disabled={disabled || !!blocker} onClick={() => void generate(shot, "regenerate")}>付费重新生成</button></> : <button type="button" className="chip" disabled={disabled || !!blocker} onClick={() => void generate(shot, operation)}>{busy[shot.id] && <Spinner className="size-3" />}{!doc!.settings.video.autoContinue && !sourceImageConfirmed(doc!, shot, sourceFrame!) ? "确认此图并生成视频" : outputAssetId ? "重新生成视频" : "生成视频"}</button>}
+            </>}
             {running && <button type="button" className="chip" disabled={busy[shot.id]} onClick={() => void stop(shot)}>停止本地等待</button>}
             <button type="button" className={`chip ${shot.locked ? "chip-on" : ""}`} disabled={busy[shot.id]} onClick={() => update(shot.id, { locked: !shot.locked })}>{shot.locked ? "已锁定 · 解锁" : "锁定镜头"}</button>
           </div>
-          {!running && blocker && <p className="text-xs leading-5 text-warn">{blocker}</p>}
+          {!running && !stock && blocker && <p className="text-xs leading-5 text-warn">{blocker}</p>}
           {state === "submission-unknown" && <p className="text-xs leading-5 text-warn">提交可能已被服务商接收。恢复只核对原尝试，不会重新提交；重新生成可能再次收费。</p>}
           {state === "canceled" && <p className="text-xs text-text-muted">已停止本地等待，云端任务可能继续并计费。</p>}
           {(errors[shot.id] || referenceStatuses.get(shot.id)?.error || status?.error) && <GenerationError error={errors[shot.id] || referenceStatuses.get(shot.id)?.error || status!.error!} video={!errors[shot.id] && !referenceStatuses.get(shot.id)?.error} />}
@@ -283,16 +313,18 @@ export function VideoStoryboardPanel({ id, store, timeline, jobs, onSeek, wide, 
     </div></div></div>;
   }
   return <section ref={panelRef} className={`panel space-y-4 p-5 ${styles.panel}`}>
-    <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="label">分镜 · AI 视频</p><h2 className="mt-1 text-base font-medium">{groups.size} 组 · {ordered.length} 个镜头</h2></div>{onToggleWide && <button type="button" className="chip" aria-pressed={wide} onClick={onToggleWide}>{wide ? "退出全宽" : "全宽"}</button>}</div>
-    <p className="text-xs text-text-muted">点击卡片编辑，悬停静音预览视频。{doc.settings.video.autoContinue ? "参考图完成后自动继续制作。" : "只标记不满意的参考图，其余一次确认。"}</p>
-    {!doc.settings.video.autoContinue && ordered.length > 0 && <div className="space-y-2 border-y border-line py-3">
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="label">分镜 · {stock ? "视频素材" : "AI 视频"}</p><h2 className="mt-1 text-base font-medium">{groups.size} 组 · {ordered.length} 个镜头</h2></div>{onToggleWide && <button type="button" className="chip" aria-pressed={wide} onClick={onToggleWide}>{wide ? "退出全宽" : "全宽"}</button>}</div>
+    <p className="text-xs text-text-muted">{stock
+      ? "点击卡片编辑，悬停静音预览素材。每个镜头按自己的英文检索词找一条够长、能填满画幅的真实视频；不产生服务商费用，但受 Pexels 免费额度限制（200 请求/小时）。"
+      : <>点击卡片编辑，悬停静音预览视频。{doc.settings.video.autoContinue ? "参考图完成后自动继续制作。" : "只标记不满意的参考图，其余一次确认。"}</>}</p>
+    {!stock && !doc.settings.video.autoContinue && ordered.length > 0 && <div className="space-y-2 border-y border-line py-3">
       <div className="flex flex-wrap items-center gap-2"><button type="button" className="btn btn-primary btn-sm" disabled={busy.review || !reviewShots.length} onClick={() => void approveBatch()}>确认已就绪参考图并继续 · {reviewShots.length} 镜</button>{marked.length > 0 && <button type="button" className="chip" disabled={busy.review} onClick={() => void redoMarked()}>重做标记的参考图 · {marked.length} 镜</button>}</div>
       <p className="text-2xs text-text-muted">{reviewShots.length ? `${reviewShots.length} 镜可确认${blockedReview.length ? ` · ${blockedReview.length} 镜待完成` : ""}。${!productionConfirmed ? "点击后确认当前设置并继续制作。" : ""}` : pendingReview.length ? "当前没有可确认的参考图。" : marked.length ? "已标记的镜头需重做，或取消标记后确认。" : "当前没有待确认参考图；已确认镜头可单独生成或从顶部继续制作。"}</p>
       {errors.review && <p role="alert" className="text-xs text-danger">{errors.review}</p>}
     </div>}
-    <ReferenceFeedback groups={referenceGroups} ordered={ordered} busy={!!busy.references} onShot={revealShot} onSettings={() => onSettings?.()} onStandards={() => onStandards?.()} onGenerate={(shots, retry) => void generateReferences(shots, retry)} />
+    {!stock && <ReferenceFeedback groups={referenceGroups} ordered={ordered} busy={!!busy.references} onShot={revealShot} onSettings={() => onSettings?.()} onStandards={() => onStandards?.()} onGenerate={(shots, retry) => void generateReferences(shots, retry)} />}
     {errors.references && <GenerationError error={errors.references} />}
-    {perOutput ? <div className="space-y-2"><label className="block space-y-1 text-xs"><span>独立输出画幅 · 各画幅分别生成和计费</span><Select aria-label="视频独立输出画幅" value={outputFrame.id} onChange={(value) => { closeDetail(); setSelectedSpecId(value); }}>{specs.map((spec) => <option key={spec.id} value={spec.id}>{spec.aspect} · {spec.width}×{spec.height}</option>)}</Select></label><details className="text-2xs text-text-muted"><summary className="cursor-pointer">查看生成范围与费用说明</summary><p className="mt-2">{ordered.filter((shot) => !shot.locked).length} 个未锁镜头 × {specs.length} 个画幅，首次最多 {ordered.filter((shot) => !shot.locked).length * specs.length} 次独立视频请求。本页仅操作当前 {outputFrame.aspect}，参考图共用 {sourceFrame.aspect}。</p></details></div> : <p className="text-2xs text-text-muted">共享 {sourceFrame.aspect} 视频源，其他导出画幅复用。</p>}
+    {perOutput ? <div className="space-y-2"><label className="block space-y-1 text-xs"><span>独立输出画幅 · 各画幅分别生成和计费</span><Select aria-label="视频独立输出画幅" value={outputFrame.id} onChange={(value) => { closeDetail(); setSelectedSpecId(value); }}>{specs.map((spec) => <option key={spec.id} value={spec.id}>{spec.aspect} · {spec.width}×{spec.height}</option>)}</Select></label><details className="text-2xs text-text-muted"><summary className="cursor-pointer">查看生成范围与费用说明</summary><p className="mt-2">{ordered.filter((shot) => !shot.locked).length} 个未锁镜头 × {specs.length} 个画幅，首次最多 {ordered.filter((shot) => !shot.locked).length * specs.length} 次独立{stock ? "素材检索（方向不同，横竖素材不通用）" : "视频请求"}。本页仅操作当前 {outputFrame.aspect}{stock ? "" : `，参考图共用 ${sourceFrame.aspect}`}。</p></details></div> : <p className="text-2xs text-text-muted">共享 {sourceFrame.aspect} {stock ? "素材源，其他导出画幅复用" : "视频源，其他导出画幅复用"}。</p>}
     {errors.status && <p role="alert" className="text-xs text-warn">{errors.status}，正在重试。</p>}
     {!ordered.length && <p className="py-8 text-center text-sm text-text-muted">真实配音完成后生成视频分镜。</p>}
     <div ref={gridRef} className="space-y-5">{[...groups].map(([groupId, shots], groupIndex) => <section key={groupId} aria-label={`镜头组 ${groupIndex + 1}`}>

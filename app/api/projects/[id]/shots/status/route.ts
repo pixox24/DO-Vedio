@@ -1,4 +1,5 @@
-import { sourceImageSnapshot, sourceImageConfirmed, videoGenerationSnapshot, videoShotTiming } from "@/lib/core/video";
+import { isAiVideo, isStock, isVideoForm, sourceImageSnapshot, sourceImageConfirmed, videoGenerationSnapshot, videoShotTiming } from "@/lib/core/video";
+import { stockSnapshot } from "@/lib/core/stock";
 import { timelineFor } from "@/lib/pipeline/artifacts";
 import { videoFrame, videoRenderProblems } from "@/lib/pipeline/video-generation";
 import { findOriginalMediaAttempt } from "@/lib/providers/runs";
@@ -31,7 +32,7 @@ export async function GET(req: Request, ctx: RouteContext<"/api/projects/[id]/sh
     const requestedSpecId = new URL(req.url).searchParams.get("outputSpecId");
     if (requestedSpecId && requestedSpecId !== "landscape-1080p" && requestedSpecId !== "portrait-1080p") return fail("输出规格无效");
     const sourceFrame = videoFrame(project.doc);
-    const perOutputVideo = project.doc.settings.visualPipeline === "video" && project.doc.settings.assetFraming === "per-output";
+    const perOutputVideo = isVideoForm(project.doc.settings.visualPipeline) && project.doc.settings.assetFraming === "per-output";
     const requestedSpec = requestedSpecId === "landscape-1080p" || requestedSpecId === "portrait-1080p" ? requestedSpecId : undefined;
     const outputFrame = perOutputVideo && requestedSpec ? outputSpecForRequest(project.doc.settings, requestedSpec) : sourceFrame;
 
@@ -84,7 +85,9 @@ export async function GET(req: Request, ctx: RouteContext<"/api/projects/[id]/sh
       }
       out[row.shot_id] = entry;
     }
-    if (project.doc.settings.visualPipeline === "video") {
+    // 这一段是 AI 视频专属的镜头状态机（参考图 / 标准图 / 确认点）。
+    // 素材管线走下面的 stock 分支：它没有参考图与确认点，只有「检索词齐不齐、素材够不够长」。
+    if (isAiVideo(project.doc.settings.visualPipeline)) {
       const doc = project.doc;
       const frame = outputFrame;
       const timeline = timelineFor(doc, id, frame.aspect);
@@ -118,6 +121,45 @@ export async function GET(req: Request, ctx: RouteContext<"/api/projects/[id]/sh
           attemptId: original?.params.attemptId ?? (input?.requestHash === snapshot.hash ? input.attemptId : undefined),
           providerTaskId: original?.params.taskId, sourceImageAssetId: shot.sourceImageAssetId,
           costStatus: original?.params.costStatus ?? "unknown", targetDurationMs: timing.targetDurationMs, requestDurationSeconds: timing.requestDurationSeconds,
+        } as ShotStatus;
+      }
+    }
+    // 素材管线的状态机。与 AI 视频共用 `VideoState` 这套词，但判据完全不同：
+    // 没有参考图、没有标准图、没有确认点，只有「检索词 → 时长够不够 → 素材在不在」。
+    // 面板据此显示「检索素材 / 素材已就绪 / 素材需要更新」。
+    if (isStock(project.doc.settings.visualPipeline)) {
+      const doc = project.doc;
+      const frame = outputFrame;
+      const timeline = timelineFor(doc, id, frame.aspect);
+      const stockRows = all<{ shot_id: string; status: JobStatus; progress: number; message: string; error: string | null; created_at: number; request_hash: string | null }>(
+        `SELECT json_extract(input, '$.shotId') AS shot_id, status, progress, message, error, created_at,
+                json_extract(input, '$.requestHash') AS request_hash
+         FROM jobs
+         WHERE project_id = ? AND stage = 'shot-stock' AND json_extract(input, '$.shotId') IS NOT NULL
+         ORDER BY created_at DESC`,
+        id,
+      );
+      for (const shot of doc.shots) {
+        const timing = videoShotTiming(doc, shot, timeline);
+        const snapshot = stockSnapshot(doc, shot, timeline, frame);
+        // 只认指纹对得上的那条：改过检索词之后旧任务的状态不该顶上来。
+        const latest = stockRows.find((row) => row.shot_id === shot.id && row.request_hash === snapshot.hash);
+        const problems = videoRenderProblems(doc, timeline, frame, [shot]);
+        let state: string;
+        if (videoPlanNeedsSync(shot) || !shot.stockQuery) state = "waiting-plan";
+        else if (!timing.ready) state = "waiting-tts";
+        else if (latest && (latest.status === "queued" || latest.status === "running")) state = "downloading";
+        else if (!problems.length) state = "ready";
+        else if (latest?.status === "failed") state = "failed";
+        else if (latest?.status === "canceled") state = "canceled";
+        else state = shot.assetId ? "stale" : "ready-to-generate";
+        out[shot.id] = {
+          status: state === "ready" ? "succeeded" : latest?.status ?? "queued",
+          progress: state === "ready" ? 1 : latest?.progress ?? 0,
+          message: latest?.message ?? "",
+          error: state === "failed" ? latest?.error ?? problems[0] ?? null : null,
+          total: latest ? 1 : 0, done: state === "ready" ? 1 : 0, failed: latest?.status === "failed" ? 1 : 0, running: state === "downloading" ? 1 : 0,
+          state, snapshotHash: snapshot.hash, targetDurationMs: timing.targetDurationMs, requestDurationSeconds: timing.requestDurationSeconds,
         } as ShotStatus;
       }
     }

@@ -17,7 +17,7 @@ export type PresetGroup = (typeof presetGroupIds)[number];
 
 export const presetGroupMeta: Record<PresetGroup, { label: string; hint: string }> = {
   output: { label: "输出与素材", hint: "画幅、预览画幅、素材策略" },
-  video: { label: "画面管线", hint: "图片/视频驱动、视频模型、参考图模型、生成分辨率与自动连续" },
+  video: { label: "画面管线", hint: "图片/AI 视频/视频素材驱动、视频模型、参考图模型、检索参数与自动连续" },
   voice: { label: "配音", hint: "服务商、音色、语速、合成粒度、表达指令" },
   subtitle: { label: "字幕", hint: "字幕样式、字体、动效、双语" },
   music: { label: "配乐与音效", hint: "配乐开关、音量、自动压低、动画音效" },
@@ -76,6 +76,9 @@ export type PresetApplyResult = {
 
 const voiceKey = (voice: Settings["voice"]) => `${voice.provider}::${voice.model}::${voice.voiceId}`;
 
+/** 画面管线的中文名。摘要文案与设置面板共用一套口径，避免同一枚举出现两种叫法。 */
+const pipelineLabels: Record<Settings["visualPipeline"], string> = { image: "图片", video: "AI 视频", stock: "视频素材" };
+
 /** 按勾选的组把预设应用到文档；返回新文档与降级警告，不改动未勾选的组 */
 export function applyPresetToDoc(
   doc: ProjectDoc,
@@ -118,7 +121,7 @@ export function applyPresetToDoc(
       warnings.push(`预设参考图模型「${video.referenceImageModelId}」当前不可用，已保留项目原参考图模型`);
       video.referenceImageModelId = settings.video.referenceImageModelId;
     }
-    settings = { ...settings, visualPipeline: payload.settings.visualPipeline, video };
+    settings = { ...settings, visualPipeline: payload.settings.visualPipeline, video, stock: { ...payload.settings.stock } };
   }
 
   if (groups.has("subtitle")) {
@@ -181,11 +184,13 @@ export function describePresetChanges(
   if (groups.has("video")) {
     const next = applyPresetToDoc(doc, payload, { groups: ["video"] }, context).doc.settings;
     const changes: string[] = [];
-    if (doc.settings.visualPipeline !== next.visualPipeline) changes.push(`画面管线 ${doc.settings.visualPipeline === "video" ? "视频" : "图片"} → ${next.visualPipeline === "video" ? "视频" : "图片"}`);
+    if (doc.settings.visualPipeline !== next.visualPipeline) changes.push(`画面管线 ${pipelineLabels[doc.settings.visualPipeline]} → ${pipelineLabels[next.visualPipeline]}`);
     if (doc.settings.video.modelId !== next.video.modelId) changes.push(`视频模型 ${doc.settings.video.modelId} → ${next.video.modelId}`);
     if (doc.settings.video.referenceImageModelId !== next.video.referenceImageModelId) changes.push(`参考图模型 ${doc.settings.video.referenceImageModelId || "自动选择"} → ${next.video.referenceImageModelId || "自动选择"}`);
     if (doc.settings.video.resolution !== next.video.resolution) changes.push(`生成分辨率 ${doc.settings.video.resolution} → ${next.video.resolution}`);
     if (doc.settings.video.autoContinue !== next.video.autoContinue) changes.push(`自动连续 ${onOff(doc.settings.video.autoContinue)} → ${onOff(next.video.autoContinue)}`);
+    if (doc.settings.stock.minDurationSec !== next.stock.minDurationSec) changes.push(`素材最短时长 ${doc.settings.stock.minDurationSec}s → ${next.stock.minDurationSec}s`);
+    if (doc.settings.stock.perPage !== next.stock.perPage) changes.push(`每次检索条数 ${doc.settings.stock.perPage} → ${next.stock.perPage}`);
     if (changes.length) out.push({ group: "video", label: presetGroupMeta.video.label, changes });
   }
 

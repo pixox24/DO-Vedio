@@ -33,6 +33,33 @@ describe("分镜草稿转镜头", () => {
     expect(shots[1].sceneId).toBeUndefined();
     expect(shots[1].groupId).toBe(shots[0].groupId);
   });
+  it("素材草稿：多写一个检索词不该让整段作废，归一化后照常出镜头", async () => {
+    const { stockDraftSchema, toVideoShots } = await import("@/lib/pipeline/stages/storyboard");
+    const videoPlan = { startState: "A man sits on a sofa.", action: "He looks at his phone.", camera: "Static camera.", endState: "He keeps looking." };
+    // 真实事故：模型给了 5 个词，旧 schema 的 2–4 词硬校验让整段分镜作废、二分到单句仍失败。
+    // 同一个事故里模型还会多写 importanceNote —— 旧 schema 的 .strict() 同样整段判废。
+    const drafts = stockDraftSchema.parse({ shots: [
+      { ...draft({ intent: "刷手机", description: "男人窝在沙发里刷手机", shotSize: "medium", motion: "none", groupId: "刷手机", videoPlan, stockQuery: "man holding phone dark room", importanceNote: "模型自说自话补的字段" }) },
+      { ...draft({ lineId: "b", intent: "只写了中文", description: "焦虑", shotSize: "close", motion: "none", groupId: "刷手机", videoPlan, stockQuery: "深夜里的焦虑情绪" }) },
+    ] }).shots;
+    // 多给的字段被剥掉，不参与后续写回。
+    expect(drafts[0]).not.toHaveProperty("importanceNote");
+    const shots = toVideoShots(drafts, lines, new Set(), new Set());
+    // 5 个词截到 4 个，仍然带主体。
+    expect(shots[0].stockQuery).toBe("man holding phone dark");
+    // 归一化后为空 → 退到按执行计划派生的规则词，而不是留空让检索永远等下去。
+    expect(shots[1].stockQuery).toBe("man sits sofa");
+  });
+
+  it("AI 视频草稿不产出检索词", async () => {
+    const { videoDraftSchema, toVideoShots } = await import("@/lib/pipeline/stages/storyboard");
+    const videoPlan = { startState: "A woman stands at the window.", action: "She opens the window.", camera: "Static camera.", endState: "The window is open." };
+    const drafts = videoDraftSchema.parse({ shots: [
+      { ...draft({ intent: "开窗", description: "女人打开窗户", shotSize: "medium", motion: "none", groupId: "开窗", videoPlan }) },
+    ] }).shots;
+    expect(toVideoShots(drafts, lines, new Set(), new Set())[0].stockQuery).toBeUndefined();
+  });
+
   it("旧草稿转为统一重点文字，生成画面带景别", async () => {
     const { toShots } = await import("@/lib/pipeline/stages/storyboard");
     const shots = toShots(

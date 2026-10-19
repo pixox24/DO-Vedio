@@ -2,7 +2,8 @@ import { randomUUID } from "crypto";
 import { outputSpecForRequest, outputSpecsFor, type GenerationFrame } from "../core/output-spec";
 import { playbackAssetId, selectShotCandidate } from "../core/shot-asset";
 import type { Aspect, ProjectDoc, Shot } from "../core/types";
-import { missingVideoStandards, sourceImageConfirmed, sourceImageSnapshot, sourceImageStale, videoGenerationSnapshot, videoShotTiming, videoPlayback } from "../core/video";
+import { isAiVideo, isVideoForm, missingVideoStandards, sourceImageConfirmed, sourceImageSnapshot, sourceImageStale, videoGenerationSnapshot, videoShotTiming, videoPlayback } from "../core/video";
+import { snapshotFor } from "../core/stock";
 import type { Timeline } from "../core/timeline";
 import { findMediaRecoveryRun, findOriginalMediaAttempt } from "../providers/runs";
 import { listProviderProfiles } from "../providers/registry";
@@ -26,8 +27,12 @@ export function videoModelAvailable(modelId: string) {
 export function referenceJobKey(doc: ProjectDoc, shot: Shot, frame: GenerationFrame) {
   return `shot-reference:${shot.id}:${sourceImageSnapshot(doc, shot, frame).promptHash}`;
 }
+
+/**
+ * AI 视频专属前置。素材管线（`stock`）走自己的 `stockPrerequisite`，不经过这里。
+ */
 export function videoPrerequisite(doc: ProjectDoc, shot: Shot, timeline: Timeline): string | undefined {
-  if (doc.settings.visualPipeline !== "video") return "请先切换到 AI 视频驱动";
+  if (!isAiVideo(doc.settings.visualPipeline)) return "请先切换到 AI 视频驱动";
   if (shot.kind !== "video" || !shot.videoPlan) return shot.locked ? "锁定镜头还不是视频分镜，请解锁并重新导演" : "请先重新导演生成视频分镜";
   if (videoPlanNeedsSync(shot)) return "等待中文镜头要求同步到执行计划";
   if (missingVideoStandards(doc, shot).length) return "请先在角色和场景中补齐并采用有效标准图";
@@ -39,7 +44,7 @@ export function videoPrerequisite(doc: ProjectDoc, shot: Shot, timeline: Timelin
 
 /** Readiness checks the selected output for every requested aspect, including probe data. */
 export function videoRenderProblems(doc: ProjectDoc, timeline: Timeline, frame: GenerationFrame, shots: readonly Shot[] = doc.shots): string[] {
-  if (doc.settings.visualPipeline !== "video") return [];
+  if (!isVideoForm(doc.settings.visualPipeline)) return [];
   if (!doc.shots.length) return ["等待视频分镜"];
   // 单镜检查仍需完整分镜上下文：参考图指纹中的情绪取决于相邻镜头的覆盖范围。
   return shots.flatMap((shot) => {
@@ -47,7 +52,8 @@ export function videoRenderProblems(doc: ProjectDoc, timeline: Timeline, frame: 
     if (videoPlanNeedsSync(shot)) return [`镜头 ${shot.id} 等待中文镜头要求同步`];
     const variant = shot.assetVariants[frame.aspect];
     const origin = variant?.source === "shared" && variant.sourceAspect ? videoFrame(doc, outputSpecForRequest(doc.settings, undefined, variant.sourceAspect)) : frame;
-    const snapshot = videoGenerationSnapshot(doc, shot, timeline, origin);
+    // 按管线分发：AI 视频比的是生成指纹，素材比的是检索输入指纹。骨架完全一样。
+    const snapshot = snapshotFor(doc, shot, timeline, origin);
     const assetId = playbackAssetId(shot, frame.aspect);
     const hash = variant ? variant.promptHash : shot.assetPromptHash;
     if (!assetId || hash !== snapshot.hash) return [`镜头 ${shot.id} 的 ${frame.aspect} 视频缺失或已过期`];
@@ -58,7 +64,7 @@ export function videoRenderProblems(doc: ProjectDoc, timeline: Timeline, frame: 
 }
 
 export function usableVideoCandidate(doc: ProjectDoc, shot: Shot, timeline: Timeline, frame: GenerationFrame) {
-  const snapshot = videoGenerationSnapshot(doc, shot, timeline, frame);
+  const snapshot = snapshotFor(doc, shot, timeline, frame);
   return shot.candidates.find((candidate) => {
     if (candidate.kind !== "video" || candidate.promptHash !== snapshot.hash || candidate.generationPromptHash !== snapshot.hash || (videoAssetFraming(doc) === "per-output" && candidate.frame?.aspect !== frame.aspect)) return false;
     const asset = getAsset(candidate.assetId);
@@ -68,7 +74,7 @@ export function usableVideoCandidate(doc: ProjectDoc, shot: Shot, timeline: Time
 
 /** Resume can adopt an already downloaded current result without another provider request. */
 export function adoptReadyVideoCandidates(projectId: string, doc: ProjectDoc, aspects: readonly Aspect[]): ProjectDoc {
-  if (doc.settings.visualPipeline !== "video") return doc;
+  if (!isVideoForm(doc.settings.visualPipeline)) return doc;
   const framing = videoAssetFraming(doc);
   const frames = framing === "shared" ? [videoFrame(doc)] : aspects.map((aspect) => outputSpecForRequest(doc.settings, undefined, aspect));
   let changed = false;
@@ -119,7 +125,7 @@ export function enqueueVideoShot(input: { projectId: string; doc: ProjectDoc; sh
 }
 
 export function enqueueShotReference(projectId: string, doc: ProjectDoc, shot: Shot, frame: GenerationFrame, requestedModelId?: string) {
-  if (doc.settings.visualPipeline !== "video" || shot.kind !== "video" || !shot.videoPlan) throw new PermanentError("请先重新导演生成视频分镜");
+  if (!isAiVideo(doc.settings.visualPipeline) || shot.kind !== "video" || !shot.videoPlan) throw new PermanentError("请先重新导演生成视频分镜");
   if (shot.locked) throw new PermanentError("镜头已锁定，请先解锁");
   if (missingVideoStandards(doc, shot).length) throw new PermanentError("请先在角色和场景中补齐并采用有效标准图");
   const modelId = resolveImageModel(requestedModelId || doc.settings.video.referenceImageModelId || undefined);

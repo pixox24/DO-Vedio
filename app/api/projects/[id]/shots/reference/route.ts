@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { fail, handle, parseBody } from "@/lib/api";
-import { missingVideoStandards, sourceImageSnapshot, sourceImageStale } from "@/lib/core/video";
+import { isAiVideo, missingVideoStandards, sourceImageSnapshot, sourceImageStale } from "@/lib/core/video";
 import { videoPlanNeedsSync } from "@/lib/core/video-plan";
 import { getProject, mutateProject } from "@/lib/server/projects";
 import { projectJobs } from "@/lib/server/jobs";
@@ -23,7 +23,7 @@ export async function POST(req: Request, ctx: Context) {
     const project = getProject(id);
     if (!project) return fail("项目不存在", 404);
     const doc = project.doc;
-    if (doc.settings.visualPipeline !== "video") return fail("请先切换到 AI 视频驱动", 409);
+    if (!isAiVideo(doc.settings.visualPipeline)) return fail("请先切换到 AI 视频驱动", 409);
     const modelId = doc.settings.video.referenceImageModelId;
     if (!modelId || !resolveImageModel(modelId)) return fail("请先在制作设置中保存可用的参考图模型", 409);
     const shots = shotIds.map((shotId) => doc.shots.find((shot) => shot.id === shotId));
@@ -49,7 +49,7 @@ export async function PATCH(req: Request, ctx: Context) {
     const { references } = await parseBody(req, confirmBody);
     let matched = false;
     const project = mutateProject(id, (doc) => {
-      if (doc.settings.visualPipeline !== "video") return null;
+      if (!isAiVideo(doc.settings.visualPipeline)) return null;
       const frame = videoFrame(doc);
       const active = new Set(projectJobs(id).filter((job) => job.stage === "shot-reference" && ["queued", "running"].includes(job.status))
         .map((job) => (job.input as { shotId?: string } | null)?.shotId));

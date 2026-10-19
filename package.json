@@ -19,8 +19,11 @@
     "tts:probe": "node --import tsx scripts/tts-probe.ts",
     "tts:paragraph-probe": "node --import tsx scripts/tts-paragraph-probe.ts",
     "smoke": "tsx scripts/smoke.ts",
+    "stock:probe": "node --import tsx scripts/stock-probe.ts",
     "animation:probe": "node --import tsx scripts/animation-probe.ts",
-    "animation:eval": "node --import tsx scripts/animation-eval.ts"
+    "animation:eval": "node --import tsx scripts/animation-eval.ts",
+    "stock:e2e": "node --import tsx scripts/stock-e2e.ts",
+    "storyboard:probe": "node --import tsx scripts/storyboard-probe.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.62",

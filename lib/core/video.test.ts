@@ -8,7 +8,7 @@ import { selectShotCandidate } from "./shot-asset";
 import { blankShot, normalizeVideoShots } from "./shots";
 import { buildTimeline, layoutLines, type Artifacts } from "./timeline";
 import { characterCardSchema, emptyDoc, projectDocSchema, type Line, type Shot } from "./types";
-import { sourceImageConfirmed, sourceImageSnapshot, sourceImageStale, videoAssetStale, videoGenerationSnapshot, videoPlayback, videoReferenceIds, videoShotTiming } from "./video";
+import { isAiVideo, isStock, isVideoForm, sourceImageConfirmed, sourceImageSnapshot, sourceImageStale, videoAssetStale, videoGenerationSnapshot, videoPlayback, videoReferenceIds, videoShotTiming } from "./video";
 
 const line = (id: string, text = "一段足够长的连续旁白内容"): Line => ({ id, text, segmentIndex: 0, spans: [], keywords: [], locked: false });
 const tts = (text: string, durationMs: number): TtsResult => ({
@@ -170,5 +170,101 @@ describe("video domain contract", () => {
     const target = emptyDoc();
     expect(applyPresetToDoc(target, payload, { groups: ["output"] }).doc.settings.visualPipeline).toBe("image");
     expect(applyPresetToDoc(target, payload, { groups: ["video"] }).doc.settings.visualPipeline).toBe("video");
+  });
+});
+
+/**
+ * 「画面形态是视频」和「画面由 AI 生成」必须分开判断。
+ * 这两件事曾经混在一个 `=== "video"` 里；混回去会让素材管线静默走进图片分支。
+ */
+describe("pipeline form helpers", () => {
+  it("stock is a video form but not AI video", () => {
+    expect(isVideoForm("video")).toBe(true);
+    expect(isVideoForm("stock")).toBe(true);
+    expect(isVideoForm("image")).toBe(false);
+
+    expect(isAiVideo("video")).toBe(true);
+    expect(isAiVideo("stock")).toBe(false);
+    expect(isAiVideo("image")).toBe(false);
+
+    expect(isStock("stock")).toBe(true);
+    expect(isStock("video")).toBe(false);
+  });
+
+  it("treats a missing pipeline as the image default, never as video", () => {
+    for (const missing of [undefined, null, ""]) {
+      expect(isVideoForm(missing)).toBe(false);
+      expect(isAiVideo(missing)).toBe(false);
+      expect(isStock(missing)).toBe(false);
+    }
+  });
+
+  it("keeps the two helpers mutually consistent over every pipeline value", () => {
+    for (const pipeline of ["image", "video", "stock", "unknown"]) {
+      // AI 视频一定是视频形态；素材管线也是视频形态，但不是 AI 视频。
+      if (isAiVideo(pipeline)) expect(isVideoForm(pipeline)).toBe(true);
+      if (isStock(pipeline)) expect(isVideoForm(pipeline)).toBe(true);
+      expect(isAiVideo(pipeline) && isStock(pipeline)).toBe(false);
+    }
+  });
+});
+
+/**
+ * 素材管线的检索词是**独立字段**，不是 `videoPlan` 的一部分。
+ *
+ * 这条契约值钱的地方：`videoGenerationSnapshot` 是「已有 AI 视频是否过期」的唯一判据，
+ * 一旦 `stockQuery` 混进它的哈希，用户切到素材管线就会把自己付过费的 AI 视频全部判为过期。
+ */
+describe("素材检索词与 AI 视频快照解耦", () => {
+  it("给所有镜头补上 stockQuery，AI 视频快照哈希逐位不变", () => {
+    const { doc, art } = fixture();
+    const timeline = buildTimeline(doc, art, "16:9");
+    const before = doc.shots.map((shot) => videoGenerationSnapshot(doc, shot, timeline, frame).hash);
+    const withQuery = { ...doc, shots: doc.shots.map((shot) => ({ ...shot, stockQuery: "woman standing by window" })) };
+    expect(before.every((hash) => typeof hash === "string" && hash.length > 0)).toBe(true);
+    expect(withQuery.shots.map((shot) => videoGenerationSnapshot(withQuery, shot, timeline, frame).hash)).toEqual(before);
+  });
+
+  it("把整个项目切到素材管线，同一镜头的 AI 视频快照哈希也不变", () => {
+    const { doc, art } = fixture();
+    const timeline = buildTimeline(doc, art, "16:9");
+    const shot = { ...doc.shots[0], stockQuery: "woman standing by window" };
+    const before = videoGenerationSnapshot(doc, shot, timeline, frame).hash;
+    const stock = { ...doc, settings: { ...doc.settings, visualPipeline: "stock" as const } };
+    expect(videoGenerationSnapshot(stock, shot, timeline, frame).hash).toBe(before);
+    // 反过来，改了执行计划仍然必须让快照失效——否则这条契约就成了「什么都不过期」。
+    expect(videoGenerationSnapshot(stock, { ...shot, videoPlan: { ...shot.videoPlan!, action: "She walks away." } }, timeline, frame).hash).not.toBe(before);
+  });
+
+  it("镜头 schema 保留 stockQuery，老镜头没有该字段也合法", () => {
+    const { doc } = fixture();
+    const parsed = projectDocSchema.parse({ ...doc, shots: [{ ...doc.shots[0], stockQuery: "woman standing by window" }] });
+    expect(parsed.shots[0].stockQuery).toBe("woman standing by window");
+    expect(projectDocSchema.parse(doc).shots[0].stockQuery).toBeUndefined();
+  });
+
+  it("超长镜头拆成两半时两半共用同一个检索词，由游标错开取到同一素材族的不同片段", () => {
+    const { doc, art } = fixture([24000]);
+    doc.shots[0] = { ...doc.shots[0], stockQuery: "woman standing by window" };
+    const original = buildTimeline(doc, art, "16:9");
+    const times = new Map(layoutLines(doc.lines, art).lines.map((item) => [item.id, item]));
+    let id = 0;
+    const split = normalizeVideoShots(doc.shots, doc.lines, times, original.durationMs, () => `split${++id}`);
+    expect(split.length).toBeGreaterThan(1);
+    expect(split.map((shot) => shot.stockQuery)).toEqual(split.map(() => "woman standing by window"));
+  });
+
+  it("素材检索参数有默认值，越界取值被 schema 拒绝", () => {
+    const doc = emptyDoc();
+    expect(doc.settings.stock).toEqual({ perPage: 15, minDurationSec: 3 });
+    const older = projectDocSchema.parse({ ...doc, settings: { ...doc.settings, stock: undefined } });
+    expect(older.settings.stock).toEqual({ perPage: 15, minDurationSec: 3 });
+    const stock = (patch: Record<string, unknown>) => () => projectDocSchema.parse({ ...doc, settings: { ...doc.settings, stock: { ...doc.settings.stock, ...patch } } });
+    expect(stock({ perPage: 0 })).toThrow();
+    expect(stock({ perPage: 81 })).toThrow();
+    expect(stock({ minDurationSec: 0 })).toThrow();
+    // 旧文档里可能留着已下线的键：schema 不 strict，静默剥掉而不是让整份文档解析失败。
+    const legacy = projectDocSchema.parse({ ...doc, settings: { ...doc.settings, stock: { ...doc.settings.stock, orientation: "portrait", maxCandidates: 3 } } });
+    expect(legacy.settings.stock).toEqual({ perPage: 15, minDurationSec: 3 });
   });
 });

@@ -15,6 +15,7 @@ import { outputSpecForRequest, type GenerationFrame } from "@/lib/core/output-sp
 import { outputSpecsFor } from "@/lib/core/output-spec";
 import type { Aspect, OutputSpecId } from "@/lib/core/types";
 import { enqueueAutoPortraits, enqueueAutoScenes } from "@/lib/pipeline/auto-portrait";
+import { isAiVideo } from "@/lib/core/video";
 
 const body = z.object({ modelId: z.string().min(1).optional(), kind: z.enum(["image", "video"]).optional(), shotIds: z.array(z.string().min(1)).min(1).optional(), candidateCount: z.number().int().min(1).max(4).default(1), outputSpecId: z.enum(["landscape-1080p", "portrait-1080p"]).optional(), aspect: z.enum(["16:9", "9:16"]).optional(), assetFraming: z.enum(["smart-dual", "per-output", "shared"]).optional() });
 
@@ -24,9 +25,10 @@ export async function POST(req: Request, ctx: RouteContext<"/api/projects/[id]/s
     const project = (await ensureProjectVisualStyle(id)) ?? getProject(id);
     if (!project) return fail("项目不存在", 404);
     const input = await parseBody(req, body);
-    const kind = input.kind ?? project.doc.settings.visualPipeline;
+    // 请求 kind 只有 image/video 两种；画面管线是 stock 时它驱动的是素材检索，不是生图请求。
+    const kind = input.kind ?? (isAiVideo(project.doc.settings.visualPipeline) ? "video" : "image");
     if (kind === "video") {
-      if (project.doc.settings.visualPipeline !== "video") return fail("请先切换到 AI 视频驱动", 409);
+      if (!isAiVideo(project.doc.settings.visualPipeline)) return fail("请先切换到 AI 视频驱动", 409);
       if (input.modelId && input.modelId !== project.doc.settings.video.modelId) return fail("请先保存视频模型设置再生成", 409);
       const batchId = randomUUID();
       const targetShots = project.doc.shots.filter((shot) => !input.shotIds || input.shotIds.includes(shot.id));

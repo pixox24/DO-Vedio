@@ -12,8 +12,11 @@ import { anchorText, lookAt } from "../../core/cast";
 import { MAX_SHOT_CHARACTERS } from "../../core/prompt-compiler";
 import { videoDescriptionHash } from "../../core/video-plan";
 import { sanitizeVideoPlan } from "../../core/video-prompt-compiler";
+import { isStock, isVideoForm } from "../../core/video";
+import { normalizeStockQuery, stockQuery } from "../../core/stock";
 import { characterRoleLabels, motions, presentationLabels, shotSizeLabels, shotSizes, type Card, type Line, type ProjectDoc, type Shot } from "../../core/types";
 import { generateJson } from "../../llm";
+import { schemaMissSummary } from "../../schema-miss";
 import { storyboardPrompt, type StoryboardPayload } from "../../prompts";
 import { getTemplate } from "../../templates/store";
 import { cacheGet, cachePut } from "../../server/cache";
@@ -52,18 +55,42 @@ export const draftSchema = z.object({
     }).strict().refine((shot) => shot.mode !== "motion" || !!shot.focusText, "文字镜头必须提炼 focusText"),
   ),
 });
-export const videoDraftSchema = z.object({ shots: z.array(z.object({
+/**
+ * 检索词只挡真正的坏数据（空、离谱地长）。**词数与字符集不在这里判**——
+ * 那是检索质量偏好，交给 `normalizeStockQuery` 归一化，多写一个词不该让整段分镜作废。
+ */
+const stockQueryField = z.string().trim().min(1).max(120);
+
+/**
+ * 视频与素材两条管线共用的镜头字段；差别只在素材管线多一个必填的 stockQuery。
+ *
+ * **视频/素材这两条 schema 不要加 `.strict()`**：模型多写一个 `importanceNote` 之类的
+ * 字段，整段 6 句就会被判废、二分、最后硬停。Zod 默认剥掉未知字段，正是我们要的。
+ * 图像管线的 `draftSchema` 仍保留 `.strict()`——那里拒绝旧 `card` 字段是刻意的迁移契约。
+ */
+const videoShotFields = {
   lineId: z.string(), char: z.number().int().min(0).optional(), intent: z.string(),
   kind: z.literal("placeholder"), mode: z.literal("generate"), shotSize: z.enum(shotSizes),
   description: z.string(), motion: z.literal("none"), importance: z.number().int().min(1).max(3),
   groupId: z.string().trim().min(1),
-  videoPlan: z.object({ startState: z.string().trim().min(1), action: z.string().trim().min(1), camera: z.string().trim().min(1), endState: z.string().trim().min(1) }).strict()
+  videoPlan: z.object({ startState: z.string().trim().min(1), action: z.string().trim().min(1), camera: z.string().trim().min(1), endState: z.string().trim().min(1) })
     .refine((plan) => Object.values(sanitizeVideoPlan(plan)).every((value) => /[a-z]/i.test(value) && !/[\u3400-\u9fff\uf900-\ufaff]/.test(value)), "视频执行计划必须使用英文"),
   characters: z.array(z.string()).optional(), sceneId: z.string().optional(),
   focusText: z.object({ text: z.string().trim().min(1).refine((value) => focusVisualWidth(value.replace(/\s+/g, "")) <= 8), emphasis: z.string().optional(), support: z.string().refine((value) => focusVisualWidth(value.replace(/\s+/g, "")) <= 8).optional() }).optional(),
-}).strict()).min(1) });
+};
 
-export function toVideoShots(draft: z.infer<typeof videoDraftSchema>["shots"], lines: Line[], characterIds: Set<string>, sceneIds: Set<string>): Shot[] {
+export const videoDraftSchema = z.object({ shots: z.array(z.object(videoShotFields)).min(1) });
+/** 素材管线的每一镜都必须给出检索词：它是检索与缓存键的一部分，缺了就搜不出东西。 */
+export const stockDraftSchema = z.object({ shots: z.array(z.object({ ...videoShotFields, stockQuery: stockQueryField })).min(1) });
+
+/** 草稿 schema 按画面管线分发。stock 的检索词必填，video 不产出该字段。 */
+export const draftSchemaFor = (stock: boolean) => stock ? stockDraftSchema : videoDraftSchema;
+
+type StockDraftShot = z.infer<typeof stockDraftSchema>["shots"][number];
+/** stockQuery 可选：视频管线不产出检索词，素材管线必须产出。 */
+type DraftEntry = Omit<StockDraftShot, "stockQuery"> & { stockQuery?: string };
+
+export function toVideoShots(draft: DraftEntry[], lines: Line[], characterIds: Set<string>, sceneIds: Set<string>): Shot[] {
   const byAnchor = new Map(draft.map((entry) => [`${entry.lineId}:${entry.char ?? 0}`, entry]));
   return toShots(draft, lines, characterIds, sceneIds).map((shot) => {
     const entry = byAnchor.get(`${shot.at.lineId}:${shot.at.char}`) ?? draft.find((item) => item.lineId === shot.at.lineId);
@@ -72,7 +99,16 @@ export function toVideoShots(draft: z.infer<typeof videoDraftSchema>["shots"], l
     const focusText = focus && focusNumbersMatchSource(focus.text, caption) ? {
       ...focus, support: focus.support && focusNumbersMatchSource(focus.support, caption) ? focus.support : undefined, layoutMode: "auto" as const,
     } : undefined;
-    return { ...shot, kind: "video", mode: "generate", motion: "none", groupId: entry?.groupId, videoPlan: entry?.videoPlan && sanitizeVideoPlan(entry.videoPlan), videoPlanDescriptionHash: videoDescriptionHash(shot.description),
+    const videoPlan = entry?.videoPlan && sanitizeVideoPlan(entry.videoPlan);
+    // 检索词：先归一化模型给的值（多写的词截掉）；归一化后为空（比如只写了中文）
+    // 就退到按执行计划派生的规则词。**绝不在这里抛错**——一个措辞不合规的检索词
+    // 不该让整段分镜作废。video 管线不产出该字段，`entry.stockQuery` 为 undefined
+    // 时什么都不写。
+    const stockQueryValue = entry?.stockQuery === undefined
+      ? ""
+      : normalizeStockQuery(entry.stockQuery) || stockQuery({ ...shot, videoPlan });
+    return { ...shot, kind: "video", mode: "generate", motion: "none", groupId: entry?.groupId, videoPlan, videoPlanDescriptionHash: videoDescriptionHash(shot.description),
+      ...(stockQueryValue ? { stockQuery: stockQueryValue } : {}),
       focusText };
   });
 }
@@ -104,7 +140,9 @@ export function rangeMatchesCurrent(source: Line[], current: Line[], range: { fr
 /** 需要重做的连续句子范围 */
 export function staleRanges(doc: ProjectDoc): { from: number; to: number }[] {
   if (doc.shots.length === 0) return doc.lines.length ? [{ from: 0, to: doc.lines.length - 1 }] : [];
-  if (doc.settings.visualPipeline === "video" && doc.shots.some((shot) => !shot.locked && !shot.videoPlan)) return doc.lines.length ? [{ from: 0, to: doc.lines.length - 1 }] : [];
+  if (isVideoForm(doc.settings.visualPipeline) && doc.shots.some((shot) => !shot.locked && !shot.videoPlan)) return doc.lines.length ? [{ from: 0, to: doc.lines.length - 1 }] : [];
+  // 素材管线多一个必填检索词：缺了就搜不出素材，同样按过期处理让分镜补齐。
+  if (isStock(doc.settings.visualPipeline) && doc.shots.some((shot) => !shot.locked && !shot.stockQuery)) return doc.lines.length ? [{ from: 0, to: doc.lines.length - 1 }] : [];
   const { shots, stale } = repairShots(doc.shots, doc.lines, doc.lines);
   const order = new Map(doc.lines.map((l, k) => [l.id, k]));
   const sorted = sortShots(shots, doc.lines);
@@ -257,7 +295,9 @@ export const storyboardStage = defineStage<StoryboardInput, { shots: number; llm
     const template = await getTemplate(doc.brief.templateId).catch(() => undefined);
     // 章节与大纲一一对应时带上本章要点
     const points = doc.sections.length === doc.segments.length ? doc.sections.map((x) => x.points) : [];
-    const video = doc.settings.visualPipeline === "video";
+    const video = isVideoForm(doc.settings.visualPipeline);
+    const stock = isStock(doc.settings.visualPipeline);
+    const draftSchemaForRun = draftSchemaFor(stock);
     const cast = castForStoryboard(doc);
     const castIds = new Set(cast.map((c) => c.id));
 
@@ -285,7 +325,7 @@ export const storyboardStage = defineStage<StoryboardInput, { shots: number; llm
       }
       const payload: StoryboardPayload = {
         title: doc.brief.title,
-        visualPipeline: video ? "video" : undefined,
+        visualPipeline: video ? (stock ? "stock" : "video") : undefined,
         visualStyle: video ? JSON.stringify(doc.visualStyle) : undefined,
         brief: { summary: doc.brief.summary, audience: doc.brief.audience, perspective: doc.brief.perspective },
         style: template && { name: template.name, description: template.description, tone: template.tone },
@@ -309,7 +349,12 @@ export const storyboardStage = defineStage<StoryboardInput, { shots: number; llm
         const prompt = storyboardPrompt(payload);
         const generation = beginGenerationRun({ projectId: input.projectId, jobId: ctx.job.id, providerId: input.modelId === "claude" ? "anthropic" : input.modelId, modelId: input.modelId, kind: "text", inputHash: key, params: { stage: "storyboard", lineCount: slice.length, range: [r.from, r.to] } });
         try {
-          const raw = await generateJson(input.modelId, video ? videoDraftSchema : draftSchema, prompt, ctx.signal, video ? 0 : 2, video ? { maxOutputTokens: 8192 } : undefined);
+          // 素材管线多一个必填检索词：给模型一次改格式的机会，而不是直接切小范围重来。
+          const raw = stock
+            ? await generateJson(input.modelId, stockDraftSchema, prompt, ctx.signal, 1, { maxOutputTokens: 8192 })
+            : video
+              ? await generateJson(input.modelId, videoDraftSchema, prompt, ctx.signal, 0, { maxOutputTokens: 8192 })
+              : await generateJson(input.modelId, draftSchema, prompt, ctx.signal, 2);
           if (!ctx.current()) throw ctx.signal.reason ?? new DOMException("任务已取消", "AbortError");
           draft = raw.shots;
           cachePut(key, "storyboard", draft);
@@ -321,20 +366,26 @@ export const storyboardStage = defineStage<StoryboardInput, { shots: number; llm
           failGenerationRun(generation, e, ctx.signal.aborted);
           if (video && NoObjectGeneratedError.isInstance(e) && ctx.current()) {
             const canSplit = r.from < r.to;
-            noteGenerationRun(generation.id, { finishReason: e.finishReason, responseChars: e.text?.length ?? 0, usage: e.usage, recovery: canSplit ? "split-range" : "stopped" });
+            const issues = schemaMissSummary(e);
+            noteGenerationRun(generation.id, { finishReason: e.finishReason, responseChars: e.text?.length ?? 0, usage: e.usage, recovery: canSplit ? "split-range" : "stopped", ...(issues ? { schemaIssues: issues } : {}) });
             if (canSplit) {
               cachePut(`${key}:split`, "storyboard", { split: true });
               splitRange();
               ctx.log(`视频分镜第 ${r.from + 1}–${r.to + 1} 句响应无法解析，缩小范围继续（${e.finishReason ?? "unknown"}）。`);
               continue;
             }
-            throw new PermanentError(`第 ${r.from + 1} 句视频分镜${e.finishReason === "length" ? "输出达到长度上限" : "返回的 JSON 格式不正确"}，已停止自动重试。请切换文本模型后重新生成成片。`);
+            // 归因要说清楚是「被截断」还是「哪个字段不合规」：笼统说「JSON 格式不正确」
+            // 会把运维引向换模型，而真正的原因可能只是一个字段越界。
+            const reason = e.finishReason === "length"
+              ? "输出达到长度上限"
+              : issues ? `字段不符合要求（${issues.slice(0, 120)}）` : "返回的 JSON 格式不正确";
+            throw new PermanentError(`第 ${r.from + 1} 句视频分镜${reason}，已停止自动重试。可换用其它文本模型后重新生成成片。`);
           }
           throw e;
         }
       }
       if (!ctx.current()) throw ctx.signal.reason ?? new DOMException("任务已取消", "AbortError");
-      const shots = video ? toVideoShots(videoDraftSchema.parse({ shots: draft }).shots, slice, castIds, new Set(doc.scenes.map((scene) => scene.id))) : toShots(draft, slice, castIds, new Set(doc.scenes.map((scene) => scene.id)));
+      const shots = video ? toVideoShots(draftSchemaForRun.parse({ shots: draft }).shots, slice, castIds, new Set(doc.scenes.map((scene) => scene.id))) : toShots(draft, slice, castIds, new Set(doc.scenes.map((scene) => scene.id)));
       // 保证范围的第一句有镜头
       if (!shots.some((s) => s.at.lineId === slice[0].id && s.at.char === 0)) shots.unshift(video && shots[0] ? { ...shots[0], id: randomUUID(), at: { lineId: slice[0].id, char: 0 } } : blankShot(randomUUID(), slice[0].id));
       fresh.push(...shots);
@@ -357,7 +408,7 @@ export const storyboardStage = defineStage<StoryboardInput, { shots: number; llm
         if (video) {
           const ids = new Set(doc.lines.slice(r.from, r.to + 1).map((line) => line.id));
           const semanticShots = (source: ProjectDoc) => source.shots.filter((shot) => ids.has(shot.at.lineId)).map((shot) => ({
-            id: shot.id, at: shot.at, description: shot.description, plan: shot.videoPlan, descriptionHash: shot.videoPlanDescriptionHash,
+            id: shot.id, at: shot.at, description: shot.description, plan: shot.videoPlan, descriptionHash: shot.videoPlanDescriptionHash, stockQuery: shot.stockQuery,
             characters: shot.characterIds, scene: shot.sceneId, locked: shot.locked, shotSize: shot.shotSize, focusText: shot.focusText,
           }));
           if (quickHash(semanticShots(doc)) !== quickHash(semanticShots(cur))) return;

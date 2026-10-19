@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { fail, handle, parseBody } from "@/lib/api";
-import { missingVideoStandards, sourceImageSnapshot, sourceImageStale } from "@/lib/core/video";
+import { isAiVideo, missingVideoStandards, sourceImageSnapshot, sourceImageStale } from "@/lib/core/video";
 import { getProject, mutateProject } from "@/lib/server/projects";
 import { enqueueShotReference, videoFrame } from "@/lib/pipeline/video-generation";
 import { wakeCurrentGoal } from "@/lib/pipeline/plan";
@@ -17,7 +17,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; sh
     let project = getProject(id);
     let shot = project?.doc.shots.find((item) => item.id === shotId);
     if (!project || !shot) return fail("镜头不存在", 404);
-    if (project.doc.settings.visualPipeline !== "video" || shot.kind !== "video" || !shot.videoPlan) return fail("请先重新导演生成视频分镜", 409);
+    if (!isAiVideo(project.doc.settings.visualPipeline) || shot.kind !== "video" || !shot.videoPlan) return fail("请先重新导演生成视频分镜", 409);
     if (shot.locked) return fail("镜头已锁定，请先解锁", 409);
     if (videoPlanNeedsSync(shot)) return fail("等待中文镜头要求同步到执行计划", 409);
     if (missingVideoStandards(project.doc, shot).length) return fail("请先在角色和场景中补齐并采用有效标准图", 409);
@@ -41,7 +41,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string; s
     let matched = false;
     const project = mutateProject(id, (doc) => {
       const shot = doc.shots.find((item) => item.id === shotId);
-      if (!shot || shot.locked || doc.settings.visualPipeline !== "video" || !shot.sourceImageAssetId || videoPlanNeedsSync(shot) || missingVideoStandards(doc, shot).length) return null;
+      if (!shot || shot.locked || !isAiVideo(doc.settings.visualPipeline) || !shot.sourceImageAssetId || videoPlanNeedsSync(shot) || missingVideoStandards(doc, shot).length) return null;
       const snapshot = sourceImageSnapshot(doc, shot, videoFrame(doc));
       if (snapshot.hash !== confirmHash || sourceImageStale(doc, shot, videoFrame(doc))) return null;
       matched = true;

@@ -4,7 +4,7 @@ import { acceptsFreeVoiceInstruction } from "../core/types";
 import { stampShots } from "../core/shots";
 import { renderMatches, type TimelineHashes } from "../core/output-flow";
 import { animationHash, contentHash, timelineHash } from "../core/timeline";
-import type { Aspect, Job, ProjectDoc } from "../core/types";
+import type { Aspect, Job, ProjectDoc, Shot } from "../core/types";
 import { outputSpecForRequest } from "../core/output-spec";
 import { cacheDelete, cacheGet, cacheHas, cacheMany, projectSpend } from "../server/cache";
 import { all, get, run } from "../server/db";
@@ -22,10 +22,13 @@ import type { Quality } from "./render";
 import { staleRanges } from "./stages/storyboard";
 import { autoPortraitPlan, autoScenePlan, isAutoPortraitInput } from "./auto-portrait";
 import { castSourceHash } from "../core/cast";
-import { missingVideoStandards, sourceImageStale, videoGenerationSnapshot } from "../core/video";
+import { isAiVideo, isStock, isVideoForm, missingVideoStandards, sourceImageStale, videoGenerationSnapshot } from "../core/video";
+import { stockExclusions, stockFrame, stockSnapshot } from "../core/stock";
+import { stockConfigured } from "../providers/stock";
 import { videoPlanNeedsSync } from "../core/video-plan";
 import { videoPlanSyncStep } from "./video-plan-sync";
 import { referenceJobKey, videoAttempt, videoFrame, videoPrerequisite, videoRenderProblems, videoModelAvailable, videoAssetFraming, adoptReadyVideoCandidates, usableVideoCandidate } from "./video-generation";
+import { stockPrerequisite } from "./stages/shot-stock";
 import { resolveImageModel } from "./image-models";
 import { voiceDirectionKey, type VoiceDirectionCache } from "./voice-direction";
 
@@ -46,6 +49,14 @@ export type Plan = { steps: PlanStep[]; currentKeys: string[]; waiting: string[]
 
 export { syncLines } from "../core/sync";
 import { syncLines } from "../core/sync";
+
+/**
+ * 一镜是否是「当前画面管线可用的视频分镜」。
+ * 素材管线额外要求检索词：没有它检索无从下手，缺了就等于这一镜没准备好。
+ */
+function shotReadyForPipeline(doc: ProjectDoc, shot: Shot) {
+  return shot.kind === "video" && !!shot.videoPlan && (!isStock(doc.settings.visualPipeline) || !!shot.stockQuery);
+}
 
 export function textModelId(doc: ProjectDoc) {
   return pickTextModelId([doc.settings.modelId, doc.modelId], listTextModels());
@@ -166,9 +177,9 @@ export function planPipeline(projectId: string, doc: ProjectDoc, goal: Goal): Pl
   // 4) 分镜（配音齐了才做，因为节奏依赖真实时长）
   const storyboardSig = JSON.stringify(doc.lines.map((line) => line.id + line.text)) + JSON.stringify(doc.shots.map((shot) => shot.id + shot.sourceHash + shot.locked)) + JSON.stringify(doc.settings.visualPipeline ?? "image");
   const storyboardJobKey = `storyboard:${projectId}:${hashStr(storyboardSig)}`;
-  let shotsReady = doc.shots.length > 0 && staleRanges(doc).length === 0 && (doc.settings.visualPipeline !== "video" || doc.shots.every((shot) => shot.kind === "video" && !!shot.videoPlan));
+  let shotsReady = doc.shots.length > 0 && staleRanges(doc).length === 0 && (!isVideoForm(doc.settings.visualPipeline) || doc.shots.every((shot) => shotReadyForPipeline(doc, shot)));
   if (voiced && !castReady && !shotsReady) waiting.push("等待识别角色和场景");
-  const lockedNonVideo = doc.settings.visualPipeline === "video" && doc.shots.some((shot) => shot.locked && (shot.kind !== "video" || !shot.videoPlan));
+  const lockedNonVideo = isVideoForm(doc.settings.visualPipeline) && doc.shots.some((shot) => shot.locked && !shotReadyForPipeline(doc, shot));
   if (lockedNonVideo) waiting.push("锁定镜头还不是视频分镜，请解锁并重新导演");
   if (voiced && castReady && !shotsReady && modelId && !(lockedNonVideo && staleRanges(doc).length === 0)) {
     const mode = doc.shots.length === 0 ? "full" : "stale";
@@ -184,7 +195,7 @@ export function planPipeline(projectId: string, doc: ProjectDoc, goal: Goal): Pl
   }
   if (voiced && !modelId) {
     waiting.push("没有可用文本模型，请在模型中心配置并启用");
-    shotsReady = doc.shots.length > 0 && (doc.settings.visualPipeline !== "video" || doc.shots.every((shot) => shot.kind === "video" && !!shot.videoPlan));
+    shotsReady = doc.shots.length > 0 && (!isVideoForm(doc.settings.visualPipeline) || doc.shots.every((shot) => shotReadyForPipeline(doc, shot)));
   }
   if (!shotsReady && voiced) waiting.push("等待分镜");
 
@@ -209,12 +220,16 @@ export function planPipeline(projectId: string, doc: ProjectDoc, goal: Goal): Pl
   // 双语没译完时不排渲染：渲染键在入队时就按当前文稿算好，译文还没写回会做出没有副行的成片。
   const mediaKeys: string[] = [];
   let videosReady = true;
-  if (doc.settings.visualPipeline === "video") {
+  if (isVideoForm(doc.settings.visualPipeline)) {
     videosReady = false;
     if (voiced && shotsReady) {
+      const stock = isStock(doc.settings.visualPipeline);
       const referenceFrame = videoFrame(doc);
       const imageModel = doc.settings.video.referenceImageModelId && resolveImageModel(doc.settings.video.referenceImageModelId);
-      const activeReferences = all<{ shotId: string; key: string }>("SELECT json_extract(input, '$.shotId') AS shotId, key FROM jobs WHERE project_id = ? AND stage = 'shot-reference' AND status IN ('queued','running')", projectId);
+      const activeReferences = stock ? [] : all<{ shotId: string; key: string }>("SELECT json_extract(input, '$.shotId') AS shotId, key FROM jobs WHERE project_id = ? AND stage = 'shot-reference' AND status IN ('queued','running')", projectId);
+      // Key 没配时只提示一次：逐镜刷屏没有意义，而且每一镜都注定失败。
+      const stockReady = !stock || stockConfigured();
+      if (!stockReady) waiting.push("未配置 PEXELS_API_KEY，请在模型中心配置后再制作");
       for (const shot of doc.shots) {
         if (videoPlanNeedsSync(shot)) {
           if (shot.locked) waiting.push(`镜头 ${shot.id} 已锁定，请解锁后同步镜头要求`);
@@ -224,6 +239,26 @@ export function planPipeline(projectId: string, doc: ProjectDoc, goal: Goal): Pl
             steps.push(sync);
             mediaKeys.push(sync.key);
             waiting.push(`镜头 ${shot.id} 等待中文镜头要求同步`);
+          }
+          continue;
+        }
+        // 素材管线：一镜一步。检索输入的指纹没变且素材仍可用时什么都不排。
+        // 它不需要参考图、标准图和视频模型，所以走自己的前置检查。
+        if (stock) {
+          // 画幅策略与 AI 视频同一套口径：共享时只搜一次（另一画幅走 sourceAspect 复用），
+          // 分别生成时每个画幅各搜一次——素材方向不同，硬裁会把两侧切掉。
+          const specs = videoAssetFraming(doc) === "shared" ? [stockFrame(doc)] : goal.aspects.map((aspect) => stockFrame(doc, outputSpecForRequest(doc.settings, undefined, aspect)));
+          for (const frame of specs) {
+            const timeline = timelineFor(doc, projectId, frame.aspect);
+            const snapshot = stockSnapshot(doc, shot, timeline, frame);
+            // 先记键：Key 被移除前提交的任务仍在跑，也要能被 currentKeys 认出来。
+            mediaKeys.push(snapshot.key);
+            if (!stockReady) continue;
+            const prerequisite = stockPrerequisite(doc, shot, timeline);
+            if (prerequisite) { waiting.push(`镜头 ${shot.id} ${prerequisite}`); continue; }
+            if (!videoRenderProblems(doc, timeline, frame, [shot]).length) continue;
+            if (shot.locked) { waiting.push(`镜头 ${shot.id} 已锁定且素材缺失或过期`); continue; }
+            steps.push({ stage: "shot-stock", key: snapshot.key, target: `检索素材 ${shot.id}`, input: { projectId, shotId: shot.id, frame, requestHash: snapshot.hash, excludeAssetIds: stockExclusions(shot) }, cost: 0, priority: 6 });
           }
           continue;
         }
@@ -337,10 +372,13 @@ function goalJobKey(key: string, goalId?: string) {
 /** 页面读取的计划和真正入队的任务必须使用同一套键，否则当前任务会被当成旧任务。 */
 function planForGoal(plan: Plan, goalId?: string): Plan {
   if (!goalId) return plan;
+  // 媒体类步骤自己算键（快照哈希），加 goalId 后缀会和入队键对不上。
+  const mediaStage = (stage: string) => ["shot-reference", "shot-generate", "shot-stock"].includes(stage);
+  const mediaKey = (key: string) => key.startsWith("video-plan:") || key.startsWith("shot:") || key.startsWith("stock:");
   return {
     ...plan,
-    steps: plan.steps.map((step) => ({ ...step, key: isAutoPortraitInput(step.input) || ["shot-reference", "shot-generate"].includes(step.stage) || step.key.startsWith("video-plan:") ? step.key : goalJobKey(step.key, goalId) })),
-    currentKeys: plan.currentKeys.map((key) => key.startsWith("auto-portrait:") || key.startsWith("auto-scene:") || key.startsWith("shot-reference:") || key.startsWith("shot:") || key.startsWith("video-plan:") ? key : goalJobKey(key, goalId)),
+    steps: plan.steps.map((step) => ({ ...step, key: isAutoPortraitInput(step.input) || mediaStage(step.stage) || mediaKey(step.key) ? step.key : goalJobKey(step.key, goalId) })),
+    currentKeys: plan.currentKeys.map((key) => key.startsWith("auto-portrait:") || key.startsWith("auto-scene:") || key.startsWith("shot-reference:") || mediaKey(key) ? key : goalJobKey(key, goalId)),
   };
 }
 
@@ -355,7 +393,7 @@ export function produce(projectId: string, goal: Goal, opts: { dryRun?: boolean;
   const synced = syncLines(p.doc);
   if (synced !== p.doc && !opts.dryRun) p = mutateProject(projectId, (d) => syncLines(d))!;
   let doc = opts.dryRun ? synced : p.doc;
-  if (doc.settings.visualPipeline === "video" && !doc.settings.video.referenceImageModelId) {
+  if (isAiVideo(doc.settings.visualPipeline) && !doc.settings.video.referenceImageModelId) {
     const model = listProviderProfiles().find((profile) => profile.kind === "image" && profile.adapterStatus === "ready" && profile.configured && profile.enabled);
     if (model) {
       const referenceImageModelId = `${model.providerId}::${model.modelId}`;
@@ -363,7 +401,7 @@ export function produce(projectId: string, goal: Goal, opts: { dryRun?: boolean;
       doc = opts.dryRun ? withModel(doc) : mutateProject(projectId, (current) => current.settings.video.referenceImageModelId ? null : withModel(current))!.doc;
     }
   }
-  if (!opts.dryRun && doc.settings.visualPipeline === "video") {
+  if (!opts.dryRun && isAiVideo(doc.settings.visualPipeline)) {
     doc = mutateProject(projectId, (current) => {
       const adopted = adoptReadyVideoCandidates(projectId, current, goal.aspects);
       return adopted === current ? null : adopted;
@@ -384,7 +422,7 @@ export function produce(projectId: string, goal: Goal, opts: { dryRun?: boolean;
     const input = opts.goalId && typeof s.input === "object" && s.input !== null
       ? { ...(s.input as Record<string, unknown>), goalId: opts.goalId }
       : s.input;
-    enqueued.push(enqueue({ projectId, stage: s.stage, maxAttempts: ["shot-reference", "shot-generate"].includes(s.stage) || s.key.startsWith("video-plan:") ? 1 : undefined, key: s.key, target: s.target, input, priority: s.priority, costEstimate: s.cost }));
+    enqueued.push(enqueue({ projectId, stage: s.stage, maxAttempts: ["shot-reference", "shot-generate", "shot-stock"].includes(s.stage) || s.key.startsWith("video-plan:") ? 1 : undefined, key: s.key, target: s.target, input, priority: s.priority, costEstimate: s.cost }));
   }
   return { plan, enqueued, spentYuan: spent };
 }
@@ -439,7 +477,7 @@ function settle(projectId: string, r: ProduceResult) {
   const active = goalId
     ? get<{ n: number }>("SELECT COUNT(*) AS n FROM jobs WHERE project_id = ? AND status IN ('queued', 'running') AND json_extract(input, '$.goalId') = ?", projectId, goalId)?.n ?? 0
     : get<{ n: number }>("SELECT COUNT(*) AS n FROM jobs WHERE project_id = ? AND status IN ('queued', 'running')", projectId)?.n ?? 0;
-  const activeMedia = all<{ key: string }>("SELECT key FROM jobs WHERE project_id = ? AND stage IN ('shot-reference','shot-generate','storyboard') AND status IN ('queued','running')", projectId).some((job) => r.plan.currentKeys.includes(job.key));
+  const activeMedia = all<{ key: string }>("SELECT key FROM jobs WHERE project_id = ? AND stage IN ('shot-reference','shot-generate','shot-stock','storyboard') AND status IN ('queued','running')", projectId).some((job) => r.plan.currentKeys.includes(job.key));
   if (active > 0 || activeMedia) return;
   if (r.plan.steps.length === 0) return r.plan.waiting.length ? block(projectId, r.plan.waiting[0]) : setGoal(projectId, null);
   // 自动立绘失败过就不再自动重提。只剩这类任务时直接收掉目标：一张立绘不该把已经做完的流水线停在「无法继续」。
@@ -457,7 +495,7 @@ export function advance(job: Job) {
   if (!job.projectId) return;
   const g = getGoal(job.projectId);
   if (!g) return;
-  const referenceSettled = job.stage === "character-sheet" || job.stage === "scene-reference" || job.stage === "shot-reference" || job.stage === "shot-generate" && (job.input as { kind?: string } | null)?.kind === "video";
+  const referenceSettled = job.stage === "character-sheet" || job.stage === "scene-reference" || job.stage === "shot-reference" || job.stage === "shot-stock" || job.stage === "shot-generate" && (job.input as { kind?: string } | null)?.kind === "video";
   if (g.blocked && !referenceSettled) return;
   if (!referenceSettled && g.goal.goalId && (typeof job.input !== "object" || job.input === null || (job.input as { goalId?: unknown }).goalId !== g.goal.goalId)) return;
   if (!getProject(job.projectId)) return setGoal(job.projectId, null);

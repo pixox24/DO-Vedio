@@ -1,10 +1,11 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import { generateText, Output, streamText, type LanguageModel } from "ai";
+import { generateText, NoObjectGeneratedError, Output, streamText, type LanguageModel } from "ai";
 import { z } from "zod";
 import { STREAM_ERROR_MARK, type ModelInfo } from "./types";
 import { baseUrlOf, getBuiltinTextModel, modelEnvName } from "./providers/catalog";
 import { customTextModel, listProviderProfiles, listTextModels } from "./providers/registry";
+import { schemaMissSummary } from "./schema-miss";
 
 const env = (name: string) => process.env[name]?.trim() || undefined;
 
@@ -129,6 +130,13 @@ export async function generateJson<T extends z.ZodType>(modelId: string, schema:
 
       // 如果是最后一次尝试，抛出错误
       if (attempt === maxRetries) {
+        // 结构化输出失败时，光看「response did not match schema」无从下手：
+        // 到底是哪个字段、模型到底写了什么，都在错误对象里。默认不打印（含用户正文），
+        // 排查时用 DEBUG_LLM_JSON=1 打开。
+        if (process.env.DEBUG_LLM_JSON && NoObjectGeneratedError.isInstance(e)) {
+          console.error(`[llm] ${modelId} 结构化输出不匹配：${schemaMissSummary(e) ?? e.message}`);
+          console.error(`[llm] 原始响应（前 4000 字）：\n${(e.text ?? "").slice(0, 4000)}`);
+        }
         console.error(`generateJson 失败，已重试 ${maxRetries} 次:`, errorMsg);
         throw e;
       }

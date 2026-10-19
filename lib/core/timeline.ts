@@ -16,7 +16,7 @@ import { inferCardTemplate, isActiveLegacyTemplate, isCodeCardShot } from "./leg
 import { compactKeywords, compactText } from "./text";
 import { focusVisualWidth, normalizeFocusText, resolveFocusCaption, resolveFocusText } from "./focus";
 import { scoreTimelineSfx, type SfxCue, type SfxSources } from "./sfx";
-import { videoPlayback, type VideoArtifact } from "./video";
+import { isVideoForm, videoPlayback, type VideoArtifact } from "./video";
 
 /**
  * 时间轴 —— 纯函数。输入 = 项目文档 + 机器产物（配音缓存、曲库），输出 = Remotion 的 inputProps。
@@ -376,7 +376,7 @@ export function buildTimeline(doc: ProjectDoc, art: Artifacts, aspectOrSpec: Asp
 
   // 镜头
   const profile = themeOf(doc.visualStyle).motion;
-  const videoPipeline = doc.settings.visualPipeline === "video";
+  const videoPipeline = isVideoForm(doc.settings.visualPipeline);
   const normalized = videoPipeline ? doc.shots : normalizeAnimation(doc.shots, doc.lines, times, profile);
   const sorted = sortShots(videoPipeline ? normalized : choreograph(normalized, doc.lines, times, profile), doc.lines);
   const transitionMs = themeOf(doc.visualStyle).motion.punchy ? 520 : 400;

@@ -2,6 +2,7 @@ import { charsFor, countChars } from "./duration";
 import { rewriteActions, speechRateLabels, type Brief, type RewriteAction, type Section, type SpeechRate, type StyleTemplate } from "./types";
 import type { Prompt } from "./llm";
 import { detectAiTone, groupHits } from "./humanize/detect";
+import { isStock, isVideoForm } from "./core/video";
 import { notAiTone, rules } from "./humanize/rules";
 import { assignMemes, countMemeUses, enabledMemeCategories, groundedBudget, groundedLevels, MAX_USES_PER_GROUNDED, MAX_USES_PER_MEME, memeBudget, memeCategories, memeCircles, memeHeats, memesForSection, resolveSlang, slangLevels, type Meme, type MemeRef } from "./memes";
 import type { ToneContext } from "./humanize/detect";
@@ -572,7 +573,8 @@ ${input.script}`,
 }
 
 export type StoryboardPayload = {
-  visualPipeline?: "image" | "video";
+  /** stock 与 video 共用同一次导演调用；stock 额外产出 stockQuery。 */
+  visualPipeline?: "image" | "video" | "stock";
   visualStyle?: string;
   title: string;
   brief: { summary: string; audience: string; perspective: "first" | "third" };
@@ -589,7 +591,7 @@ export type StoryboardPayload = {
 };
 
 export function storyboardPrompt(input: StoryboardPayload): Prompt {
-  if (input.visualPipeline === "video") return videoStoryboardPrompt(input);
+  if (isVideoForm(input.visualPipeline)) return videoStoryboardPrompt(input);
   let cur = -1;
   const body: string[] = [];
   for (const l of input.lines) {
@@ -646,19 +648,36 @@ ${body.join("\n")}
   };
 }
 
+/**
+ * 素材管线的检索词规则。Pexels 这类库存源对长句 query 表现很差，
+ * 「必须带上主体」是检索质量的关键——这条硬约束来自 MoneyPrinterTurbo 的实测结论。
+ */
+const stockQueryRules = `stockQuery 是这一镜检索库存实拍素材用的英文关键词，必须同时满足：
+- 纯英文小写字母和单个空格，不含标点、数字单位、中文和引号；
+- 2–4 个词，不要写成长句或短语堆砌；
+- **必须包含画面的主体**（人、物或地点），再加最能区分它的动作或环境词；
+- 写能被通用实拍素材覆盖的主体，不写专有人名、品牌名、剧情细节、抽象概念或情绪词。
+示例：男人在雨夜街头奔跑 → "man running rain street"；手指在键盘上打字 → "hands typing keyboard"；夜晚的城市车流 → "city traffic night"。`;
+
+const stockShotKindRules = `每镜的画面都将由库存实拍素材匹配，所以必须设计成**存在通用实拍素材**的画面：优先自然、城市、生活、工作、人物剪影、手部与物件特写。避免需要特定人物外貌、特定建筑、虚构场景、精确构图或连续剧情动作才能成立的画面。仍禁止 motion 模式与独立文字卡。`;
+
+const generatedShotKindRules = `每镜均为可生成的视频画面，禁止 motion 模式、独立文字卡、real/stock 素材卡。`;
+
 /** Same director call, but video plans never use the image-card choreography. */
 export function videoStoryboardPrompt(input: StoryboardPayload): Prompt {
+  const stock = isStock(input.visualPipeline);
+  const shotFields = `lineId、char（句中起始字符，默认0）、intent、kind="placeholder"、mode="generate"、shotSize、description、motion="none"、importance（1-3）、groupId、videoPlan${stock ? "、stockQuery" : ""}`;
   return {
     instructions: `你是旁白视频导演。输入包含原文、真实 TTS 的句子/字级时间、现有角色卡、场景卡和视觉风格。
 只根据输入事实设计画面，不重写旁白，不新增无依据的人物或地点。
-输出严格 JSON，顶层为 shots 数组；每项必须包含 lineId、char（句中起始字符，默认0）、intent、kind="placeholder"、mode="generate"、shotSize、description、motion="none"、importance（1-3）、groupId、videoPlan。
+输出严格 JSON，顶层为 shots 数组；每项必须包含 ${shotFields}。
 videoPlan 为 {startState,action,camera,endState}，四项必须用英文；intent/description 用中文。startState 要具体描述起始构图、主体可见特征、服饰、位置、环境和光线，角色特征准确翻译输入身份锚，不能更换造型；场景固定陈设、视觉风格与光线也准确翻译为英文。action 说明动作先后、位移和对象变化，camera 写明确、相容的相机运动，endState 写自然收束状态。
-表达紧凑：startState 用1–2句英文，action/camera/endState 各用一句英文；保留身份、服饰、陈设和关键动作，不堆叠重复形容词。intent/description 各用一句中文。
+${stock ? `${stockQueryRules}\n` : ""}表达紧凑：startState 用1–2句英文，action/camera/endState 各用一句英文；保留身份、服饰、陈设和关键动作，不堆叠重复形容词。intent/description 各用一句中文。
 按旁白语义组织 groupId，同一语义段可包含多个独立镜头；组只用于界面组织，每个 shot 独立生成一个连续视频。groupId 使用简短语义名称。同组不等于一次生成，不能输出嵌套镜头。
 沿用 lineId+char 合法锚点，第一镜从第一句 char=0 开始，按时间排序，覆盖完整旁白，无重叠遗漏。时长由程序按 TTS 推导，通常3–8秒，连续动作可更长，但最终区间不得超过15秒。用真实字级时间选择切点，不把停顿删除，不为凑15秒加入无关动作。不在单镜头安排剪切/蒙太奇。
 当前输入可能只是全文中的一段。只为 lines 中的句子生成镜头；segments/brief 用于理解全文，partial.before/after 用于衔接相邻镜头，禁止为这些上下文再输出镜头。接续上一镜的结束状态，同一语义段沿用简短的组名。
 角色出现时用 characters 数组绑定表内 id，地点匹配时用 sceneId 绑定表内 id；没有人物或匹配场景时允许省略，禁止编造 id。按照该句造型和身份锚保持人物一致；真实公众人物按指定背影/剪影/手部/象征物呈现，不生成正脸。
-每镜均为可生成的视频画面，禁止 motion 模式、独立文字卡、real/stock 素材卡。重点文字可写 focusText={text,emphasis?,support?}，以后期叠加；text/support 各最多8个等价汉字宽度，数字必须与原文一致，不复制整句字幕，不要求模型绘制文字。
+${stock ? stockShotKindRules : generatedShotKindRules}重点文字可写 focusText={text,emphasis?,support?}，以后期叠加；text/support 各最多8个等价汉字宽度，数字必须与原文一致，不复制整句字幕，不要求模型绘制文字。
 旁白由外部 TTS 播放。description 和 videoPlan 四字段均不得复制台词、引号对白，不得包含说话、耳语、喊话、嘴唇开合、口型配合或绘制字幕的动作；原文中的对白只转译为无声的可见反应、目光或肢体动作。不得使用 says/speaks/whispers/mouths/lip-sync 等表演指令。重点文字只放 focusText，由后期叠加。画面中的手机屏幕遵守物理朝向，只有抽象色块，不写可读文字。不声称已视觉检查图片。
 只输出规划，不输出推理过程。`,
     prompt: JSON.stringify(input),

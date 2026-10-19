@@ -59,3 +59,9 @@ next-env.d.ts
 
 # Playwright MCP 调试产物（控制台日志、页面快照，不进仓库）
 /.playwright-mcp/
+
+# 本地视频素材库（用户自备媒体，不进仓库；素材管线本轮只接 Pexels）
+/Video-asset-library/
+
+# 项目级 AI 工作数据（本地记忆与任务状态，不进仓库）
+/.workbuddy-ai/

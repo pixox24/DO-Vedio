@@ -12,7 +12,7 @@ import { quickHash } from "../../core/hash";
 import { selectShotCandidate } from "../../core/shot-asset";
 import { sceneSourceHash } from "../../core/scenes";
 import { compileVideoPrompt } from "../../core/video-prompt-compiler";
-import { videoGenerationSnapshot } from "../../core/video";
+import { isAiVideo, videoGenerationSnapshot } from "../../core/video";
 import { timelineFor } from "../artifacts";
 import { videoFrame, videoPrerequisite, videoAssetFraming } from "../video-generation";
 
@@ -239,7 +239,7 @@ async function runVideoShot(input: ShotGenerateInput, ctx: import("../stage").St
     assets.push(assetId);
     mutateProject(input.projectId, (doc) => {
       const current = doc.shots.find((item) => item.id === shot.id);
-      if (!ctx.current() || doc.settings.visualPipeline !== "video" || !current || current.locked || videoGenerationSnapshot(doc, current, timelineFor(doc, input.projectId, frame.aspect), frame).hash !== snapshot.hash) return null;
+      if (!ctx.current() || !isAiVideo(doc.settings.visualPipeline) || !current || current.locked || videoGenerationSnapshot(doc, current, timelineFor(doc, input.projectId, frame.aspect), frame).hash !== snapshot.hash) return null;
       const fresh = assets.map((asset, candidateIndex) => ({ id: `${input.attemptId}:${candidateIndex}`, assetId: asset, selected: false, kind: "video" as const, frame: { aspect: frame.aspect }, promptHash: snapshot.hash, generationPromptHash: snapshot.hash }));
       // A preexisting image output must not prevent adoption of the first video.
       const currentAssetId = current.kind === "video" ? current.assetVariants[frame.aspect]?.assetId ?? (frame.aspect === videoFrame(doc).aspect ? current.assetId : undefined) : undefined;
