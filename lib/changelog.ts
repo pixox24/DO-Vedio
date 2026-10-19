@@ -39,6 +39,18 @@ export const changeKindOrder: ChangeKind[] = ["feature", "improvement", "fix", "
 
 export const changelog: ChangeEntry[] = [
   {
+    version: "0.89.0",
+    date: "2026-10-19",
+    title: "视频素材管线：镜头可检索真实素材",
+    summary: "分镜镜头除了 AI 生成视频，还可以从素材库（Pexels）检索真实视频素材；按来源分流，结果快照与缓存，支持单镜重搜。",
+    items: [
+      { kind: "feature", title: "素材来源与镜头检索词", detail: "画面管线新增 stock 枚举，分镜结构化输出为每个镜头生成检索词；画面判定统一收口为 isVideoForm / isAiVideo。" },
+      { kind: "feature", title: "检索快照与缓存", detail: "视频素材来源层记录检索结果与素材快照并缓存，重复检索命中已有结果，失败镜头可单独重搜。" },
+      { kind: "improvement", title: "按来源分流与单镜重搜", detail: "素材管线在制作界面按来源分流展示；单镜检查可直接重搜该镜头，检索设置单次时长上限。" },
+      { kind: "fix", title: "分镜结构化输出修正", detail: "措辞偏好不再被当作硬门禁，stock 检索词可正常生成。" },
+    ],
+  },
+  {
     version: "0.88.1",
     date: "2026-10-16",
     title: "视频结果状态与长任务取回修复",
